@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Ingestor.Worker-449a270f-ee0e-49f0-b45b-99a7a1748381</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core packages -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    
+    <!-- Redis -->
+    <PackageReference Include="StackExchange.Redis" />
+
+    <!-- Database -->
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Dapper" />
+    
+    <!-- Binance -->
+    <PackageReference Include="Binance.Net" />
+    <PackageReference Include="CryptoExchange.Net" />
+    
+    <!-- Resilience -->
+    <PackageReference Include="Polly" />
+    <PackageReference Include="Polly.Extensions.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Project references -->
+    <ProjectReference Include="..\..\..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>

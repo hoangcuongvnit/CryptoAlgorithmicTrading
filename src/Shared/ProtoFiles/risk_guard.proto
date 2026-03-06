@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option csharp_namespace = "CryptoTrading.RiskGuard.Grpc";
+
+// Risk Guard Service - Validates orders before execution
+service RiskGuardService {
+  rpc ValidateOrder (ValidateOrderRequest) returns (ValidateOrderReply);
+}
+
+message ValidateOrderRequest {
+  string symbol      = 1;
+  string side        = 2;  // "Buy" or "Sell"
+  double quantity    = 3;
+  double entry_price = 4;
+  double stop_loss   = 5;
+  double take_profit = 6;
+}
+
+message ValidateOrderReply {
+  bool   is_approved        = 1;
+  string rejection_reason   = 2;
+  double adjusted_quantity  = 3;
+}

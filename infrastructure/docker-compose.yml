@@ -1,0 +1,246 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: trading_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - trading_network
+
+  ingestor:
+    build:
+      context: ..
+      dockerfile: src/Services/DataIngestor/Ingestor.Worker/Dockerfile
+    container_name: trading_ingestor
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - Trading__Symbols__0=BTCUSDT
+      - Trading__Symbols__1=ETHUSDT
+      - Trading__Symbols__2=BNBUSDT
+      - Trading__Symbols__3=SOLUSDT
+      - Trading__Symbols__4=XRPUSDT
+      - Trading__KlineInterval=1m
+      - Redis__Connection=trading_redis:6379
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+      - Binance__ApiKey=${BINANCE_API_KEY}
+      - Binance__ApiSecret=${BINANCE_API_SECRET}
+      - Binance__UseTestnet=${BINANCE_USE_TESTNET:-true}
+    ports:
+      - "5010:5010"
+    healthcheck:
+      test: ["CMD", "dotnet", "--info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  analyzer:
+    build:
+      context: ..
+      dockerfile: src/Services/Analyzer/Analyzer.Worker/Dockerfile
+    container_name: trading_analyzer
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - Redis__Connection=trading_redis:6379
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+    ports:
+      - "5011:5011"
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  strategy:
+    build:
+      context: ..
+      dockerfile: src/Services/Strategy/Strategy.Worker/Dockerfile
+    container_name: trading_strategy
+    depends_on:
+      redis:
+        condition: service_healthy
+      riskguard:
+        condition: service_healthy
+      executor:
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - Redis__Connection=trading_redis:6379
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+      - GrpcClients__RiskGuard__Address=http://trading_riskguard:5013
+      - GrpcClients__OrderExecutor__Address=http://trading_executor:5014
+    ports:
+      - "5012:5012"
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  riskguard:
+    build:
+      context: ..
+      dockerfile: src/Services/RiskGuard/RiskGuard.API/Dockerfile
+    container_name: trading_riskguard
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+      - RiskRules__MaxDrawdownPercent=${MAX_DRAWDOWN_PERCENT:-5.0}
+      - RiskRules__MinRiskReward=${MIN_RISK_REWARD:-2.0}
+      - RiskRules__MaxPositionSizePercent=${MAX_POSITION_SIZE_PERCENT:-2.0}
+      - RiskRules__CooldownSeconds=${COOLDOWN_SECONDS:-30}
+    ports:
+      - "5013:5013"
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  executor:
+    build:
+      context: ..
+      dockerfile: src/Services/Executor/Executor.API/Dockerfile
+    container_name: trading_executor
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - Trading__PaperTradingMode=${PAPER_TRADING_MODE:-true}
+      - Binance__ApiKey=${BINANCE_API_KEY}
+      - Binance__ApiSecret=${BINANCE_API_SECRET}
+      - Binance__UseTestnet=${BINANCE_USE_TESTNET:-true}
+      - Redis__Connection=trading_redis:6379
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+    ports:
+      - "5014:5014"
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  notifier:
+    build:
+      context: ..
+      dockerfile: src/Services/Notifier/Notifier.Worker/Dockerfile
+    container_name: trading_notifier
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - Redis__Connection=trading_redis:6379
+      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN}
+      - Telegram__ChatId=${TELEGRAM_CHAT_ID:-0}
+    ports:
+      - "5015:5015"
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: src/Gateway/Gateway.API/Dockerfile
+    container_name: trading_gateway
+    depends_on:
+      redis:
+        condition: service_healthy
+      ingestor:
+        condition: service_started
+      analyzer:
+        condition: service_started
+      strategy:
+        condition: service_started
+      riskguard:
+        condition: service_started
+      executor:
+        condition: service_started
+      notifier:
+        condition: service_started
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - Redis__Connection=trading_redis:6379
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  historical-collector:
+    build:
+      context: ..
+      dockerfile: src/Services/HistoricalCollector/HistoricalCollector.Worker/Dockerfile
+    container_name: trading_historical_collector
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - HistoricalData__Enabled=${HISTORICAL_BACKFILL_ENABLED:-false}
+      - HistoricalData__StartDate=${HISTORICAL_START_DATE:-2025-03-01}
+      - HistoricalData__EndDate=${HISTORICAL_END_DATE:-2026-03-06}
+      - HistoricalData__Interval=1m
+      - HistoricalData__Symbols__0=BTCUSDT
+      - HistoricalData__Symbols__1=ETHUSDT
+      - HistoricalData__Symbols__2=BNBUSDT
+      - HistoricalData__Symbols__3=SOLUSDT
+      - HistoricalData__Symbols__4=XRPUSDT
+      - GapFilling__Enabled=true
+      - GapFilling__DailyCheckUtc=02:00
+      - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  trading_network:
+    driver: bridge
+

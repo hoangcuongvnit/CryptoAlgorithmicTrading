@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.so
+*.dylib
+
+# IDE
+.vs/
+.vscode/
+*.sln.iml
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Test results
+TestResults/
+coverage/
+*.trx
+
+# Misc
+.env
+.env.local
+docker-compose.override.yml
+infrastructure/postgres_data/
+infrastructure/.env
