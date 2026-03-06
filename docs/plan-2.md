@@ -134,7 +134,7 @@ Constraints/indexes:
 - [x] Create `HistoricalCollector.Worker` project.
 - [x] Implement Binance Vision downloader + CSV parser.
 - [x] Implement bulk insert + idempotent upsert.
-- [ ] Backfill 12 months for 5 symbols.
+- [x] Backfill 12 months for 5 symbols (available monthly snapshots).
 - [x] Add coverage verification script by day/symbol.
 - [x] Enable daily gap detection + gap filling job.
 - [x] Document local and Docker Compose run steps.
@@ -144,32 +144,38 @@ Constraints/indexes:
 ### 1) Start infrastructure
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml up -d redis postgres
+docker compose -f infrastructure/docker-compose.yml up -d redis
 docker compose -f infrastructure/docker-compose.yml ps
 ```
+
+Local PostgreSQL should be running on `localhost:5433` with database `cryptotrading`.
 
 ### 2) Run one-time 12-month backfill
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml run --rm \
-  -e HistoricalData__Enabled=true \
-  -e HistoricalData__StartDate=2025-03-01 \
-  -e HistoricalData__EndDate=2026-03-06 \
-  historical-collector
+dotnet run --project .\src\Services\HistoricalCollector\HistoricalCollector.Worker\HistoricalCollector.Worker.csproj -- \
+  --HistoricalData:Enabled=true \
+  --HistoricalData:StartDate=2025-03-01 \
+  --HistoricalData:EndDate=2026-03-06 \
+  --GapFilling:Enabled=false
 ```
 
 ### 3) Run collector continuously for daily gap filling
 
 ```powershell
-docker compose -f infrastructure/docker-compose.yml up -d historical-collector
-docker compose -f infrastructure/docker-compose.yml logs -f historical-collector
+dotnet run --project .\src\Services\HistoricalCollector\HistoricalCollector.Worker\HistoricalCollector.Worker.csproj -- \
+  --HistoricalData:Enabled=false \
+  --GapFilling:Enabled=true
 ```
 
 ### 4) Verify coverage (day/symbol)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\verify-coverage.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-coverage.ps1 \
+  -DbHost localhost -DbPort 5433 -DbName cryptotrading -DbUser postgres -DbPassword postgres
 ```
+
+If `psql` is not in `PATH`, pass `-PsqlPath "C:\Program Files\PostgreSQL\17\bin\psql.exe"`.
 
 ## Definition of Done
 

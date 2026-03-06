@@ -7,8 +7,37 @@ param(
     [int]$DbPort = 5433,
     [string]$DbName = "cryptotrading",
     [string]$DbUser = "postgres",
-    [string]$DbPassword = "postgres"
+    [string]$DbPassword = "postgres",
+    [string]$PsqlPath = ""
 )
+
+function Resolve-PsqlPath {
+    param([string]$OverridePath)
+
+    if ($OverridePath -and (Test-Path $OverridePath)) {
+        return $OverridePath
+    }
+
+    $psqlCommand = Get-Command psql -ErrorAction SilentlyContinue
+    if ($psqlCommand) {
+        return $psqlCommand.Source
+    }
+
+    $candidates = @(
+        "C:\Program Files\PostgreSQL\18\bin\psql.exe",
+        "C:\Program Files\PostgreSQL\17\bin\psql.exe",
+        "C:\Program Files\PostgreSQL\16\bin\psql.exe",
+        "C:\Program Files\PostgreSQL\15\bin\psql.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    throw "psql was not found. Install PostgreSQL client tools, add psql to PATH, or pass -PsqlPath."
+}
 
 $symbolsSql = ($Symbols | ForEach-Object { "'$_'" }) -join ","
 $startText = $StartDate.ToString("yyyy-MM-dd")
@@ -51,5 +80,6 @@ ORDER BY e.symbol, e.day;
 
 Write-Host "Running coverage query from $startText to $endText for symbols: $($Symbols -join ', ')"
 $env:PGPASSWORD = $DbPassword
-psql -h $DbHost -p $DbPort -U $DbUser -d $DbName -c "$query"
+$psqlExe = Resolve-PsqlPath -OverridePath $PsqlPath
+& $psqlExe -h $DbHost -p $DbPort -U $DbUser -d $DbName -c "$query"
 $env:PGPASSWORD = ""
