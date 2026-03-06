@@ -53,3 +53,6 @@ Thumbs.db
 *.so
 *.dylib
 *.dll
+
+# Downloaded files
+src/Services/HistoricalCollector/HistoricalCollector.Worker/downloads
