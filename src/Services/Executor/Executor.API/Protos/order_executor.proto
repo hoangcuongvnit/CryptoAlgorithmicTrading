@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option csharp_namespace = "Executor.API.Protos";
+
+service OrderExecutorService {
+  rpc PlaceOrder (PlaceOrderRequest) returns (PlaceOrderReply);
+}
+
+message PlaceOrderRequest {
+  string symbol      = 1;
+  string side        = 2;
+  string order_type  = 3;
+  double quantity    = 4;
+  double price       = 5;
+  double stop_loss   = 6;
+  double take_profit = 7;
+  string strategy    = 8;
+}
+
+message PlaceOrderReply {
+  bool   success       = 1;
+  string order_id      = 2;
+  double filled_price  = 3;
+  double filled_qty    = 4;
+  string error_message = 5;
+  bool   is_paper      = 6;
+}

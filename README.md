@@ -324,6 +324,10 @@ Speed is money in trading. HTTP REST APIs are not used for inter-service communi
 - Binance API Key & Secret (Testnet recommended for development)
 - Telegram Bot Token + Chat ID
 
+### Quick References
+- **Phase 4 Runbook**: [PHASE4_RUNBOOK.md](docs/PHASE4_RUNBOOK.md) – Complete service startup and testing guide
+- **Phase 5 Observability**: [PHASE5_OBSERVABILITY.md](docs/PHASE5_OBSERVABILITY.md) – Metrics, Prometheus, and Grafana setup
+
 ### 1. Clone the Repository
 
 ```bash
@@ -358,12 +362,20 @@ REDIS_CONNECTION=localhost:6379
 
 ```bash
 cd infrastructure
+
+# Core infrastructure (Redis + PostgreSQL)
 docker compose up -d
+
+# Optional: Observability stack (Prometheus + Grafana + Jaeger)
+docker compose -f docker-compose.yml -f docker-compose-observability.yml up -d
 ```
 
 This starts:
 - **Redis** on `localhost:6379`
 - **PostgreSQL + TimescaleDB** on `localhost:5433`
+- **Prometheus** on `localhost:9090` (optional)
+- **Grafana** on `localhost:3000` (optional, default: admin/admin)
+- **Jaeger** on `localhost:16686` (optional)
 
 ### 4. Run Services Locally
 
@@ -441,40 +453,54 @@ networks:
 
 ## Development Roadmap
 
-### Phase 1 – Foundation (Current)
+### Phase 1 – Foundation ✅
 - [x] Design monorepo project structure
-- [ ] Initialize .NET 8 solution with all service projects
-- [ ] Implement `Shared` library (DTOs, Proto files, Constants)
-- [ ] Build `DataIngestor` – Binance WebSocket + Redis publisher
-- [ ] Build `Notifier` – Telegram Bot integration
-- [ ] Docker Compose for Redis + PostgreSQL/TimescaleDB
+- [x] Initialize .NET 8 solution with all service projects
+- [x] Implement `Shared` library (DTOs, Proto files, Constants)
+- [x] Build `DataIngestor` – Binance WebSocket + Redis publisher
+- [x] Build `Notifier` – Telegram Bot integration
+- [x] Docker Compose for Redis + PostgreSQL/TimescaleDB
 
-### Phase 2 – Signal Pipeline
-- [ ] Implement `SignalAnalyzer` with RSI, EMA, Bollinger Bands
-- [ ] Design and implement `TradeSignal` schema in TimescaleDB
-- [ ] Unit tests for all indicator calculations
+### Phase 2 – Signal Pipeline ✅
+- [x] Implement `SignalAnalyzer` with RSI, EMA, Bollinger Bands
+- [x] Design and implement `TradeSignal` schema in TimescaleDB
+- [x] Unit tests for all indicator calculations
 
-### Phase 3 – Trading Brain
-- [ ] Implement `IStrategy` interface and first two strategies
-- [ ] Build `RiskGuard` gRPC service with all risk rules
-- [ ] Integration test: Signal → Brain → RiskGuard flow
+### Phase 3 – Trading Brain ✅
+- [x] Implement `IStrategy` interface and first two strategies
+- [x] Build `RiskGuard` gRPC service with all risk rules
+- [x] Integration test: Signal → Brain → RiskGuard flow
 
-### Phase 4 – Order Execution
-- [ ] Build `OrderExecutor` gRPC service
-- [ ] Polly Circuit Breaker for Binance API calls
-- [ ] Paper trading mode (simulate fills without real orders)
-- [ ] Redis Streams audit log for all order events
+### Phase 4 – Order Execution ✅
+- [x] Build `OrderExecutor` gRPC service with paper trading simulator
+- [x] Polly Circuit Breaker for Binance API calls (5 retries, exponential backoff)
+- [x] Paper trading mode (deterministic fills at reference price + slippage)
+- [x] Redis Streams audit log for all order events with event versioning
+- [x] PostgreSQL persistence with complete order metadata
+- [x] End-to-end integration test (Signal → RiskGuard → Executor → Persistence)
 
-### Phase 5 – Observability & Hardening
-- [ ] OpenTelemetry tracing across all services
-- [ ] Prometheus metrics + Grafana dashboard
-- [ ] Load testing with simulated rapid price feeds
+**Status**: All services running and verified. Orders persisting, audit trail active. See [PHASE4_RUNBOOK.md](docs/PHASE4_RUNBOOK.md)
+
+### Phase 5 – Observability & Hardening (In Progress)
+- [x] OpenTelemetry integration with Executor.API
+- [x] Custom metrics class for order execution tracking
+- [x] Prometheus time-series database configuration
+- [x] Grafana dashboards (order execution metrics, latency, fill rates)
+- [x] Docker Compose with observability stack (Prometheus + Grafana + Jaeger)
+- [ ] Extend tracing to RiskGuard.API and Strategy.Worker
+- [ ] Structured logging with Serilog integration
+- [ ] Load testing with simulated rapid price feeds (1000+ signals/sec)
 - [ ] Native AOT compilation validation for all services
+- [ ] Alert rules for order rejection and latency anomalies
 
-### Phase 6 – Web Dashboard (Optional)
-- [ ] YARP Gateway setup
-- [ ] Blazor or React dashboard for PnL monitoring
-- [ ] Live signal and order feed via SignalR
+**Documentation**: See [PHASE5_OBSERVABILITY.md](docs/PHASE5_OBSERVABILITY.md) for detailed setup and monitoring guide.
+
+### Phase 6 – Web Dashboard & Reporting
+- [ ] YARP Gateway API setup
+- [ ] Dashboard API endpoints (orders, PnL, signals, risk metrics)
+- [ ] Blazor or React frontend for real-time monitoring
+- [ ] Order history & trade analysis API
+- [ ] WebSocket endpoint for live signal/order feed
 
 ---
 
