@@ -1,4 +1,5 @@
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Database;
 using Dapper;
 using HistoricalCollector.Worker.Models;
 using Npgsql;
@@ -9,18 +10,16 @@ public sealed class PriceTickBatchRepository
 {
     private readonly string _connectionString;
 
-    private const string InsertSql = """
-        INSERT INTO price_ticks (time, symbol, price, volume, open, high, low, close, interval)
-        VALUES (@Timestamp, @Symbol, @Price, @Volume, @Open, @High, @Low, @Close, @Interval)
-        ON CONFLICT (time, symbol, interval) DO NOTHING;
-        """;
-
     public PriceTickBatchRepository(IConfiguration configuration)
     {
         _connectionString = configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres is not configured");
     }
 
+    /// <summary>
+    /// Inserts a batch of price ticks into yearly partitioned tables.
+    /// Automatically routes data to the correct table based on timestamp.
+    /// </summary>
     public async Task<int> UpsertBatchAsync(IReadOnlyCollection<PriceTick> batch, CancellationToken cancellationToken)
     {
         if (batch.Count == 0)
@@ -30,7 +29,27 @@ public sealed class PriceTickBatchRepository
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        return await connection.ExecuteAsync(new CommandDefinition(InsertSql, batch, cancellationToken: cancellationToken));
+
+        // Group by year to ensure we insert into correct yearly tables
+        var groupedByYear = PriceTicksTableHelper.GroupByYear(batch);
+        var totalInserted = 0;
+
+        foreach (var (year, ticks) in groupedByYear)
+        {
+            // Ensure table exists for this year (auto-creates if needed)
+            await PriceTicksTableHelper.EnsureTableExistsAsync(connection, ticks[0].Timestamp, cancellationToken);
+            
+            // Generate INSERT SQL for this year's table
+            var insertSql = PriceTicksTableHelper.GenerateInsertSql(year);
+            
+            // Execute batch insert
+            var inserted = await connection.ExecuteAsync(
+                new CommandDefinition(insertSql, ticks, cancellationToken: cancellationToken));
+            
+            totalInserted += inserted;
+        }
+
+        return totalInserted;
     }
 
     public async Task<int> DetectAndStoreDailyGapsAsync(
@@ -46,7 +65,29 @@ public sealed class PriceTickBatchRepository
             return 0;
         }
 
-        const string sql = """
+        // Determine which yearly tables we need to query
+        var startYear = startDateUtc.Year;
+        var endYear = endDateUtc.Year;
+        
+        // Build UNION ALL query across relevant yearly tables
+        var tableQueries = new List<string>();
+        for (var year = startYear; year <= endYear; year++)
+        {
+            var tableName = PriceTicksTableHelper.GetTableNameForYear(year);
+            tableQueries.Add($@"
+                SELECT symbol, time, interval
+                FROM {tableName}
+                WHERE interval = @Interval
+                  AND symbol = ANY(@Symbols)
+                  AND time >= date_trunc('day', @StartDateUtc::timestamptz)
+                  AND time < date_trunc('day', @EndDateUtc::timestamptz) + interval '1 day'
+            ");
+        }
+        
+        var unionQuery = string.Join(" UNION ALL ", tableQueries);
+        var dataGapsTable = PriceTicksTableHelper.GetDataGapsTableName();
+
+        var sql = $"""
             WITH days AS (
                 SELECT generate_series(
                     date_trunc('day', @StartDateUtc::timestamptz),
@@ -58,19 +99,18 @@ public sealed class PriceTickBatchRepository
                 FROM unnest(@Symbols) AS s(symbol)
                 CROSS JOIN days d
             ),
+            all_data AS (
+                {unionQuery}
+            ),
             counts AS (
                 SELECT
                     p.symbol,
                     date_trunc('day', p.time) AS day_start,
                     count(*) AS candle_count
-                FROM price_ticks p
-                WHERE p.interval = @Interval
-                  AND p.symbol = ANY(@Symbols)
-                  AND p.time >= date_trunc('day', @StartDateUtc::timestamptz)
-                  AND p.time < date_trunc('day', @EndDateUtc::timestamptz) + interval '1 day'
+                FROM all_data p
                 GROUP BY p.symbol, date_trunc('day', p.time)
             )
-            INSERT INTO data_gaps (symbol, interval, gap_start, gap_end, detected_at)
+            INSERT INTO {dataGapsTable} (symbol, interval, gap_start, gap_end, detected_at)
             SELECT
                 sd.symbol,
                 @Interval,
@@ -84,7 +124,7 @@ public sealed class PriceTickBatchRepository
             WHERE COALESCE(c.candle_count, 0) < @ExpectedCandlesPerDay
               AND NOT EXISTS (
                 SELECT 1
-                FROM data_gaps g
+                FROM {dataGapsTable} g
                 WHERE g.symbol = sd.symbol
                   AND g.interval = @Interval
                   AND g.gap_start = sd.day_start
@@ -111,7 +151,9 @@ public sealed class PriceTickBatchRepository
 
     public async Task<IReadOnlyList<DataGap>> GetOpenGapsAsync(string interval, int maxRows, CancellationToken cancellationToken)
     {
-        const string sql = """
+        var dataGapsTable = PriceTicksTableHelper.GetDataGapsTableName();
+        
+        var sql = $"""
             SELECT
                 id,
                 symbol,
@@ -120,7 +162,7 @@ public sealed class PriceTickBatchRepository
                 gap_end AS GapEnd,
                 detected_at AS DetectedAt,
                 filled_at AS FilledAt
-            FROM data_gaps
+            FROM {dataGapsTable}
             WHERE filled_at IS NULL
               AND interval = @Interval
             ORDER BY gap_start ASC
@@ -140,8 +182,10 @@ public sealed class PriceTickBatchRepository
 
     public async Task MarkGapFilledAsync(long id, CancellationToken cancellationToken)
     {
-        const string sql = """
-            UPDATE data_gaps
+        var dataGapsTable = PriceTicksTableHelper.GetDataGapsTableName();
+        
+        var sql = $"""
+            UPDATE {dataGapsTable}
             SET filled_at = NOW()
             WHERE id = @Id;
             """;

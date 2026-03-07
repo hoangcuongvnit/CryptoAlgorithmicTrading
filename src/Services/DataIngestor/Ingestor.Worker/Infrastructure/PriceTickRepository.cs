@@ -1,6 +1,7 @@
 using Dapper;
 using Npgsql;
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Database;
 
 namespace Ingestor.Worker.Infrastructure;
 
@@ -9,12 +10,6 @@ public sealed class PriceTickRepository
     private readonly string _connectionString;
     private readonly ILogger<PriceTickRepository> _logger;
 
-    private const string InsertSql = """
-        INSERT INTO price_ticks (time, symbol, price, volume, open, high, low, close, interval)
-        VALUES (@Timestamp, @Symbol, @Price, @Volume, @Open, @High, @Low, @Close, @Interval)
-        ON CONFLICT (time, symbol, interval) DO NOTHING;
-        """;
-
     public PriceTickRepository(IConfiguration configuration, ILogger<PriceTickRepository> logger)
     {
         _connectionString = configuration.GetConnectionString("Postgres")
@@ -22,6 +17,10 @@ public sealed class PriceTickRepository
         _logger = logger;
     }
 
+    /// <summary>
+    /// Inserts real-time price ticks into yearly partitioned tables.
+    /// Automatically routes data to the correct table based on timestamp.
+    /// </summary>
     public async Task<int> UpsertBatchAsync(IReadOnlyCollection<PriceTick> ticks, CancellationToken cancellationToken)
     {
         if (ticks.Count == 0)
@@ -36,14 +35,30 @@ public sealed class PriceTickRepository
 
         try
         {
-            var rows = await connection.ExecuteAsync(new CommandDefinition(
-                InsertSql,
-                ticks,
-                transaction: transaction,
-                cancellationToken: cancellationToken));
+            // Group by year to ensure we insert into correct yearly tables
+            var groupedByYear = PriceTicksTableHelper.GroupByYear(ticks);
+            var totalInserted = 0;
+
+            foreach (var (year, yearTicks) in groupedByYear)
+            {
+                // Ensure table exists for this year (auto-creates if needed)
+                await PriceTicksTableHelper.EnsureTableExistsAsync(connection, yearTicks[0].Timestamp, cancellationToken);
+                
+                // Generate INSERT SQL for this year's table
+                var insertSql = PriceTicksTableHelper.GenerateInsertSql(year);
+                
+                // Execute batch insert
+                var inserted = await connection.ExecuteAsync(new CommandDefinition(
+                    insertSql,
+                    yearTicks,
+                    transaction: transaction,
+                    cancellationToken: cancellationToken));
+                
+                totalInserted += inserted;
+            }
 
             await transaction.CommitAsync(cancellationToken);
-            return rows;
+            return totalInserted;
         }
         catch (Exception ex)
         {
