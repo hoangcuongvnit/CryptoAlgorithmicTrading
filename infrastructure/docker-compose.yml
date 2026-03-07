@@ -185,25 +185,25 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      ingestor:
-        condition: service_started
-      analyzer:
-        condition: service_started
-      strategy:
-        condition: service_started
-      riskguard:
-        condition: service_started
-      executor:
-        condition: service_started
-      notifier:
-        condition: service_started
     environment:
       - DOTNET_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
+      - Dashboard__MaxRangeDaysFor1m=30
+      - Dashboard__MaxRangeDaysForHigherIntervals=365
+      - Dashboard__DefaultPageSize=100
+      - Dashboard__MaxPageSize=500
+      - Dashboard__CacheSeconds=20
     ports:
       - "5000:5000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - trading_network
     logging:
