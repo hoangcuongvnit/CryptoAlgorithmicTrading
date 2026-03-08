@@ -101,7 +101,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
 
         var groupedCounts = dailyCounts
             .GroupBy(item => item.Symbol, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.ToDictionary(row => DateOnly.FromDateTime(row.Day), row => row.Candles), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(group => group.Key, group => group.ToDictionary(row => row.Day, row => row.Candles), StringComparer.OrdinalIgnoreCase);
 
         var nowUtc = DateTime.UtcNow;
         var rows = new List<OverviewSymbolRow>(symbols.Length);
@@ -234,7 +234,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
 
         var countLookup = counts
             .GroupBy(item => item.Symbol, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.ToDictionary(item => DateOnly.FromDateTime(item.Day), item => item.Candles), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(group => group.Key, group => group.ToDictionary(item => item.Day, item => item.Candles), StringComparer.OrdinalIgnoreCase);
 
         var dailyRows = new List<DailyCoverageRow>();
         for (var day = DateOnly.FromDateTime(startUtc.Date); day < DateOnly.FromDateTime(endUtc.Date); day = day.AddDays(1))
@@ -720,7 +720,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
 
     private sealed record OverviewRawRow(string Symbol, long RowCount, DateTime? LatestTimeUtc);
 
-    private sealed record DailyRawRow(string Symbol, DateTime Day, int Candles);
+    private sealed record DailyRawRow(string Symbol, DateOnly Day, int Candles);
 
     private sealed record GapRawRow(
         long Id,
