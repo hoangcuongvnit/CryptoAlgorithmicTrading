@@ -106,11 +106,10 @@ public sealed class HistoricalIngestionService
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var reader = new StreamReader(filePath);
-
-        while (!reader.EndOfStream)
+        string? line;
+        while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync(cancellationToken);
             if (!string.IsNullOrWhiteSpace(line))
             {
                 yield return line;

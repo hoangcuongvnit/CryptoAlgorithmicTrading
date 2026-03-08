@@ -6,18 +6,28 @@ namespace Notifier.Worker.Channels;
 
 public sealed class TelegramNotifier
 {
-    private readonly TelegramBotClient _botClient;
+    private readonly TelegramBotClient? _botClient;
     private readonly long _chatId;
     private readonly ILogger<TelegramNotifier> _logger;
+    private readonly bool _enabled;
 
     public TelegramNotifier(
         string botToken,
         long chatId,
         ILogger<TelegramNotifier> logger)
     {
-        _botClient = new TelegramBotClient(botToken);
         _chatId = chatId;
         _logger = logger;
+
+        if (string.IsNullOrWhiteSpace(botToken) || chatId == 0)
+        {
+            _enabled = false;
+            _logger.LogWarning("Telegram notifications disabled: BotToken or ChatId not configured.");
+            return;
+        }
+
+        _botClient = new TelegramBotClient(botToken);
+        _enabled = true;
     }
 
     public async Task SendStartupNotificationAsync(CancellationToken cancellationToken = default)
@@ -70,9 +80,15 @@ public sealed class TelegramNotifier
 
     private async Task SendMessageAsync(string message, CancellationToken cancellationToken)
     {
+        if (!_enabled)
+        {
+            _logger.LogDebug("[Telegram disabled] {Message}", message.Substring(0, Math.Min(50, message.Length)));
+            return;
+        }
+
         try
         {
-            await _botClient.SendTextMessageAsync(
+            await _botClient!.SendMessage(
                 chatId: _chatId,
                 text: message,
                 cancellationToken: cancellationToken);
@@ -87,9 +103,15 @@ public sealed class TelegramNotifier
 
     public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
+        if (!_enabled)
+        {
+            _logger.LogWarning("Telegram connection test skipped: notifications disabled.");
+            return false;
+        }
+
         try
         {
-            var me = await _botClient.GetMeAsync(cancellationToken);
+            var me = await _botClient!.GetMe(cancellationToken);
             _logger.LogInformation("Telegram bot connected: @{Username}", me.Username);
             return true;
         }

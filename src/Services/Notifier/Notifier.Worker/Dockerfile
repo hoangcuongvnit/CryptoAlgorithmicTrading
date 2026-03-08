@@ -1,21 +1,20 @@
 # Stage 1: Build
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["Directory.Build.props", "."]
 COPY ["Directory.Packages.props", "."]
 COPY ["global.json", "."]
-COPY ["CryptoAlgorithmicTrading.sln", "."]
-
 # Copy project files
 COPY ["src/Shared/Shared.csproj", "src/Shared/"]
 COPY ["src/Services/Notifier/Notifier.Worker/Notifier.Worker.csproj", "src/Services/Notifier/Notifier.Worker/"]
 
 # Restore
-RUN dotnet restore "CryptoAlgorithmicTrading.sln"
+RUN dotnet restore "src/Services/Notifier/Notifier.Worker/Notifier.Worker.csproj"
 
 # Copy all source code
-COPY ["src/", "src/"]
+COPY ["src/Shared/", "src/Shared/"]
+COPY ["src/Services/Notifier/Notifier.Worker/", "src/Services/Notifier/Notifier.Worker/"]
 
 # Build
 RUN dotnet build "src/Services/Notifier/Notifier.Worker/Notifier.Worker.csproj" -c Release -o /app/build
@@ -23,16 +22,11 @@ RUN dotnet build "src/Services/Notifier/Notifier.Worker/Notifier.Worker.csproj" 
 # Stage 2: Publish
 FROM build AS publish
 RUN dotnet publish "src/Services/Notifier/Notifier.Worker/Notifier.Worker.csproj" \
-    -c Release -o /app/publish \
-    --no-build
+    -c Release -o /app/publish
 
 # Stage 3: Runtime
-FROM mcr.microsoft.com/dotnet/runtime:8.0
+FROM mcr.microsoft.com/dotnet/runtime:10.0
 WORKDIR /app
 COPY --from=publish /app/publish .
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:5015/health || exit 1
 
 ENTRYPOINT ["dotnet", "Notifier.Worker.dll"]

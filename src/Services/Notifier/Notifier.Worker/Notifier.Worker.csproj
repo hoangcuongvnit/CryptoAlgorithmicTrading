@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-Notifier.Worker-68f618a7-fe8d-48aa-9eac-5b48f97ea51a</UserSecretsId>
@@ -10,6 +10,7 @@
   <ItemGroup>
     <!-- Core packages -->
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Npgsql" />
     
     <!-- Redis -->
     <PackageReference Include="StackExchange.Redis" />

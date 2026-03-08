@@ -90,8 +90,8 @@ services:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=host.docker.internal;Port=5433;Database=cryptotrading;Username=postgres;Password=postgres
-      - GrpcClients__RiskGuard__Address=http://trading_riskguard:5013
-      - GrpcClients__OrderExecutor__Address=http://trading_executor:5014
+      - Grpc__RiskGuardUrl=http://trading_riskguard:5013
+      - Grpc__ExecutorUrl=http://trading_executor:5014
     ports:
       - "5012:5012"
     restart: unless-stopped
