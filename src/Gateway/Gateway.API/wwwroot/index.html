@@ -55,6 +55,8 @@
             <li class="nav-item"><button class="nav-link" data-tab="quality">Quality</button></li>
             <li class="nav-item"><button class="nav-link" data-tab="schema">Schema</button></li>
             <li class="nav-item"><button class="nav-link" data-tab="workbench">Workbench</button></li>
+            <li class="nav-item"><button class="nav-link" data-tab="risk">Risk Guard</button></li>
+            <li class="nav-item"><button class="nav-link" data-tab="notifier">Notifier</button></li>
         </ul>
 
         <section id="tab-overview" class="tab-panel active">
@@ -151,6 +153,114 @@
             </div>
         </section>
     </main>
+
+        <section id="tab-risk" class="tab-panel">
+            <!-- Stats row -->
+            <div id="riskCards" class="row g-3 mb-3"></div>
+
+            <!-- Drawdown progress -->
+            <div class="card mb-3">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-secondary">Daily Drawdown Used</span>
+                        <span id="riskDrawdownLabel">—</span>
+                    </div>
+                    <div class="progress" style="height:10px">
+                        <div id="riskDrawdownBar" class="progress-bar" role="progressbar" style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <!-- Configuration -->
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header">Configuration</div>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <tbody id="riskConfigTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Cooldowns -->
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>Active Cooldowns</span>
+                            <span id="riskCooldownCount" class="badge bg-warning text-dark">0</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead><tr><th>Symbol</th><th>Last Order</th><th>Remaining</th></tr></thead>
+                                <tbody id="riskCooldownsTable"></tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer text-muted small" id="riskCooldownsEmpty" style="display:none">No active cooldowns</div>
+                    </div>
+                </div>
+
+                <!-- Today counters chart -->
+                <div class="col-lg-4">
+                    <div id="riskDecisionsChart" class="chart-box"></div>
+                </div>
+            </div>
+
+            <!-- Validation history -->
+            <div class="card mt-3">
+                <div class="card-header">Recent Validations (last 50)</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead><tr><th>Time (UTC)</th><th>Symbol</th><th>Side</th><th>Result</th><th>Reason</th></tr></thead>
+                        <tbody id="riskHistoryTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-notifier" class="tab-panel">
+            <!-- Status + metric cards -->
+            <div id="notifierCards" class="row g-3 mb-3"></div>
+
+            <div class="row g-3">
+                <!-- Configuration -->
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header">Configuration</div>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <tbody id="notifierConfigTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today by category chart -->
+                <div class="col-lg-4">
+                    <div id="notifierCategoryChart" class="chart-box"></div>
+                </div>
+
+                <!-- Today's timeline mini-chart -->
+                <div class="col-lg-4">
+                    <div id="notifierTimelineChart" class="chart-box"></div>
+                </div>
+            </div>
+
+            <!-- Notification history -->
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Recent Notifications (last 100)</span>
+                    <span id="notifierTotalBadge" class="badge bg-secondary">0 today</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead><tr><th>Time (UTC)</th><th>Category</th><th>Summary</th></tr></thead>
+                        <tbody id="notifierHistoryTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
     <div id="toast" class="toast-msg"></div>
 

@@ -84,6 +84,7 @@ public sealed class BinanceOrderClient
             return new OrderResult
             {
                 Symbol = request.Symbol,
+                Side = request.Side,
                 Success = false,
                 ErrorMessage = placeOrderResult.Error?.Message ?? "Unknown exchange error",
                 Timestamp = DateTime.UtcNow,
@@ -95,6 +96,7 @@ public sealed class BinanceOrderClient
         {
             OrderId = placeOrderResult.Data.Id.ToString(),
             Symbol = request.Symbol,
+            Side = request.Side,
             Success = true,
             FilledPrice = request.Price,
             FilledQty = request.Quantity,

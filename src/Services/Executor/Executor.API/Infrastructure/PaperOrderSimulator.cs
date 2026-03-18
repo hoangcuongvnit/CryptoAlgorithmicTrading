@@ -31,6 +31,7 @@ public sealed class PaperOrderSimulator
             return new OrderResult
             {
                 Symbol = request.Symbol,
+                Side = request.Side,
                 Success = false,
                 ErrorMessage = "No valid reference price available for paper fill.",
                 Timestamp = DateTime.UtcNow,
@@ -47,6 +48,7 @@ public sealed class PaperOrderSimulator
         {
             OrderId = Guid.NewGuid().ToString("N"),
             Symbol = request.Symbol,
+            Side = request.Side,
             Success = true,
             FilledPrice = decimal.Round(filledPrice, 8, MidpointRounding.AwayFromZero),
             FilledQty = request.Quantity,

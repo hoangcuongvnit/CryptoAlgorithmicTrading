@@ -18,6 +18,7 @@ public sealed class BinanceIngestorWorker : BackgroundService
     private readonly TradingSettings _settings;
     private readonly ILogger<BinanceIngestorWorker> _logger;
     private readonly ConcurrentDictionary<string, UpdateSubscription> _subscriptions = new();
+    private bool _wsEventsHooked;
 
     public BinanceIngestorWorker(
         IBinanceSocketClient socketClient,
@@ -97,6 +98,34 @@ public sealed class BinanceIngestorWorker : BackgroundService
             {
                 _subscriptions.TryAdd($"{symbol}_ticker", tickerResult.Data);
                 _logger.LogInformation("Successfully subscribed to ticker for {Symbol}", symbol);
+
+                // Hook disconnect/reconnect on the first subscription only to avoid duplicate events
+                if (!_wsEventsHooked)
+                {
+                    _wsEventsHooked = true;
+                    tickerResult.Data.ConnectionLost += () =>
+                    {
+                        _logger.LogWarning("Binance WebSocket connection lost");
+                        _ = _redisPublisher.PublishSystemEventAsync(new SystemEvent
+                        {
+                            Type = SystemEventType.ConnectionLost,
+                            ServiceName = "DataIngestor",
+                            Message = "Binance WebSocket disconnected. Reconnecting...",
+                            Timestamp = DateTime.UtcNow
+                        }, CancellationToken.None);
+                    };
+                    tickerResult.Data.ConnectionRestored += delay =>
+                    {
+                        _logger.LogInformation("Binance WebSocket restored after {Delay:F1}s", delay.TotalSeconds);
+                        _ = _redisPublisher.PublishSystemEventAsync(new SystemEvent
+                        {
+                            Type = SystemEventType.ConnectionRestored,
+                            ServiceName = "DataIngestor",
+                            Message = $"Binance WebSocket reconnected (downtime: {delay.TotalSeconds:F1}s)",
+                            Timestamp = DateTime.UtcNow
+                        }, CancellationToken.None);
+                    };
+                }
             }
             else
             {

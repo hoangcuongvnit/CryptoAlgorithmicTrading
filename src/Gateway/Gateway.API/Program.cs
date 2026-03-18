@@ -8,6 +8,18 @@ builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection("D
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IDashboardQueryService, DashboardQueryService>();
 
+builder.Services.AddHttpClient("riskguard", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["RiskGuard:BaseUrl"] ?? "http://localhost:5093");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+builder.Services.AddHttpClient("notifier", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Notifier:BaseUrl"] ?? "http://localhost:5094");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
 var app = builder.Build();
 
 app.UseDefaultFiles();
@@ -146,6 +158,74 @@ dashboardGroup.MapGet("/workbench/template/{templateId}", async (
 		cancellationToken);
 	SetCacheHeaders(httpContext, options.Value.CacheSeconds);
 	return Results.Ok(result);
+});
+
+// ── Risk Guard proxy endpoints ────────────────────────────────────────────
+
+var riskGroup = app.MapGroup("/api/risk");
+
+riskGroup.MapGet("/config", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("riskguard");
+    try
+    {
+        var response = await client.GetAsync("/api/risk/config", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"RiskGuard unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+riskGroup.MapGet("/stats", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("riskguard");
+    try
+    {
+        var response = await client.GetAsync("/api/risk/stats", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"RiskGuard unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+// ── Notifier proxy endpoints ──────────────────────────────────────────────
+
+var notifierGroup = app.MapGroup("/api/notifier");
+
+notifierGroup.MapGet("/config", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("notifier");
+    try
+    {
+        var response = await client.GetAsync("/api/notifier/config", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+notifierGroup.MapGet("/stats", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("notifier");
+    try
+    {
+        var response = await client.GetAsync("/api/notifier/stats", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Gateway.API", utc = DateTime.UtcNow }));

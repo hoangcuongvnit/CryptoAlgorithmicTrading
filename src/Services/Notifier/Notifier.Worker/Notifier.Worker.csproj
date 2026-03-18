@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Worker">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,10 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Core packages -->
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Npgsql" />
-    
     <!-- Redis -->
     <PackageReference Include="StackExchange.Redis" />
     

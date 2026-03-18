@@ -243,12 +243,123 @@ async function loadAll(showRefreshToast = true) {
         renderSchema(schema);
         await loadGaps();
         await loadWorkbench();
+        await loadRisk();
+        await loadNotifier();
         if (showRefreshToast) {
             showToast("Dashboard refreshed");
         }
     } catch (error) {
         console.error(error);
         showToast(error.message);
+    }
+}
+
+async function loadRisk() {
+    try {
+        const [config, stats] = await Promise.all([
+            apiGet("/api/risk/config", {}),
+            apiGet("/api/risk/stats", {})
+        ]);
+        renderRisk(config, stats);
+    } catch (error) {
+        console.error("Failed to load risk data:", error);
+        document.getElementById("riskCards").innerHTML =
+            `<div class="col-12"><div class="alert alert-warning mb-0">Risk Guard unavailable: ${escapeHtml(error.message)}</div></div>`;
+    }
+}
+
+function renderRisk(config, stats) {
+    // ── Metric cards ──────────────────────────────────────────────────────
+    const cards = document.getElementById("riskCards");
+    cards.innerHTML = "";
+
+    const pnlColor = stats.dailyPnl >= 0 ? "#22c55e" : "#ef4444";
+    const cardData = [
+        ["Daily P&L", `<span style="color:${pnlColor}">${stats.dailyPnl >= 0 ? "+" : ""}${Number(stats.dailyPnl).toFixed(2)} USDT</span>`],
+        ["Today Approved", stats.todayApproved],
+        ["Today Rejected", stats.todayRejected],
+        ["Active Cooldowns", (stats.cooldowns || []).length]
+    ];
+
+    for (const [title, value] of cardData) {
+        const col = document.createElement("div");
+        col.className = "col-6 col-lg-3";
+        col.innerHTML = `<div class="metric-card"><div class="text-secondary small">${title}</div><div class="metric-value">${value}</div></div>`;
+        cards.appendChild(col);
+    }
+
+    // ── Drawdown bar ──────────────────────────────────────────────────────
+    const pct = Math.min(100, Math.max(0, Number(stats.drawdownUsedPercent) || 0));
+    const bar = document.getElementById("riskDrawdownBar");
+    bar.style.width = `${pct}%`;
+    bar.className = `progress-bar ${pct >= 80 ? "bg-danger" : pct >= 50 ? "bg-warning" : "bg-success"}`;
+    document.getElementById("riskDrawdownLabel").textContent =
+        `${pct}% of ${Number(stats.maxDrawdownUsd).toFixed(0)} USDT max`;
+
+    // ── Config table ──────────────────────────────────────────────────────
+    const configRows = [
+        ["Min Risk/Reward", config.minRiskReward],
+        ["Max Order Notional", `${config.maxOrderNotional} USDT`],
+        ["Max Position Size", `${config.maxPositionSizePercent}%`],
+        ["Virtual Balance", `${config.virtualAccountBalance} USDT`],
+        ["Max Drawdown", `${config.maxDrawdownPercent}%`],
+        ["Cooldown", `${config.cooldownSeconds}s`],
+        ["Paper Trading Only", config.paperTradingOnly ? "Yes" : "No"],
+        ["Allowed Symbols", (config.allowedSymbols || []).join(", ") || "All"]
+    ];
+
+    const configTable = document.getElementById("riskConfigTable");
+    configTable.innerHTML = "";
+    for (const [label, value] of configRows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="text-secondary small">${label}</td><td class="fw-medium">${value}</td>`;
+        configTable.appendChild(tr);
+    }
+
+    // ── Cooldowns table ───────────────────────────────────────────────────
+    const cooldowns = stats.cooldowns || [];
+    document.getElementById("riskCooldownCount").textContent = cooldowns.length;
+
+    const cooldownsTable = document.getElementById("riskCooldownsTable");
+    const cooldownsEmpty = document.getElementById("riskCooldownsEmpty");
+    cooldownsTable.innerHTML = "";
+
+    if (cooldowns.length === 0) {
+        cooldownsEmpty.style.display = "";
+    } else {
+        cooldownsEmpty.style.display = "none";
+        for (const c of cooldowns) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${c.symbol}</td><td class="text-muted small">${new Date(c.lastOrderUtc).toISOString().slice(11, 19)}</td><td><span class="badge bg-warning text-dark">${c.remainingSeconds}s</span></td>`;
+            cooldownsTable.appendChild(tr);
+        }
+    }
+
+    // ── Today decisions donut chart ───────────────────────────────────────
+    chart("riskDecisionsChart").setOption({
+        title: { text: "Today's Decisions", left: "center" },
+        tooltip: { trigger: "item" },
+        series: [{
+            type: "pie",
+            radius: ["40%", "70%"],
+            data: [
+                { value: stats.todayApproved, name: "Approved", itemStyle: { color: "#22c55e" } },
+                { value: stats.todayRejected, name: "Rejected", itemStyle: { color: "#ef4444" } }
+            ],
+            label: { formatter: "{b}: {c}" }
+        }]
+    }, true);
+
+    // ── Validation history table ──────────────────────────────────────────
+    const historyTable = document.getElementById("riskHistoryTable");
+    historyTable.innerHTML = "";
+    for (const r of (stats.recentValidations || [])) {
+        const tr = document.createElement("tr");
+        const badge = r.approved
+            ? `<span class="badge bg-success">Approved</span>`
+            : `<span class="badge bg-danger">Rejected</span>`;
+        tr.innerHTML = `<td class="text-muted small">${new Date(r.timestampUtc).toISOString().replace("T", " ").slice(0, 19)}</td><td>${r.symbol}</td><td>${r.side}</td><td>${badge}</td><td class="text-muted small">${escapeHtml(r.rejectionReason || "")}</td>`;
+        historyTable.appendChild(tr);
     }
 }
 
@@ -578,6 +689,133 @@ function exportWorkbenchCsv() {
     link.download = `workbench-${Date.now()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+}
+
+async function loadNotifier() {
+    try {
+        const [config, stats] = await Promise.all([
+            apiGet("/api/notifier/config", {}),
+            apiGet("/api/notifier/stats", {})
+        ]);
+        renderNotifier(config, stats);
+    } catch (error) {
+        console.error("Failed to load notifier data:", error);
+        document.getElementById("notifierCards").innerHTML =
+            `<div class="col-12"><div class="alert alert-warning mb-0">Notifier unavailable: ${escapeHtml(error.message)}</div></div>`;
+    }
+}
+
+function renderNotifier(config, stats) {
+    // ── Metric cards ──────────────────────────────────────────────────────
+    const cards = document.getElementById("notifierCards");
+    cards.innerHTML = "";
+
+    const telegramBadge = config.telegramEnabled
+        ? `<span class="badge bg-success">Connected</span>`
+        : `<span class="badge bg-secondary">Disabled</span>`;
+
+    const cardData = [
+        ["Telegram", telegramBadge],
+        ["Today Total", stats.todayTotal || 0],
+        ["Orders", (stats.todayByCategory || {})["order"] || 0],
+        ["System Events", (stats.todayByCategory || {})["system_event"] || 0]
+    ];
+
+    for (const [title, value] of cardData) {
+        const col = document.createElement("div");
+        col.className = "col-6 col-lg-3";
+        col.innerHTML = `<div class="metric-card"><div class="text-secondary small">${title}</div><div class="metric-value">${value}</div></div>`;
+        cards.appendChild(col);
+    }
+
+    // ── Config table ──────────────────────────────────────────────────────
+    const configRows = [
+        ["Telegram", config.telegramEnabled ? "Enabled" : "Disabled"],
+        ["Bot Configured", config.botConfigured ? "Yes" : "No"],
+        ["Chat ID", config.chatId],
+        ["Redis", config.redisConnection],
+        ["History Capacity", config.historyCapacity]
+    ];
+
+    const configTable = document.getElementById("notifierConfigTable");
+    configTable.innerHTML = "";
+    for (const [label, value] of configRows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="text-secondary small">${label}</td><td class="fw-medium">${value}</td>`;
+        configTable.appendChild(tr);
+    }
+
+    // ── Badge ─────────────────────────────────────────────────────────────
+    document.getElementById("notifierTotalBadge").textContent = `${stats.todayTotal || 0} today`;
+
+    // ── Category donut chart ──────────────────────────────────────────────
+    const byCategory = stats.todayByCategory || {};
+    const categoryColors = {
+        startup: "#6366f1",
+        order: "#22c55e",
+        order_rejected: "#ef4444",
+        system_event: "#f59e0b"
+    };
+
+    const pieData = Object.entries(byCategory).map(([name, value]) => ({
+        name,
+        value,
+        itemStyle: { color: categoryColors[name] || "#94a3b8" }
+    }));
+
+    chart("notifierCategoryChart").setOption({
+        title: { text: "Today by Category", left: "center" },
+        tooltip: { trigger: "item" },
+        series: [{
+            type: "pie",
+            radius: ["40%", "70%"],
+            data: pieData.length > 0 ? pieData : [{ name: "No data", value: 1, itemStyle: { color: "#e2e8f0" } }],
+            label: { formatter: "{b}: {c}" }
+        }]
+    }, true);
+
+    // ── Timeline bar chart (by hour bucket) ──────────────────────────────
+    const recentNotifications = stats.recentNotifications || [];
+    const hourBuckets = {};
+    for (const r of recentNotifications) {
+        const hour = new Date(r.timestampUtc).getUTCHours();
+        hourBuckets[hour] = (hourBuckets[hour] || 0) + 1;
+    }
+
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const hourCounts = hours.map(h => hourBuckets[h] || 0);
+
+    chart("notifierTimelineChart").setOption({
+        title: { text: "Activity by Hour (UTC)", left: "center" },
+        tooltip: { trigger: "axis" },
+        xAxis: { type: "category", data: hours.map(h => `${h}:00`), axisLabel: { rotate: 45 } },
+        yAxis: { type: "value", minInterval: 1 },
+        series: [{ type: "bar", data: hourCounts, itemStyle: { color: "#6366f1" } }]
+    }, true);
+
+    // ── Notification history table ────────────────────────────────────────
+    const historyTable = document.getElementById("notifierHistoryTable");
+    historyTable.innerHTML = "";
+
+    const categoryBadgeClass = {
+        startup: "bg-primary",
+        order: "bg-success",
+        order_rejected: "bg-danger",
+        system_event: "bg-warning text-dark"
+    };
+
+    for (const r of recentNotifications) {
+        const tr = document.createElement("tr");
+        const badgeClass = categoryBadgeClass[r.category] || "bg-secondary";
+        tr.innerHTML = `<td class="text-muted small">${new Date(r.timestampUtc).toISOString().replace("T", " ").slice(0, 19)}</td><td><span class="badge ${badgeClass}">${r.category}</span></td><td>${escapeHtml(r.summary)}</td>`;
+        historyTable.appendChild(tr);
+    }
+
+    if (recentNotifications.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="3" class="text-muted text-center">No notifications recorded yet</td>`;
+        historyTable.appendChild(tr);
+    }
 }
 
 async function bootstrap() {

@@ -16,29 +16,30 @@ public sealed class RiskGuardGrpcService : RiskGuardService.RiskGuardServiceBase
         _logger = logger;
     }
 
-    public override Task<ValidateOrderReply> ValidateOrder(ValidateOrderRequest request, ServerCallContext context)
+    public override async Task<ValidateOrderReply> ValidateOrder(
+        ValidateOrderRequest request, ServerCallContext context)
     {
-        var result = _validationEngine.Evaluate(
+        var result = await _validationEngine.EvaluateAsync(
             request.Symbol,
             request.Side,
             (decimal)request.Quantity,
             (decimal)request.EntryPrice,
             (decimal)request.StopLoss,
-            (decimal)request.TakeProfit);
+            (decimal)request.TakeProfit,
+            context.CancellationToken);
 
         if (!result.IsApproved)
         {
             _logger.LogInformation(
-                "RiskGuard rejected {Symbol}: {Reason}",
-                request.Symbol,
-                result.RejectionReason);
+                "RiskGuard rejected {Symbol} {Side}: {Reason}",
+                request.Symbol, request.Side, result.RejectionReason);
         }
 
-        return Task.FromResult(new ValidateOrderReply
+        return new ValidateOrderReply
         {
             IsApproved = result.IsApproved,
             RejectionReason = result.RejectionReason,
             AdjustedQuantity = (double)result.AdjustedQuantity
-        });
+        };
     }
 }

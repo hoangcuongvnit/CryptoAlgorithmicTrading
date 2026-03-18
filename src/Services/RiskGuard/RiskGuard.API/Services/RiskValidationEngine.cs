@@ -1,94 +1,64 @@
-using System.Collections.Concurrent;
-using RiskGuard.API.Configuration;
-using Microsoft.Extensions.Options;
+using RiskGuard.API.Rules;
 
 namespace RiskGuard.API.Services;
 
+/// <summary>
+/// Runs each registered <see cref="IRiskRule"/> in order.
+/// The first rejection short-circuits the chain.
+/// Quantity adjustments from one rule are propagated to all subsequent rules.
+/// </summary>
 public sealed class RiskValidationEngine
 {
-    private readonly RiskSettings _settings;
-    private readonly ConcurrentDictionary<string, DateTime> _lastSymbolOrderTime = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IReadOnlyList<IRiskRule> _rules;
+    private readonly ValidationHistory _history;
+    private readonly ILogger<RiskValidationEngine> _logger;
 
-    public RiskValidationEngine(IOptions<RiskSettings> settings)
+    public RiskValidationEngine(
+        IEnumerable<IRiskRule> rules,
+        ValidationHistory history,
+        ILogger<RiskValidationEngine> logger)
     {
-        _settings = settings.Value;
+        _rules = rules.ToList();
+        _history = history;
+        _logger = logger;
     }
 
-    public RiskEvaluationResult Evaluate(
+    public async Task<RiskEvaluationResult> EvaluateAsync(
         string symbol,
         string side,
         decimal quantity,
         decimal entryPrice,
         decimal stopLoss,
-        decimal takeProfit)
+        decimal takeProfit,
+        CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(symbol))
-        {
-            return RiskEvaluationResult.Reject("Symbol is required.");
-        }
+        var effectiveQty = quantity;
 
-        if (_settings.AllowedSymbols.Count > 0 && !_settings.AllowedSymbols.Contains(symbol, StringComparer.OrdinalIgnoreCase))
+        foreach (var rule in _rules)
         {
-            return RiskEvaluationResult.Reject($"Symbol {symbol} is not allowed.");
-        }
+            var context = new RiskContext(symbol, side, effectiveQty, entryPrice, stopLoss, takeProfit);
+            var result = await rule.EvaluateAsync(context, ct);
 
-        if (quantity <= 0)
-        {
-            return RiskEvaluationResult.Reject("Quantity must be greater than zero.");
-        }
-
-        if (entryPrice <= 0)
-        {
-            return RiskEvaluationResult.Reject("Entry price must be greater than zero.");
-        }
-
-        var notional = quantity * entryPrice;
-        if (_settings.MaxOrderNotional > 0 && notional > _settings.MaxOrderNotional)
-        {
-            var adjustedQuantity = _settings.MaxOrderNotional / entryPrice;
-            return RiskEvaluationResult.Approve(decimal.Round(adjustedQuantity, 8, MidpointRounding.AwayFromZero));
-        }
-
-        if (!string.IsNullOrWhiteSpace(side) && stopLoss > 0 && takeProfit > 0)
-        {
-            var rr = CalculateRiskReward(side, entryPrice, stopLoss, takeProfit);
-            if (rr <= 0 || rr < _settings.MinRiskReward)
+            if (result.IsRejected)
             {
-                return RiskEvaluationResult.Reject($"Risk/reward ratio {rr:0.##} is below minimum {_settings.MinRiskReward:0.##}.");
+                _logger.LogDebug(
+                    "[{Rule}] rejected {Symbol} {Side}: {Reason}",
+                    rule.Name, symbol, side, result.Reason);
+                _history.Record(symbol, side, approved: false, rejectionReason: result.Reason);
+                return RiskEvaluationResult.Reject(result.Reason);
+            }
+
+            if (result.AdjustedQuantity.HasValue)
+            {
+                _logger.LogDebug(
+                    "[{Rule}] adjusted qty for {Symbol}: {Old} → {New}",
+                    rule.Name, symbol, effectiveQty, result.AdjustedQuantity.Value);
+                effectiveQty = result.AdjustedQuantity.Value;
             }
         }
 
-        var now = DateTime.UtcNow;
-        if (_lastSymbolOrderTime.TryGetValue(symbol, out var lastOrderAt))
-        {
-            var elapsed = now - lastOrderAt;
-            if (_settings.CooldownSeconds > 0 && elapsed < TimeSpan.FromSeconds(_settings.CooldownSeconds))
-            {
-                return RiskEvaluationResult.Reject($"Cooldown active for {symbol}. Try again in {Math.Ceiling((_settings.CooldownSeconds - elapsed.TotalSeconds)):0}s.");
-            }
-        }
-
-        _lastSymbolOrderTime[symbol] = now;
-        return RiskEvaluationResult.Approve(quantity);
-    }
-
-    private static decimal CalculateRiskReward(string side, decimal entry, decimal stopLoss, decimal takeProfit)
-    {
-        if (side.Equals("Buy", StringComparison.OrdinalIgnoreCase))
-        {
-            var risk = entry - stopLoss;
-            var reward = takeProfit - entry;
-            return risk <= 0 ? 0 : reward / risk;
-        }
-
-        if (side.Equals("Sell", StringComparison.OrdinalIgnoreCase))
-        {
-            var risk = stopLoss - entry;
-            var reward = entry - takeProfit;
-            return risk <= 0 ? 0 : reward / risk;
-        }
-
-        return 0;
+        _history.Record(symbol, side, approved: true, rejectionReason: string.Empty);
+        return RiskEvaluationResult.Approve(effectiveQty);
     }
 }
 

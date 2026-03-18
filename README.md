@@ -1,6 +1,6 @@
 # Crypto Algorithmic Trading System
 
-A high-performance, microservices-based algorithmic trading system for cryptocurrency markets, built on **.NET 8** with Native AOT optimization. Designed for low-latency execution, resilience, and 24/7 autonomous operation on Binance.
+A high-performance, microservices-based algorithmic trading system for cryptocurrency markets, built on **.NET 10** with Native AOT optimization. Designed for low-latency execution, resilience, and 24/7 autonomous operation on Binance.
 
 ---
 
@@ -48,7 +48,7 @@ Instead of a traditional monolith, this system is decomposed into **6 core micro
 
 | Category        | Technology                                      | Purpose                                  |
 |-----------------|-------------------------------------------------|------------------------------------------|
-| **Runtime**     | .NET 8 (Native AOT)                             | Low memory consumption, fast startup     |
+| **Runtime**     | .NET 10 (Native AOT)                            | Low memory consumption, fast startup     |
 | **Architecture**| Microservices + Monorepo                        | Independent scaling, clean separation   |
 | **Price Feed**  | Redis Pub/Sub                                   | Ultra-low latency market data relay      |
 | **Internal RPC**| gRPC (Protobuf)                                 | Typed, binary-efficient service calls    |
@@ -319,7 +319,7 @@ Speed is money in trading. HTTP REST APIs are not used for inter-service communi
 
 ### Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Binance API Key & Secret (Testnet recommended for development)
 - Telegram Bot Token + Chat ID

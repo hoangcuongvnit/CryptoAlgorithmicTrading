@@ -11,6 +11,8 @@ public sealed class TelegramNotifier
     private readonly ILogger<TelegramNotifier> _logger;
     private readonly bool _enabled;
 
+    public bool IsEnabled => _enabled;
+
     public TelegramNotifier(
         string botToken,
         long chatId,
@@ -65,7 +67,7 @@ public sealed class TelegramNotifier
     {
         var emoji = order.IsPaperTrade ? "📄" : "✅";
         var mode = order.IsPaperTrade ? "PAPER" : "LIVE";
-        var side = order.Symbol.Contains("BUY", StringComparison.OrdinalIgnoreCase) ? "BUY" : "SELL";
+        var side = order.Side.ToString().ToUpperInvariant();
 
         return $"{emoji} {mode} {side} {order.Symbol} @ ${order.FilledPrice:F2}\n" +
                $"Qty: {order.FilledQty:F6} | Time: {order.Timestamp:HH:mm:ss} UTC";

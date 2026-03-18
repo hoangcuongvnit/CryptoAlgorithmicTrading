@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find d:/Code/CryptoAlgorithmicTrading -maxdepth 2 -name *.Test.csproj -o -name *Tests.csproj)",
+      "Bash(dotnet build:*)",
+      "Bash(ls d:/Code/CryptoAlgorithmicTrading/src/Gateway/Gateway.API/wwwroot/*.html)",
+      "Bash(find d:/Code/CryptoAlgorithmicTrading/src/Services/Ingestor -name *.cs)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(echo \"=== $f ===\")",
+      "Read(//d/Code/CryptoAlgorithmicTrading/**)",
+      "Bash(done)"
+    ]
+  }
+}
