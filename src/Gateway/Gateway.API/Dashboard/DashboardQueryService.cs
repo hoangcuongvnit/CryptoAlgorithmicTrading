@@ -126,7 +126,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
 
             var expectedTotal = totalDays * expectedPerDay;
             var coverage = expectedTotal == 0 ? 0d : Math.Round((double)actualTotal / expectedTotal * 100d, 2);
-            var freshness = statRow?.LatestTimeUtc is null ? double.PositiveInfinity : Math.Round((nowUtc - statRow.LatestTimeUtc.Value).TotalMinutes, 2);
+            var freshness = statRow?.LatestTimeUtc is null ? (double?)null : Math.Round((nowUtc - statRow.LatestTimeUtc.Value).TotalMinutes, 2);
 
             rows.Add(new OverviewSymbolRow(
                 symbol,

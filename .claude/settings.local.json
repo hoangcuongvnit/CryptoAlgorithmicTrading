@@ -9,7 +9,26 @@
       "Bash(do)",
       "Bash(echo \"=== $f ===\")",
       "Read(//d/Code/CryptoAlgorithmicTrading/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(docker compose:*)",
+      "Bash(docker version:*)",
+      "Bash(docker context:*)",
+      "Bash(docker info:*)",
+      "Bash(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\")",
+      "Read(//c/Program Files/Docker/Docker/**)",
+      "Read(//c/Program Files/Docker/**)",
+      "Bash(cmd /c start \"\" \"C:/Program Files/Docker/Docker/Docker Desktop.exe\")",
+      "Bash(curl -s http://localhost:5000/health echo)",
+      "Bash(curl -s http://localhost:5093/health echo)",
+      "Bash(curl -s http://localhost:5095/health echo)",
+      "Bash(curl -s http://localhost:5093/api/risk/config)",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s http://localhost:5093/api/risk/config echo)",
+      "Bash(curl -s http://localhost:5095/api/notifier/config)",
+      "Bash(curl -s \"http://localhost:5000/api/dashboard/overview?startUtc=2026-03-11T00:00:00Z&endUtc=2026-03-18T00:00:00Z&interval=1m&symbols=BTCUSDT&symbols=ETHUSDT\")",
+      "Bash(curl -v \"http://localhost:5000/health\")",
+      "Bash(curl -s \"http://localhost:5000/api/dashboard/overview?startUtc=2026-03-11T00:00:00Z&endUtc=2026-03-18T00:00:00Z&interval=1m&symbols=BTCUSDT\")",
+      "Bash(curl -w \"\\\\nHTTP_STATUS:%{http_code}\" \"http://localhost:5000/api/dashboard/overview?startUtc=2026-03-11T00:00:00Z&endUtc=2026-03-18T00:00:00Z&interval=1m&symbols=BTCUSDT\")"
     ]
   }
 }

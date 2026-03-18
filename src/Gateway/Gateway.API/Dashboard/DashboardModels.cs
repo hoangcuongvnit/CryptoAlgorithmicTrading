@@ -11,7 +11,7 @@ public sealed record OverviewSymbolRow(
     string Symbol,
     long RowCount,
     DateTime? LatestTimeUtc,
-    double FreshnessMinutes,
+    double? FreshnessMinutes,
     double CoveragePercent,
     int DaysBelowExpected);
 

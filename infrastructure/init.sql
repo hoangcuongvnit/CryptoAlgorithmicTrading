@@ -1,49 +1,70 @@
--- TimescaleDB initialization script for Crypto Trading System
--- This script creates hypertables for time-series data
+-- =============================================================================
+-- CryptoAlgorithmicTrading — Full Database Initialization
+-- =============================================================================
 
--- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
--- =============================================
--- Price Ticks Table (Time-series data)
--- =============================================
-CREATE TABLE IF NOT EXISTS price_ticks (
-    time        TIMESTAMPTZ NOT NULL,
-    symbol      TEXT        NOT NULL,
-    price       NUMERIC     NOT NULL,
-    volume      NUMERIC     NOT NULL,
-    open        NUMERIC,
-    high        NUMERIC,
-    low         NUMERIC,
-    close       NUMERIC,
-    interval    TEXT
-);
+-- =============================================================================
+-- Schemas
+-- =============================================================================
 
--- Enforce idempotent writes from realtime + historical pipelines
-DO $$
+CREATE SCHEMA IF NOT EXISTS historical_collector;
+
+-- =============================================================================
+-- historical_collector: yearly-partitioned price_ticks
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION historical_collector.create_price_ticks_table_for_year(year_val INT)
+RETURNS void AS $$
+DECLARE
+    tbl  TEXT := 'price_' || year_val || '_ticks';
+    s    DATE := make_date(year_val,     1, 1);
+    e    DATE := make_date(year_val + 1, 1, 1);
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_constraint
-        WHERE conname = 'uq_price_ticks_time_symbol_interval'
-    ) THEN
-        ALTER TABLE price_ticks
-            ADD CONSTRAINT uq_price_ticks_time_symbol_interval
-            UNIQUE (time, symbol, interval);
-    END IF;
-END $$;
+    EXECUTE format('
+        CREATE TABLE IF NOT EXISTS historical_collector.%I (
+            time     TIMESTAMPTZ NOT NULL,
+            symbol   TEXT        NOT NULL,
+            price    NUMERIC     NOT NULL,
+            volume   NUMERIC     NOT NULL,
+            open     NUMERIC,
+            high     NUMERIC,
+            low      NUMERIC,
+            close    NUMERIC,
+            interval TEXT        NOT NULL,
+            CONSTRAINT %I PRIMARY KEY (time, symbol, interval),
+            CONSTRAINT %I CHECK (time >= %L::timestamptz AND time < %L::timestamptz)
+        )', tbl, 'pk_'||tbl, 'chk_'||tbl||'_year', s, e);
 
--- Convert to hypertable
-SELECT create_hypertable('price_ticks', 'time', if_not_exists => TRUE);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON historical_collector.%I (symbol, time DESC);',
+                   'idx_'||tbl||'_sym_time', tbl);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON historical_collector.%I (symbol, interval, time DESC);',
+                   'idx_'||tbl||'_sym_int_time', tbl);
+END;
+$$ LANGUAGE plpgsql;
 
--- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_price_ticks_symbol_time ON price_ticks (symbol, time DESC);
+SELECT historical_collector.create_price_ticks_table_for_year(2024);
+SELECT historical_collector.create_price_ticks_table_for_year(2025);
+SELECT historical_collector.create_price_ticks_table_for_year(2026);
 
--- =============================================
--- Data Gaps Tracking Table
--- =============================================
-CREATE TABLE IF NOT EXISTS data_gaps (
-    id          BIGSERIAL PRIMARY KEY,
+-- Unified view across all yearly tables
+CREATE OR REPLACE VIEW historical_collector.price_ticks AS
+    SELECT time, symbol, price, volume, open, high, low, close, interval FROM historical_collector.price_2024_ticks
+    UNION ALL
+    SELECT time, symbol, price, volume, open, high, low, close, interval FROM historical_collector.price_2025_ticks
+    UNION ALL
+    SELECT time, symbol, price, volume, open, high, low, close, interval FROM historical_collector.price_2026_ticks;
+
+-- Backward-compat view in public schema (keeps old code working)
+CREATE OR REPLACE VIEW public.price_ticks AS
+    SELECT * FROM historical_collector.price_ticks;
+
+-- =============================================================================
+-- historical_collector.data_gaps
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS historical_collector.data_gaps (
+    id          BIGSERIAL   PRIMARY KEY,
     symbol      TEXT        NOT NULL,
     interval    TEXT        NOT NULL,
     gap_start   TIMESTAMPTZ NOT NULL,
@@ -52,156 +73,114 @@ CREATE TABLE IF NOT EXISTS data_gaps (
     filled_at   TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_data_gaps_symbol_interval ON data_gaps (symbol, interval);
-CREATE INDEX IF NOT EXISTS idx_data_gaps_unfilled ON data_gaps (filled_at) WHERE filled_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_data_gaps_symbol_interval ON historical_collector.data_gaps (symbol, interval);
+CREATE INDEX IF NOT EXISTS idx_data_gaps_unfilled        ON historical_collector.data_gaps (filled_at) WHERE filled_at IS NULL;
 
--- =============================================
--- Trade Signals Table (Time-series data)
--- =============================================
-CREATE TABLE IF NOT EXISTS trade_signals (
-    time        TIMESTAMPTZ NOT NULL,
-    symbol      TEXT        NOT NULL,
-    rsi         NUMERIC,
-    ema9        NUMERIC,
-    ema21       NUMERIC,
-    bb_upper    NUMERIC,
-    bb_middle   NUMERIC,
-    bb_lower    NUMERIC,
-    strength    TEXT
-);
+-- =============================================================================
+-- Helper: auto-create yearly table on first insert
+-- =============================================================================
 
--- Convert to hypertable
-SELECT create_hypertable('trade_signals', 'time', if_not_exists => TRUE);
+CREATE OR REPLACE FUNCTION historical_collector.ensure_price_ticks_table_exists(ts TIMESTAMPTZ)
+RETURNS TEXT AS $$
+DECLARE
+    yr   INT  := EXTRACT(YEAR FROM ts);
+    tbl  TEXT := 'price_' || yr || '_ticks';
+    exists BOOLEAN;
+BEGIN
+    SELECT INTO exists
+        (SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'historical_collector' AND table_name = tbl) IS NOT NULL;
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_trade_signals_symbol_time ON trade_signals (symbol, time DESC);
+    IF NOT exists THEN
+        PERFORM historical_collector.create_price_ticks_table_for_year(yr);
 
--- =============================================
--- Orders Table (Trade execution log)
--- =============================================
+        -- Rebuild unified view to include new table
+        EXECUTE (
+            SELECT 'CREATE OR REPLACE VIEW historical_collector.price_ticks AS ' ||
+                   string_agg(
+                       'SELECT time,symbol,price,volume,open,high,low,close,interval FROM historical_collector.' || t.table_name,
+                       ' UNION ALL '
+                   )
+            FROM information_schema.tables t
+            WHERE t.table_schema = 'historical_collector'
+              AND t.table_name LIKE 'price_%_ticks'
+              AND t.table_type = 'BASE TABLE'
+        );
+    END IF;
+
+    RETURN 'historical_collector.' || tbl;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================================
+-- Orders table (public schema — used by Executor + RiskGuard)
+-- =============================================================================
+
 CREATE TABLE IF NOT EXISTS orders (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    time        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    symbol      TEXT        NOT NULL,
-    side        TEXT        NOT NULL,
-    order_type  TEXT        NOT NULL,
-    quantity    NUMERIC     NOT NULL,
-    price       NUMERIC,
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    time         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    symbol       TEXT        NOT NULL,
+    side         TEXT        NOT NULL,
+    order_type   TEXT        NOT NULL DEFAULT 'Market',
+    quantity     NUMERIC     NOT NULL,
+    price        NUMERIC,
     filled_price NUMERIC,
-    filled_qty  NUMERIC,
-    stop_loss   NUMERIC,
-    take_profit NUMERIC,
-    strategy    TEXT,
-    is_paper    BOOLEAN     NOT NULL DEFAULT TRUE,
-    success     BOOLEAN,
-    error_msg   TEXT
+    filled_qty   NUMERIC,
+    stop_loss    NUMERIC,
+    take_profit  NUMERIC,
+    strategy     TEXT,
+    is_paper     BOOLEAN     NOT NULL DEFAULT TRUE,
+    success      BOOLEAN,
+    error_message TEXT
 );
 
--- Create indexes for orders
-CREATE INDEX IF NOT EXISTS idx_orders_time ON orders (time DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_symbol ON orders (symbol);
+CREATE INDEX IF NOT EXISTS idx_orders_time     ON orders (time DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_symbol   ON orders (symbol);
 CREATE INDEX IF NOT EXISTS idx_orders_is_paper ON orders (is_paper);
 
--- =============================================
--- Active Symbols Configuration Table
--- =============================================
+-- =============================================================================
+-- Active symbols configuration
+-- =============================================================================
+
 CREATE TABLE IF NOT EXISTS active_symbols (
-    symbol      TEXT PRIMARY KEY,
-    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
-    added_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    symbol   TEXT    PRIMARY KEY,
+    enabled  BOOLEAN NOT NULL DEFAULT TRUE,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Insert some default symbols
 INSERT INTO active_symbols (symbol, enabled) VALUES
-    ('BTCUSDT', true),
-    ('ETHUSDT', true),
-    ('BNBUSDT', true),
-    ('SOLUSDT', true),
-    ('XRPUSDT', true)
+    ('BTCUSDT', true), ('ETHUSDT', true), ('BNBUSDT', true),
+    ('SOLUSDT', true), ('XRPUSDT', true)
 ON CONFLICT (symbol) DO NOTHING;
 
--- =============================================
--- Account Balance Table (For risk management)
--- =============================================
+-- =============================================================================
+-- Account balance (paper trading starting balance)
+-- =============================================================================
+
 CREATE TABLE IF NOT EXISTS account_balance (
-    id          SERIAL PRIMARY KEY,
-    time        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    balance     NUMERIC NOT NULL,
-    currency    TEXT NOT NULL DEFAULT 'USDT'
+    id       SERIAL  PRIMARY KEY,
+    time     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    balance  NUMERIC NOT NULL,
+    currency TEXT    NOT NULL DEFAULT 'USDT'
 );
 
--- Insert initial balance for testing (paper trading)
 INSERT INTO account_balance (balance, currency) VALUES (10000.00, 'USDT');
 
--- =============================================
--- Continuous Aggregates (Optional - for performance)
--- =============================================
+-- =============================================================================
+-- Trade signals
+-- =============================================================================
 
--- Daily OHLCV aggregate for price_ticks
-CREATE MATERIALIZED VIEW IF NOT EXISTS price_ticks_daily
-WITH (timescaledb.continuous) AS
-SELECT 
-    time_bucket('1 day', time) AS day,
-    symbol,
-    FIRST(open, time) as open,
-    MAX(high) as high,
-    MIN(low) as low,
-    LAST(close, time) as close,
-    SUM(volume) as volume
-FROM price_ticks
-GROUP BY day, symbol
-WITH NO DATA;
+CREATE TABLE IF NOT EXISTS trade_signals (
+    time      TIMESTAMPTZ NOT NULL,
+    symbol    TEXT        NOT NULL,
+    rsi       NUMERIC,
+    ema9      NUMERIC,
+    ema21     NUMERIC,
+    bb_upper  NUMERIC,
+    bb_middle NUMERIC,
+    bb_lower  NUMERIC,
+    strength  TEXT
+);
 
--- Add refresh policy (refresh every hour)
-SELECT add_continuous_aggregate_policy('price_ticks_daily',
-    start_offset => INTERVAL '3 days',
-    end_offset => INTERVAL '1 hour',
-    schedule_interval => INTERVAL '1 hour',
-    if_not_exists => TRUE);
-
--- =============================================
--- Retention Policies (Optional - to save space)
--- =============================================
-
--- Keep raw price ticks for 30 days
-SELECT add_retention_policy('price_ticks', INTERVAL '30 days', if_not_exists => TRUE);
-
--- Keep trade signals for 90 days
-SELECT add_retention_policy('trade_signals', INTERVAL '90 days', if_not_exists => TRUE);
-
--- =============================================
--- Useful Views
--- =============================================
-
--- View: Recent orders summary
-CREATE OR REPLACE VIEW recent_orders_summary AS
-SELECT 
-    symbol,
-    side,
-    COUNT(*) as trade_count,
-    SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful_trades,
-    AVG(CASE WHEN filled_price IS NOT NULL THEN filled_price ELSE 0 END) as avg_fill_price,
-    MAX(time) as last_trade_time,
-    is_paper
-FROM orders
-WHERE time > NOW() - INTERVAL '24 hours'
-GROUP BY symbol, side, is_paper;
-
--- View: Daily PnL calculation (simplified - assumes equal position sizes)
-CREATE OR REPLACE VIEW daily_pnl AS
-SELECT 
-    DATE(time) as trade_date,
-    symbol,
-    COUNT(*) as trades,
-    SUM(CASE WHEN side = 'Buy' THEN -filled_price * filled_qty ELSE filled_price * filled_qty END) as pnl,
-    is_paper
-FROM orders
-WHERE success = true AND filled_price IS NOT NULL AND filled_qty IS NOT NULL
-GROUP BY trade_date, symbol, is_paper
-ORDER BY trade_date DESC;
-
-COMMENT ON TABLE price_ticks IS 'Time-series price tick data from Binance WebSocket';
-COMMENT ON TABLE trade_signals IS 'Calculated technical indicator signals';
-COMMENT ON TABLE orders IS 'Order execution log (both paper and live trades)';
-COMMENT ON TABLE active_symbols IS 'Configuration for which symbols to track';
-COMMENT ON TABLE account_balance IS 'Account balance snapshots for risk management';
+SELECT create_hypertable('trade_signals', 'time', if_not_exists => TRUE);
+CREATE INDEX IF NOT EXISTS idx_trade_signals_symbol_time ON trade_signals (symbol, time DESC);
