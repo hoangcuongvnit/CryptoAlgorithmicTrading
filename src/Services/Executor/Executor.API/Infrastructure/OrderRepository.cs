@@ -255,7 +255,7 @@ public sealed class OrderRepository
 
     public async Task<DailyReportSummary> GetDailyReportAsync(DateTime date, CancellationToken cancellationToken)
     {
-        var startUtc = date.Date.ToUniversalTime();
+        var startUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var endUtc = startUtc.AddDays(1);
 
         const string sql = """
@@ -317,7 +317,7 @@ public sealed class OrderRepository
 
     public async Task<IReadOnlyList<DailySymbolBreakdown>> GetDailySymbolBreakdownAsync(DateTime date, CancellationToken cancellationToken)
     {
-        var startUtc = date.Date.ToUniversalTime();
+        var startUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var endUtc = startUtc.AddDays(1);
 
         const string sql = """
@@ -369,7 +369,7 @@ public sealed class OrderRepository
 
     public async Task<IReadOnlyList<TradeTimeRecord>> GetDailyTimeAnalyticsAsync(DateTime date, CancellationToken cancellationToken)
     {
-        var startUtc = date.Date.ToUniversalTime();
+        var startUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var endUtc = startUtc.AddDays(1);
 
         const string sql = """
@@ -414,7 +414,7 @@ public sealed class OrderRepository
 
     public async Task<IReadOnlyList<HourlyTradeBucket>> GetHourlyBucketsAsync(DateTime date, CancellationToken cancellationToken)
     {
-        var startUtc = date.Date.ToUniversalTime();
+        var startUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var endUtc = startUtc.AddDays(1);
 
         const string sql = """
@@ -456,7 +456,7 @@ public sealed class OrderRepository
         bool? isPaper,
         CancellationToken cancellationToken)
     {
-        var startUtc = date.Date.ToUniversalTime();
+        var startUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var endUtc = startUtc.AddDays(1);
         var dateStr = startUtc.ToString("yyyyMMdd");
 
@@ -548,8 +548,8 @@ public sealed class OrderRepository
         bool? isPaper,
         CancellationToken cancellationToken)
     {
-        var startUtc = from.Date.ToUniversalTime();
-        var endUtc = to.Date.ToUniversalTime().AddDays(1);
+        var startUtc = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
+        var endUtc = DateTime.SpecifyKind(to.Date, DateTimeKind.Utc).AddDays(1);
         var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
 
         var sql = $"""
@@ -680,8 +680,8 @@ public sealed class OrderRepository
         bool? isPaper,
         CancellationToken cancellationToken)
     {
-        var startUtc = from.Date.ToUniversalTime();
-        var endUtc = to.Date.ToUniversalTime().AddDays(1);
+        var startUtc = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
+        var endUtc = DateTime.SpecifyKind(to.Date, DateTimeKind.Utc).AddDays(1);
         var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
 
         var sql = $"""

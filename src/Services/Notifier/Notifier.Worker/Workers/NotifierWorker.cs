@@ -10,19 +10,34 @@ namespace Notifier.Worker.Workers;
 
 public sealed class NotifierWorker : BackgroundService
 {
+    // System event types that must be delivered immediately regardless of batching
+    private static readonly HashSet<SystemEventType> CriticalEventTypes =
+    [
+        SystemEventType.MaxDrawdownBreached,
+        SystemEventType.Error,
+        SystemEventType.ConnectionLost,
+        SystemEventType.LiquidationStarted,
+        SystemEventType.ForcedFlatten,
+        SystemEventType.SessionNotFlat,
+        SystemEventType.OrderRejected,
+    ];
+
     private readonly IConnectionMultiplexer _redis;
     private readonly TelegramNotifier _telegramNotifier;
+    private readonly NotificationBatcher _batcher;
     private readonly NotificationHistory _history;
     private readonly ILogger<NotifierWorker> _logger;
 
     public NotifierWorker(
         IConnectionMultiplexer redis,
         TelegramNotifier telegramNotifier,
+        NotificationBatcher batcher,
         NotificationHistory history,
         ILogger<NotifierWorker> logger)
     {
         _redis = redis;
         _telegramNotifier = telegramNotifier;
+        _batcher = batcher;
         _history = history;
         _logger = logger;
     }
@@ -34,6 +49,7 @@ public sealed class NotifierWorker : BackgroundService
         if (!await _telegramNotifier.TestConnectionAsync(stoppingToken))
             _logger.LogError("Failed to connect to Telegram. Service will continue but notifications will fail.");
 
+        // Startup notification is always immediate — it signals the system is live
         await _telegramNotifier.SendStartupNotificationAsync(stoppingToken);
         _history.Add("startup", $"CryptoTrader ONLINE | {DateTime.UtcNow:HH:mm} UTC");
 
@@ -46,12 +62,17 @@ public sealed class NotifierWorker : BackgroundService
                 try
                 {
                     var systemEvent = JsonSerializer.Deserialize(message.ToString(), TradingJsonContext.Default.SystemEvent);
-                    if (systemEvent != null)
-                    {
-                        await _telegramNotifier.SendSystemEventAsync(systemEvent, stoppingToken);
-                        _history.Add("system_event",
-                            $"{systemEvent.Type}: [{systemEvent.ServiceName}] {systemEvent.Message}");
-                    }
+                    if (systemEvent is null) return;
+
+                    var formatted = TelegramNotifier.FormatSystemEvent(systemEvent);
+                    var category = "system_event";
+
+                    if (CriticalEventTypes.Contains(systemEvent.Type))
+                        await _batcher.SendCriticalAsync(formatted, stoppingToken);
+                    else
+                        _batcher.Enqueue(category, formatted);
+
+                    _history.Add(category, $"{systemEvent.Type}: [{systemEvent.ServiceName}] {systemEvent.Message}");
                 }
                 catch (Exception ex)
                 {
@@ -68,8 +89,6 @@ public sealed class NotifierWorker : BackgroundService
     {
         var db = _redis.GetDatabase();
 
-        // StreamReadAsync does not support "$" (new-messages-only) — get the latest entry ID at startup
-        // so we only process NEW audit events, not historical ones
         string lastId;
         try
         {
@@ -80,7 +99,7 @@ public sealed class NotifierWorker : BackgroundService
         }
         catch
         {
-            lastId = "0-0"; // Stream doesn't exist yet — start from beginning when it does
+            lastId = "0-0";
         }
 
         _logger.LogInformation("Polling {Stream} Redis stream for order notifications...", RedisChannels.TradesAudit);
@@ -95,11 +114,16 @@ public sealed class NotifierWorker : BackgroundService
                 {
                     lastId = entry.Id.ToString();
                     var orderResult = ParseStreamEntry(entry);
-                    if (orderResult != null)
-                    {
-                        await _telegramNotifier.SendOrderResultAsync(orderResult, stoppingToken);
-                        RecordOrderNotification(orderResult);
-                    }
+                    if (orderResult is null) continue;
+
+                    var formatted = TelegramNotifier.FormatOrderResult(orderResult);
+
+                    if (!orderResult.Success)
+                        await _batcher.SendCriticalAsync(formatted, stoppingToken);
+                    else
+                        _batcher.Enqueue("order", formatted);
+
+                    RecordOrderHistory(orderResult);
                 }
 
                 await Task.Delay(500, stoppingToken);
@@ -118,7 +142,7 @@ public sealed class NotifierWorker : BackgroundService
         _logger.LogInformation("Notifier service shutting down.");
     }
 
-    private void RecordOrderNotification(OrderResult order)
+    private void RecordOrderHistory(OrderResult order)
     {
         if (order.Success)
         {

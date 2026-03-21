@@ -426,6 +426,99 @@ tradingGroup.MapGet("/report/hourly", async (
     }
 });
 
+// ── Session Report proxy endpoints ───────────────────────────────────────
+
+tradingGroup.MapGet("/report/sessions/daily", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? date,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var qs = new System.Text.StringBuilder("/api/trading/report/sessions/daily?");
+        if (!string.IsNullOrEmpty(date)) qs.Append($"date={Uri.EscapeDataString(date)}&");
+        if (!string.IsNullOrEmpty(mode)) qs.Append($"mode={Uri.EscapeDataString(mode)}&");
+        var response = await client.GetAsync(qs.ToString().TrimEnd('?', '&'), ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/report/sessions/equity-curve", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? from,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? to,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var qs = new System.Text.StringBuilder("/api/trading/report/sessions/equity-curve?");
+        if (!string.IsNullOrEmpty(from)) qs.Append($"from={Uri.EscapeDataString(from)}&");
+        if (!string.IsNullOrEmpty(to)) qs.Append($"to={Uri.EscapeDataString(to)}&");
+        if (!string.IsNullOrEmpty(mode)) qs.Append($"mode={Uri.EscapeDataString(mode)}&");
+        var response = await client.GetAsync(qs.ToString().TrimEnd('?', '&'), ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/report/sessions/range", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? from,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? to,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var qs = new System.Text.StringBuilder("/api/trading/report/sessions/range?");
+        if (!string.IsNullOrEmpty(from)) qs.Append($"from={Uri.EscapeDataString(from)}&");
+        if (!string.IsNullOrEmpty(to)) qs.Append($"to={Uri.EscapeDataString(to)}&");
+        if (!string.IsNullOrEmpty(mode)) qs.Append($"mode={Uri.EscapeDataString(mode)}&");
+        var response = await client.GetAsync(qs.ToString().TrimEnd('?', '&'), ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/report/sessions/{sessionId}/symbols", async (
+    IHttpClientFactory factory,
+    string sessionId,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var url = $"/api/trading/report/sessions/{Uri.EscapeDataString(sessionId)}/symbols";
+        if (!string.IsNullOrEmpty(mode)) url += $"?mode={Uri.EscapeDataString(mode)}";
+        var response = await client.GetAsync(url, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 // ── System Settings endpoints ──────────────────────────────────────────────
 
 var settingsGroup = app.MapGroup("/api/settings");

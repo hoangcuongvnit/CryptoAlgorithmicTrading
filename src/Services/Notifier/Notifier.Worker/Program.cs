@@ -31,6 +31,11 @@ builder.Services.AddSingleton<TelegramNotifier>(sp =>
 // Notification history
 builder.Services.AddSingleton<NotificationHistory>();
 
+// Notification batcher — registered as singleton so NotifierWorker can inject it,
+// and as a hosted service so its timer loop starts automatically.
+builder.Services.AddSingleton<NotificationBatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<NotificationBatcher>());
+
 // Workers
 builder.Services.AddHostedService<NotifierWorker>();
 

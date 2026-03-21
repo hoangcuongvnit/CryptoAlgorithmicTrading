@@ -9,6 +9,11 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
 
+// Npgsql 6+ strict mode rejects DateTime(Kind=Utc) for TIMESTAMP WITHOUT TIME ZONE columns.
+// The orders table uses TIMESTAMP, so enable legacy behavior to treat all DateTime values
+// as plain timestamps (UTC values stored/read without timezone conversion).
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Create metrics instances first (before OTEL config)

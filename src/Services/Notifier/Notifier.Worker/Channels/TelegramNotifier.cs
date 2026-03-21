@@ -52,29 +52,25 @@ public sealed class TelegramNotifier
     }
 
     public async Task SendSystemEventAsync(SystemEvent evt, CancellationToken cancellationToken = default)
-    {
-        var message = evt.Type switch
-        {
-            SystemEventType.ServiceStarted => $"🚀 {evt.ServiceName} ONLINE | {evt.Timestamp:HH:mm} UTC",
-            SystemEventType.ServiceStopped => $"⏹️ {evt.ServiceName} STOPPED | {evt.Timestamp:HH:mm} UTC",
-            SystemEventType.ConnectionLost => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
-            SystemEventType.ConnectionRestored => $"✅ WS RESTORED: {evt.Message}",
-            SystemEventType.MaxDrawdownBreached => $"🚨 MAX DRAWDOWN BREACHED – All trading halted\n{evt.Message}",
-            SystemEventType.Error => $"❌ ERROR in {evt.ServiceName}: {evt.Message}",
-            _ => $"ℹ️ {evt.ServiceName}: {evt.Message}"
-        };
+        => await SendMessageAsync(FormatSystemEvent(evt), cancellationToken);
 
-        await SendMessageAsync(message, cancellationToken);
-    }
+    public static string FormatSystemEvent(SystemEvent evt) => evt.Type switch
+    {
+        SystemEventType.ServiceStarted => $"🚀 {evt.ServiceName} ONLINE | {evt.Timestamp:HH:mm} UTC",
+        SystemEventType.ServiceStopped => $"⏹️ {evt.ServiceName} STOPPED | {evt.Timestamp:HH:mm} UTC",
+        SystemEventType.ConnectionLost => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
+        SystemEventType.ConnectionRestored => $"✅ WS RESTORED: {evt.Message}",
+        SystemEventType.MaxDrawdownBreached => $"🚨 MAX DRAWDOWN BREACHED – All trading halted\n{evt.Message}",
+        SystemEventType.Error => $"❌ ERROR in {evt.ServiceName}: {evt.Message}",
+        _ => $"ℹ️ {evt.ServiceName}: {evt.Message}"
+    };
 
     public async Task SendOrderResultAsync(OrderResult order, CancellationToken cancellationToken = default)
-    {
-        var message = order.Success
-            ? FormatSuccessfulOrder(order)
-            : FormatRejectedOrder(order);
+        => await SendMessageAsync(FormatOrderResult(order), cancellationToken);
 
-        await SendMessageAsync(message, cancellationToken);
-    }
+    public static string FormatOrderResult(OrderResult order) => order.Success
+        ? FormatSuccessfulOrder(order)
+        : FormatRejectedOrder(order);
 
     private static string FormatSuccessfulOrder(OrderResult order)
     {
