@@ -723,22 +723,22 @@ public sealed class DashboardQueryService : IDashboardQueryService
         await using var connection = await OpenConnectionAsync(cancellationToken);
 
         const string sql = """
-            SELECT order_id        AS OrderId,
-                   symbol          AS Symbol,
-                   side            AS Side,
-                   order_type      AS OrderType,
-                   quantity        AS Quantity,
-                   entry_price     AS EntryPrice,
-                   stop_loss       AS StopLoss,
-                   take_profit     AS TakeProfit,
-                   filled_price    AS FilledPrice,
-                   filled_qty      AS FilledQty,
-                   success         AS Success,
-                   is_paper_trade  AS IsPaperTrade,
-                   error_message   AS ErrorMessage,
-                   created_at      AS CreatedAt
+            SELECT id            AS OrderId,
+                   symbol        AS Symbol,
+                   side          AS Side,
+                   order_type    AS OrderType,
+                   quantity      AS Quantity,
+                   price         AS EntryPrice,
+                   stop_loss     AS StopLoss,
+                   take_profit   AS TakeProfit,
+                   filled_price  AS FilledPrice,
+                   filled_qty    AS FilledQty,
+                   success       AS Success,
+                   is_paper      AS IsPaperTrade,
+                   error_message AS ErrorMessage,
+                   time          AS CreatedAt
             FROM public.orders
-            ORDER BY created_at DESC
+            ORDER BY time DESC
             LIMIT @Limit;
             """;
 
