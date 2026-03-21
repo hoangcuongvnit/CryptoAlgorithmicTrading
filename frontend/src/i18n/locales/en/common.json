@@ -34,6 +34,8 @@
     "loadingStream": "Loading activity stream...",
     "noEvents": "No events yet. Waiting for activity...",
     "noEventsMatch": "No events match the current filters.",
+    "loadingMore": "Loading more...",
+    "maxRowsReached": "Showing latest {{max}} rows",
     "catLabel": {
       "riskCheck": "Risk Check",
       "order": "Order",

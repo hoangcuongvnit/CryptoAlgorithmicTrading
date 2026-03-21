@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const CHUNK = 20
+const MAX_ROWS = 100
 
 function timeAgo(isoStr) {
   if (!isoStr) return ''
@@ -132,6 +135,8 @@ export function ActivityLog({ activities = [], loading = false }) {
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [visible, setVisible] = useState(CHUNK)
+  const sentinelRef = useRef(null)
 
   const filtered = activities.filter(e => {
     if (categoryFilter !== 'ALL' && e.category !== categoryFilter) return false
@@ -146,6 +151,25 @@ export function ActivityLog({ activities = [], loading = false }) {
     }
     return true
   })
+
+  // Reset visible count when filters change
+  useEffect(() => { setVisible(CHUNK) }, [categoryFilter, statusFilter, search])
+
+  // Load more rows when sentinel scrolls into view
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && visible < Math.min(filtered.length, MAX_ROWS)) {
+        setVisible(v => Math.min(v + CHUNK, MAX_ROWS))
+      }
+    }, { threshold: 0.1 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible, filtered.length])
+
+  const displayed = filtered.slice(0, visible)
+  const canLoadMore = visible < Math.min(filtered.length, MAX_ROWS)
 
   return (
     <div className="space-y-3">
@@ -182,7 +206,7 @@ export function ActivityLog({ activities = [], loading = false }) {
         />
 
         <span className="text-xs text-gray-400 shrink-0">
-          {filtered.length} / {activities.length}
+          {displayed.length} / {activities.length}
         </span>
       </div>
 
@@ -192,7 +216,7 @@ export function ActivityLog({ activities = [], loading = false }) {
           <p className="text-2xl mb-2">⏳</p>
           <p className="text-sm">{t('activityLog.loadingStream')}</p>
         </div>
-      ) : filtered.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <div className="text-center py-10 text-gray-400">
           <p className="text-4xl mb-2">📭</p>
           <p className="text-sm">
@@ -203,7 +227,18 @@ export function ActivityLog({ activities = [], loading = false }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(evt => <ActivityRow key={evt.eventId} event={evt} />)}
+          {displayed.map(evt => <ActivityRow key={evt.eventId} event={evt} />)}
+          <div ref={sentinelRef} className="h-1" />
+          {canLoadMore && (
+            <div className="text-center py-2 text-xs text-gray-400">
+              {t('activityLog.loadingMore')}
+            </div>
+          )}
+          {!canLoadMore && filtered.length > MAX_ROWS && (
+            <div className="text-center py-2 text-xs text-gray-400">
+              {t('activityLog.maxRowsReached', { max: MAX_ROWS })}
+            </div>
+          )}
         </div>
       )}
     </div>

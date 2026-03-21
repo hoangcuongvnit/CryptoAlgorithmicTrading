@@ -7,5 +7,12 @@
     "approved": "{{count}} approved",
     "drawdownUsed": "Drawdown Used",
     "drawdownOf": "of ${{max}} max"
+  },
+  "priceChart": {
+    "title": "1-Hour Price Change",
+    "subtitle": "% change from 60 minutes ago — all tracked coins",
+    "updatedAt": "Updated {{time}}",
+    "loading": "Loading price data…",
+    "noData": "No price data available"
   }
 }

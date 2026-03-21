@@ -7,5 +7,12 @@
     "approved": "{{count}} đã duyệt",
     "drawdownUsed": "Mức giảm vốn",
     "drawdownOf": "của tối đa ${{max}}"
+  },
+  "priceChart": {
+    "title": "Biến động giá 1 giờ",
+    "subtitle": "% thay đổi so với 60 phút trước — tất cả coin đang theo dõi",
+    "updatedAt": "Cập nhật {{time}}",
+    "loading": "Đang tải dữ liệu giá…",
+    "noData": "Không có dữ liệu giá"
   }
 }

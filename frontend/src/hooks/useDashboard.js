@@ -57,3 +57,16 @@ export function useCandles(symbol, minutesBack = 60) {
   }, [symbol, minutesBack])
   return usePolling(fn, 30000)
 }
+
+export function usePriceComparison(symbols, minutesBack = 60) {
+  const symbolsKey = symbols.join(',')
+  const fn = useCallback(async () => {
+    const end = new Date()
+    const start = new Date(end.getTime() - minutesBack * 60 * 1000)
+    const syms = symbolsKey.split(',')
+    const symbolParams = syms.map(s => `symbols=${encodeURIComponent(s)}`).join('&')
+    const url = `/api/dashboard/candles?symbol=${syms[0]}&${symbolParams}&interval=1m&startUtc=${start.toISOString()}&endUtc=${end.toISOString()}`
+    return fetchJson(url)
+  }, [symbolsKey, minutesBack])
+  return usePolling(fn, 30000)
+}

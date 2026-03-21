@@ -21,6 +21,7 @@
   "validationHistory": {
     "title": "Kiểm tra an toàn gần đây",
     "last": "({{count}} gần nhất)",
-    "noHistory": "Chưa có lịch sử kiểm tra"
+    "noHistory": "Chưa có lịch sử kiểm tra",
+    "maxReached": "Hiển thị {{max}} lần kiểm tra mới nhất"
   }
 }

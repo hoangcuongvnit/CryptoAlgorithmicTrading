@@ -34,6 +34,8 @@
     "loadingStream": "Đang tải dữ liệu hoạt động...",
     "noEvents": "Chưa có sự kiện. Đang chờ hoạt động...",
     "noEventsMatch": "Không có sự kiện nào khớp với bộ lọc.",
+    "loadingMore": "Đang tải thêm...",
+    "maxRowsReached": "Hiển thị {{max}} hàng mới nhất",
     "catLabel": {
       "riskCheck": "Kiểm tra rủi ro",
       "order": "Lệnh",

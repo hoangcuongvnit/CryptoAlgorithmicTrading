@@ -1,8 +1,12 @@
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SafetyLight } from '../components/SafetyLight.jsx'
 import { StatCard } from '../components/StatCard.jsx'
 import { useRiskStats, useRiskConfig } from '../hooks/useDashboard.js'
 import { formatPnl, pnlColorClass } from '../utils/indicators.js'
+
+const V_CHUNK = 20
+const V_MAX = 100
 
 function ValidationRow({ v }) {
   return (
@@ -32,6 +36,24 @@ export function SafetyPage() {
   const { t } = useTranslation(['safety', 'common'])
   const { data: risk } = useRiskStats()
   const { data: config } = useRiskConfig()
+  const [visible, setVisible] = useState(V_CHUNK)
+  const sentinelRef = useRef(null)
+
+  const validations = risk?.recentValidations ?? []
+
+  useEffect(() => { setVisible(V_CHUNK) }, [risk?.recentValidations?.length])
+
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && visible < Math.min(validations.length, V_MAX)) {
+        setVisible(v => Math.min(v + V_CHUNK, V_MAX))
+      }
+    }, { threshold: 0.1 })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible, validations.length])
 
   const totalToday = (risk?.todayApproved ?? 0) + (risk?.todayRejected ?? 0)
   const approvalRate = totalToday > 0
@@ -114,19 +136,25 @@ export function SafetyPage() {
       <div>
         <h2 className="text-lg font-semibold mb-3" style={{ color: '#0f172a' }}>
           {t('validationHistory.title')}
-          {risk?.recentValidations?.length > 0 && (
+          {validations.length > 0 && (
             <span className="ml-2 text-sm font-normal text-gray-400">
-              {t('validationHistory.last', { count: Math.min(risk.recentValidations.length, 50) })}
+              {t('validationHistory.last', { count: Math.min(visible, validations.length) })}
             </span>
           )}
         </h2>
-        {!risk?.recentValidations?.length ? (
+        {!validations.length ? (
           <div className="text-center py-8 text-gray-400">{t('validationHistory.noHistory')}</div>
         ) : (
           <div className="space-y-2">
-            {risk.recentValidations.slice(0, 50).map((v, i) => (
+            {validations.slice(0, visible).map((v, i) => (
               <ValidationRow key={i} v={v} />
             ))}
+            <div ref={sentinelRef} className="h-1" />
+            {visible >= V_MAX && validations.length > V_MAX && (
+              <div className="text-center py-2 text-xs text-gray-400">
+                {t('validationHistory.maxReached', { max: V_MAX })}
+              </div>
+            )}
           </div>
         )}
       </div>

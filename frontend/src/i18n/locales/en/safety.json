@@ -21,6 +21,7 @@
   "validationHistory": {
     "title": "Recent Safety Checks",
     "last": "(last {{count}})",
-    "noHistory": "No validation history yet"
+    "noHistory": "No validation history yet",
+    "maxReached": "Showing latest {{max}} checks"
   }
 }

@@ -4,6 +4,7 @@ import { StatCard } from '../components/StatCard.jsx'
 import { SentimentGauge } from '../components/SentimentGauge.jsx'
 import { SafetyLight } from '../components/SafetyLight.jsx'
 import { EventTimeline } from '../components/EventTimeline.jsx'
+import { PriceChangeChart } from '../components/PriceChangeChart.jsx'
 import { useRiskStats, useRiskConfig, useNotifierStats } from '../hooks/useDashboard.js'
 import { formatPnl, pnlColorClass } from '../utils/indicators.js'
 
@@ -86,6 +87,9 @@ export function OverviewPage() {
           ))}
         </div>
       </div>
+
+      {/* 1-Hour Price Change Chart */}
+      <PriceChangeChart symbols={symbols} />
 
       {/* Recent Events */}
       <div>
