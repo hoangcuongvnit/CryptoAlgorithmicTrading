@@ -7,6 +7,8 @@ public sealed class SystemSettingsRepository
 {
     private readonly string _connectionString;
     private readonly ILogger<SystemSettingsRepository> _logger;
+    private readonly SemaphoreSlim _initLock = new(1, 1);
+    private volatile bool _isInitialized;
 
     // Curated IANA timezone IDs supported by the system.
     // Using a whitelist avoids cross-platform OS timezone ID differences.
@@ -45,7 +47,9 @@ public sealed class SystemSettingsRepository
 
     public async Task<string> GetTimezoneAsync(CancellationToken ct = default)
     {
-        const string sql = "SELECT value FROM system_settings WHERE key = 'timezone' LIMIT 1;";
+        await EnsureSchemaAsync(ct);
+
+        const string sql = "SELECT value FROM public.system_settings WHERE key = 'timezone' LIMIT 1;";
         try
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -63,8 +67,10 @@ public sealed class SystemSettingsRepository
 
     public async Task UpdateTimezoneAsync(string timezone, string? updatedBy, CancellationToken ct = default)
     {
+        await EnsureSchemaAsync(ct);
+
         const string sql = """
-            INSERT INTO system_settings (key, value, updated_at_utc, updated_by)
+            INSERT INTO public.system_settings (key, value, updated_at_utc, updated_by)
             VALUES ('timezone', @Value, NOW(), @UpdatedBy)
             ON CONFLICT (key) DO UPDATE
                 SET value          = EXCLUDED.value,
@@ -77,5 +83,45 @@ public sealed class SystemSettingsRepository
             new { Value = timezone, UpdatedBy = updatedBy }, cancellationToken: ct));
         _logger.LogInformation("System timezone updated to {Timezone} by {UpdatedBy}",
             timezone, updatedBy ?? "unknown");
+    }
+
+    private async Task EnsureSchemaAsync(CancellationToken ct)
+    {
+        if (_isInitialized)
+        {
+            return;
+        }
+
+        await _initLock.WaitAsync(ct);
+        try
+        {
+            if (_isInitialized)
+            {
+                return;
+            }
+
+            const string sql = """
+                CREATE TABLE IF NOT EXISTS public.system_settings (
+                    key            TEXT PRIMARY KEY,
+                    value          TEXT NOT NULL,
+                    updated_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_by     TEXT
+                );
+
+                INSERT INTO public.system_settings (key, value, updated_at_utc)
+                VALUES ('timezone', 'UTC', NOW())
+                ON CONFLICT (key) DO NOTHING;
+                """;
+
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            await conn.ExecuteAsync(new CommandDefinition(sql, cancellationToken: ct));
+
+            _isInitialized = true;
+        }
+        finally
+        {
+            _initLock.Release();
+        }
     }
 }
