@@ -30,6 +30,25 @@ export function useOrders() {
   return usePolling(fn, 20000)
 }
 
+export function useTradingStats() {
+  const fn = useCallback(() => fetchJson('/api/trading/stats'), [])
+  return usePolling(fn, 10000)
+}
+
+export function useOpenPositions() {
+  const fn = useCallback(() => fetchJson('/api/trading/positions'), [])
+  return usePolling(fn, 5000)
+}
+
+export function useTradingOrders(symbol, limit = 50) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams({ limit: String(limit) })
+    if (symbol) params.set('symbol', symbol)
+    return fetchJson(`/api/trading/orders?${params}`)
+  }, [symbol, limit])
+  return usePolling(fn, 15000)
+}
+
 export function useActivities() {
   const { data: riskData, loading: riskLoading, error: riskError, lastUpdated: riskUpdated, refresh: refreshRisk } = useRiskStats()
   const { data: notifierData, loading: notifierLoading, error: notifierError, lastUpdated: notifierUpdated, refresh: refreshNotifier } = useNotifierStats()

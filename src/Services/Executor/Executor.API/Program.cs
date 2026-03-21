@@ -3,6 +3,7 @@ using Binance.Net.Interfaces.Clients;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Executor.API.Services;
+using Microsoft.AspNetCore.Mvc;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
@@ -53,6 +54,7 @@ builder.Services.AddSingleton<OrderRepository>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
 builder.Services.AddSingleton<PaperOrderSimulator>();
 builder.Services.AddSingleton<BinanceOrderClient>();
+builder.Services.AddSingleton<PositionTracker>();
 builder.Services.AddSingleton(metrics);
 
 var app = builder.Build();
@@ -62,5 +64,35 @@ app.MapGrpcService<OrderExecutorGrpcService>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Executor.API" }));
 app.MapGet("/metrics", () => "Prometheus metrics endpoint. Configure Prometheus to scrape http://localhost:9091/metrics");
 app.MapGet("/", () => "Order Executor gRPC service is running.");
+
+// ── Trading REST API (HTTP/1.1 on port 5094) ─────────────────────────────
+
+app.MapGet("/api/trading/stats", ([FromServices] PositionTracker tracker) =>
+{
+    var stats = tracker.GetStats();
+    return Results.Ok(new
+    {
+        totalTrades    = stats.TotalTrades,
+        winTrades      = stats.WinTrades,
+        lossTrades     = stats.LossTrades,
+        totalPnL       = stats.TotalPnL,
+        winRate        = stats.WinRate,
+        maxDrawdown    = stats.MaxDrawdown,
+        avgPnLPerTrade = stats.AvgPnLPerTrade
+    });
+});
+
+app.MapGet("/api/trading/positions", ([FromServices] PositionTracker tracker) =>
+    Results.Ok(tracker.GetOpenPositions()));
+
+app.MapGet("/api/trading/orders", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? symbol,
+    [FromQuery] int? limit,
+    CancellationToken ct) =>
+{
+    var orders = await repo.GetRecentOrdersAsync(limit ?? 50, ct, symbol);
+    return Results.Ok(orders);
+});
 
 app.Run();

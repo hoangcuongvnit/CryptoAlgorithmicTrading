@@ -735,7 +735,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
                    filled_qty    AS FilledQty,
                    success       AS Success,
                    is_paper      AS IsPaperTrade,
-                   error_message AS ErrorMessage,
+                   error_msg     AS ErrorMessage,
                    time          AS CreatedAt
             FROM public.orders
             ORDER BY time DESC

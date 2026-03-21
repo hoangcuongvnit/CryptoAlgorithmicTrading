@@ -145,16 +145,18 @@ export function SafetyPage() {
         {!validations.length ? (
           <div className="text-center py-8 text-gray-400">{t('validationHistory.noHistory')}</div>
         ) : (
-          <div className="space-y-2">
-            {validations.slice(0, visible).map((v, i) => (
-              <ValidationRow key={i} v={v} />
-            ))}
-            <div ref={sentinelRef} className="h-1" />
-            {visible >= V_MAX && validations.length > V_MAX && (
-              <div className="text-center py-2 text-xs text-gray-400">
-                {t('validationHistory.maxReached', { max: V_MAX })}
-              </div>
-            )}
+          <div className="overflow-y-auto max-h-[480px] pr-1">
+            <div className="space-y-2">
+              {validations.slice(0, visible).map((v, i) => (
+                <ValidationRow key={i} v={v} />
+              ))}
+              <div ref={sentinelRef} className="h-1" />
+              {visible >= V_MAX && validations.length > V_MAX && (
+                <div className="text-center py-2 text-xs text-gray-400">
+                  {t('validationHistory.maxReached', { max: V_MAX })}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

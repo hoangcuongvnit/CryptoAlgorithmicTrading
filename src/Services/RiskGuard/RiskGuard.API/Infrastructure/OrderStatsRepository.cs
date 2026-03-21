@@ -17,21 +17,19 @@ public sealed class OrderStatsRepository
     }
 
     /// <summary>
-    /// Returns today's net cash flow from successful orders (UTC day boundary):
-    ///   Σ(sell revenue) − Σ(buy cost)
-    /// A negative result means more was spent than received — i.e. a net loss position.
+    /// Returns today's total realized P&amp;L from CLOSED orders (UTC day boundary).
+    /// Only orders with status='CLOSED' and a non-null realized_pnl are included.
     /// </summary>
     /// <param name="paperOnly">When true, only paper-trade orders are included.</param>
     public async Task<decimal> GetDailyNetPnlAsync(bool paperOnly = true, CancellationToken ct = default)
     {
         const string sql = """
-            SELECT
-                COALESCE(SUM(CASE WHEN side = 'Sell' THEN filled_qty * filled_price ELSE 0 END), 0)
-              - COALESCE(SUM(CASE WHEN side = 'Buy'  THEN filled_qty * filled_price ELSE 0 END), 0)
-            FROM orders
-            WHERE success = true
-              AND (is_paper = @paperOnly OR @paperOnly = false)
-              AND time >= (CURRENT_DATE AT TIME ZONE 'UTC')
+            SELECT COALESCE(SUM(realized_pnl), 0)
+            FROM public.orders
+            WHERE status = 'CLOSED'
+              AND realized_pnl IS NOT NULL
+              AND (@paperOnly = false OR is_paper = true)
+              AND time >= CURRENT_DATE
             """;
 
         await using var conn = new NpgsqlConnection(_connectionString);

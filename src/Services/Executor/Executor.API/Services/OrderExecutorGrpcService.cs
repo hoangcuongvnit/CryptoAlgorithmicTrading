@@ -15,6 +15,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly OrderRepository _orderRepository;
     private readonly AuditStreamPublisher _auditStreamPublisher;
+    private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionMetrics _metrics;
     private readonly ILogger<OrderExecutorGrpcService> _logger;
 
@@ -24,6 +25,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         BinanceOrderClient binanceOrderClient,
         OrderRepository orderRepository,
         AuditStreamPublisher auditStreamPublisher,
+        PositionTracker positionTracker,
         OrderExecutionMetrics metrics,
         ILogger<OrderExecutorGrpcService> logger)
     {
@@ -32,6 +34,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         _binanceOrderClient = binanceOrderClient;
         _orderRepository = orderRepository;
         _auditStreamPublisher = auditStreamPublisher;
+        _positionTracker = positionTracker;
         _metrics = metrics;
         _logger = logger;
     }
@@ -122,6 +125,11 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order persistence failed for {Symbol}", requestForPersistence.Symbol);
+        }
+
+        if (result.Success)
+        {
+            _positionTracker.OnOrderFilled(requestForPersistence, result);
         }
 
         try

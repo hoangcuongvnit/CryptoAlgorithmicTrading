@@ -1,12 +1,31 @@
 {
-  "title": "Trading Signals",
+  "title": "Trading",
   "subtitle": "Live market analysis — updated every 30 seconds",
+  "signals": "Trading Signals",
   "recentOrders": "Recent Orders",
+  "openPositions": "Open Positions",
+  "stats": {
+    "totalPnL": "Total P&L",
+    "realized": "Realized",
+    "winRate": "Win Rate",
+    "maxDrawdown": "Max Drawdown",
+    "totalTrades": "Total Trades",
+    "paperMode": "Paper trading"
+  },
+  "position": {
+    "long": "LONG",
+    "qty": "Qty",
+    "entry": "Entry",
+    "current": "Current",
+    "none": "No open positions"
+  },
   "order": {
     "price": "Price",
     "qty": "Qty",
     "paper": "Paper",
     "filled": "✅ Filled",
+    "open": "Open",
+    "failed": "Failed",
     "noOrders": "No orders yet. Signals are being analyzed..."
   }
 }

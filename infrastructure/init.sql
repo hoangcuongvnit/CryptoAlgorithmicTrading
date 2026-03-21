@@ -130,13 +130,42 @@ CREATE TABLE IF NOT EXISTS orders (
     take_profit  NUMERIC,
     strategy     TEXT,
     is_paper     BOOLEAN     NOT NULL DEFAULT TRUE,
-    success      BOOLEAN,
-    error_message TEXT
+    success      BOOLEAN     NOT NULL DEFAULT FALSE,
+    error_msg    TEXT,
+    status       VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'CLOSED', 'FAILED')),
+    exit_price   NUMERIC,
+    exit_time    TIMESTAMPTZ,
+    realized_pnl NUMERIC,
+    roe_percent  NUMERIC
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_time     ON orders (time DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_symbol   ON orders (symbol);
 CREATE INDEX IF NOT EXISTS idx_orders_is_paper ON orders (is_paper);
+CREATE INDEX IF NOT EXISTS idx_orders_status   ON orders (status, time DESC);
+
+CREATE OR REPLACE VIEW public.open_positions AS
+SELECT DISTINCT ON (symbol)
+    id, symbol, side,
+    filled_qty   AS quantity,
+    filled_price AS entry_price,
+    time         AS opened_at
+FROM public.orders
+WHERE status = 'OPEN' AND success = true AND side = 'Buy' AND filled_qty IS NOT NULL
+ORDER BY symbol, time DESC;
+
+CREATE OR REPLACE VIEW public.trading_pnl_summary AS
+SELECT symbol,
+    COUNT(*)                                     AS total_trades,
+    COUNT(*) FILTER (WHERE realized_pnl > 0)     AS win_trades,
+    COUNT(*) FILTER (WHERE realized_pnl < 0)     AS loss_trades,
+    COALESCE(SUM(realized_pnl), 0)               AS total_pnl,
+    COALESCE(AVG(roe_percent), 0)                AS avg_roe,
+    MAX(realized_pnl)                            AS best_trade,
+    MIN(realized_pnl)                            AS worst_trade
+FROM public.orders
+WHERE status = 'CLOSED' AND realized_pnl IS NOT NULL
+GROUP BY symbol;
 
 -- =============================================================================
 -- Active symbols configuration

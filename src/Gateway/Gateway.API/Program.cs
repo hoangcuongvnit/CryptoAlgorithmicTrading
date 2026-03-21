@@ -16,7 +16,13 @@ builder.Services.AddHttpClient("riskguard", client =>
 
 builder.Services.AddHttpClient("notifier", client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["Notifier:BaseUrl"] ?? "http://localhost:5094");
+    client.BaseAddress = new Uri(builder.Configuration["Notifier:BaseUrl"] ?? "http://localhost:5095");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+builder.Services.AddHttpClient("executor", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Executor:BaseUrl"] ?? "http://localhost:5094");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
 
@@ -236,6 +242,62 @@ notifierGroup.MapGet("/stats", async (IHttpClientFactory factory, CancellationTo
     catch (Exception ex)
     {
         return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+// ── Executor trading endpoints proxy ─────────────────────────────────────
+
+var tradingGroup = app.MapGroup("/api/trading");
+
+tradingGroup.MapGet("/stats", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var response = await client.GetAsync("/api/trading/stats", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/positions", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var response = await client.GetAsync("/api/trading/positions", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/orders", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? symbol,
+    [Microsoft.AspNetCore.Mvc.FromQuery] int? limit,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var query = new System.Text.StringBuilder("/api/trading/orders?");
+        if (!string.IsNullOrEmpty(symbol)) query.Append($"symbol={Uri.EscapeDataString(symbol)}&");
+        if (limit.HasValue) query.Append($"limit={limit.Value}");
+        var response = await client.GetAsync(query.ToString().TrimEnd('?', '&'), ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
     }
 });
 

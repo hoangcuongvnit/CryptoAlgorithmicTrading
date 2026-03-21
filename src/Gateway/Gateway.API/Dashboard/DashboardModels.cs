@@ -97,7 +97,7 @@ public sealed record PagedResponse<T>(
     IReadOnlyList<T> Rows);
 
 public sealed record OrderRow(
-    string OrderId,
+    Guid OrderId,
     string Symbol,
     string Side,
     string OrderType,

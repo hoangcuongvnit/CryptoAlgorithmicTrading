@@ -103,6 +103,7 @@ services:
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
     ports:
       - "5014:5014"
+      - "5094:5094"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5094/health"]
       interval: 30s
@@ -240,12 +241,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      executor:
+        condition: service_healthy
     environment:
       - DOTNET_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
       - RiskGuard__BaseUrl=http://trading_riskguard:5093
       - Notifier__BaseUrl=http://trading_notifier:5094
+      - Executor__BaseUrl=http://trading_executor:5094
       - Dashboard__MaxRangeDaysFor1m=30
       - Dashboard__MaxRangeDaysForHigherIntervals=365
       - Dashboard__DefaultPageSize=100

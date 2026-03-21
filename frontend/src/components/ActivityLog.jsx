@@ -211,36 +211,38 @@ export function ActivityLog({ activities = [], loading = false }) {
       </div>
 
       {/* Event list */}
-      {loading && activities.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">
-          <p className="text-2xl mb-2">⏳</p>
-          <p className="text-sm">{t('activityLog.loadingStream')}</p>
-        </div>
-      ) : displayed.length === 0 ? (
-        <div className="text-center py-10 text-gray-400">
-          <p className="text-4xl mb-2">📭</p>
-          <p className="text-sm">
-            {activities.length === 0
-              ? t('activityLog.noEvents')
-              : t('activityLog.noEventsMatch')}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {displayed.map(evt => <ActivityRow key={evt.eventId} event={evt} />)}
-          <div ref={sentinelRef} className="h-1" />
-          {canLoadMore && (
-            <div className="text-center py-2 text-xs text-gray-400">
-              {t('activityLog.loadingMore')}
-            </div>
-          )}
-          {!canLoadMore && filtered.length > MAX_ROWS && (
-            <div className="text-center py-2 text-xs text-gray-400">
-              {t('activityLog.maxRowsReached', { max: MAX_ROWS })}
-            </div>
-          )}
-        </div>
-      )}
+      <div className="overflow-y-auto max-h-[480px] pr-1">
+        {loading && activities.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">
+            <p className="text-2xl mb-2">⏳</p>
+            <p className="text-sm">{t('activityLog.loadingStream')}</p>
+          </div>
+        ) : displayed.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">
+            <p className="text-4xl mb-2">📭</p>
+            <p className="text-sm">
+              {activities.length === 0
+                ? t('activityLog.noEvents')
+                : t('activityLog.noEventsMatch')}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {displayed.map(evt => <ActivityRow key={evt.eventId} event={evt} />)}
+            <div ref={sentinelRef} className="h-1" />
+            {canLoadMore && (
+              <div className="text-center py-2 text-xs text-gray-400">
+                {t('activityLog.loadingMore')}
+              </div>
+            )}
+            {!canLoadMore && filtered.length > MAX_ROWS && (
+              <div className="text-center py-2 text-xs text-gray-400">
+                {t('activityLog.maxRowsReached', { max: MAX_ROWS })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

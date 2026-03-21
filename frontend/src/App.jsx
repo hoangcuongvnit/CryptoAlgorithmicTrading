@@ -1,38 +1,28 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { OverviewPage } from './pages/OverviewPage.jsx'
 import { TradingPage } from './pages/TradingPage.jsx'
 import { SafetyPage } from './pages/SafetyPage.jsx'
 import { EventsPage } from './pages/EventsPage.jsx'
 import { GuidancePage } from './pages/GuidancePage.jsx'
 
-export default function App() {
-  const [page, setPage] = useState('overview')
+function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { t, i18n } = useTranslation('navigation')
+  const navigate = useNavigate()
 
   const NAV_ITEMS = [
-    { id: 'overview', label: t('overview'), icon: '📊' },
-    { id: 'trading', label: t('tradingSignals'), icon: '💹' },
-    { id: 'safety', label: t('safetyRisk'), icon: '🛡️' },
-    { id: 'events', label: t('eventHistory'), icon: '📋' },
-    { id: 'guidance', label: t('guidance'), icon: '🧭' },
+    { path: '/',         label: t('overview'),       icon: '📊' },
+    { path: '/trading',  label: t('tradingSignals'), icon: '💹' },
+    { path: '/safety',   label: t('safetyRisk'),     icon: '🛡️' },
+    { path: '/events',   label: t('eventHistory'),   icon: '📋' },
+    { path: '/guidance', label: t('guidance'),        icon: '🧭' },
   ]
 
   const toggleLang = () => {
     const next = i18n.language === 'vi' ? 'en' : 'vi'
     i18n.changeLanguage(next)
-  }
-
-  const renderPage = () => {
-    switch (page) {
-      case 'overview': return <OverviewPage />
-      case 'trading': return <TradingPage />
-      case 'safety': return <SafetyPage />
-      case 'events': return <EventsPage />
-      case 'guidance': return <GuidancePage onNavigate={p => { setPage(p); setSidebarOpen(false) }} />
-      default: return <OverviewPage />
-    }
   }
 
   return (
@@ -71,16 +61,20 @@ export default function App() {
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map(item => (
-            <button
-              key={item.id}
-              onClick={() => { setPage(item.id); setSidebarOpen(false) }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-[#dbe7ff] hover:bg-[#1d2b4a] hover:text-white ${
-                page === item.id ? 'bg-[#2f6fed] !text-white' : ''
-              }`}
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-[#dbe7ff] hover:bg-[#1d2b4a] hover:text-white ${
+                  isActive ? 'bg-[#2f6fed] !text-white' : ''
+                }`
+              }
             >
               <span className="text-base">{item.icon}</span>
               {item.label}
-            </button>
+            </NavLink>
           ))}
         </nav>
 
@@ -102,7 +96,8 @@ export default function App() {
             ☰
           </button>
           <h1 className="font-semibold text-gray-800 flex-1">
-            {NAV_ITEMS.find(n => n.id === page)?.icon} {NAV_ITEMS.find(n => n.id === page)?.label}
+            {NAV_ITEMS.find(n => n.path === window.location.pathname)?.icon}{' '}
+            {NAV_ITEMS.find(n => n.path === window.location.pathname)?.label}
           </h1>
           <button
             onClick={toggleLang}
@@ -114,9 +109,24 @@ export default function App() {
 
         {/* Page content */}
         <main className="flex-1 p-4 lg:p-6 max-w-7xl mx-auto w-full">
-          {renderPage()}
+          <Routes>
+            <Route path="/"         element={<OverviewPage />} />
+            <Route path="/trading"  element={<TradingPage />} />
+            <Route path="/safety"   element={<SafetyPage />} />
+            <Route path="/events"   element={<EventsPage />} />
+            <Route path="/guidance" element={<GuidancePage onNavigate={p => navigate(p)} />} />
+            <Route path="*"         element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Layout />
+    </BrowserRouter>
   )
 }

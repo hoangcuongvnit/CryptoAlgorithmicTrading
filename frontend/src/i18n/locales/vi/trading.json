@@ -1,12 +1,31 @@
 {
-  "title": "Tín hiệu giao dịch",
+  "title": "Giao dịch",
   "subtitle": "Phân tích thị trường trực tiếp — cập nhật mỗi 30 giây",
+  "signals": "Tín hiệu giao dịch",
   "recentOrders": "Lệnh gần đây",
+  "openPositions": "Vị thế đang mở",
+  "stats": {
+    "totalPnL": "Tổng P&L",
+    "realized": "Đã thực hiện",
+    "winRate": "Tỷ lệ thắng",
+    "maxDrawdown": "Drawdown tối đa",
+    "totalTrades": "Tổng lệnh",
+    "paperMode": "Giao dịch ảo"
+  },
+  "position": {
+    "long": "LONG",
+    "qty": "SL",
+    "entry": "Vào",
+    "current": "Hiện tại",
+    "none": "Không có vị thế đang mở"
+  },
   "order": {
     "price": "Giá",
     "qty": "SL",
     "paper": "Ảo",
     "filled": "✅ Đã khớp",
+    "open": "Đang mở",
+    "failed": "Thất bại",
     "noOrders": "Chưa có lệnh nào. Đang phân tích tín hiệu..."
   }
 }

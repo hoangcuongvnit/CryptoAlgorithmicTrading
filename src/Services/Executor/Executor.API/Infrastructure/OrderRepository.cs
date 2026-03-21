@@ -22,11 +22,11 @@ public sealed class OrderRepository
             INSERT INTO orders (
                 id, time, symbol, side, order_type, quantity, price,
                 filled_price, filled_qty, stop_loss, take_profit,
-                strategy, is_paper, success, error_msg)
+                strategy, is_paper, success, error_msg, status)
             VALUES (
                 @Id, @Time, @Symbol, @Side, @OrderType, @Quantity, @Price,
                 @FilledPrice, @FilledQty, @StopLoss, @TakeProfit,
-                @Strategy, @IsPaper, @Success, @ErrorMessage);
+                @Strategy, @IsPaper, @Success, @ErrorMessage, @Status);
             """;
 
         var rowId = Guid.NewGuid();
@@ -47,7 +47,8 @@ public sealed class OrderRepository
             Strategy = request.StrategyName,
             IsPaper = result.IsPaperTrade,
             Success = result.Success,
-            ErrorMessage = string.IsNullOrWhiteSpace(result.ErrorMessage) ? null : result.ErrorMessage
+            ErrorMessage = string.IsNullOrWhiteSpace(result.ErrorMessage) ? null : result.ErrorMessage,
+            Status = result.Success ? "OPEN" : "FAILED"
         };
 
         try
@@ -62,4 +63,100 @@ public sealed class OrderRepository
             throw;
         }
     }
+
+    public async Task UpdateRealizedPnLAsync(
+        string orderId,
+        decimal realizedPnL,
+        decimal exitPrice,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            UPDATE orders
+            SET status       = 'CLOSED',
+                realized_pnl = @RealizedPnL,
+                exit_price   = @ExitPrice,
+                exit_time    = @ExitTime,
+                roe_percent  = CASE WHEN filled_price > 0 AND filled_qty > 0
+                                   THEN @RealizedPnL / (filled_price * filled_qty) * 100
+                                   ELSE NULL
+                               END
+            WHERE id = @Id::uuid;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            await connection.ExecuteAsync(new CommandDefinition(
+                sql,
+                new { Id = orderId, RealizedPnL = realizedPnL, ExitPrice = exitPrice, ExitTime = DateTime.UtcNow },
+                cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update realized P&L for order {OrderId}", orderId);
+        }
+    }
+
+    public async Task<IReadOnlyList<OrderSummary>> GetRecentOrdersAsync(
+        int limit,
+        CancellationToken cancellationToken,
+        string? symbol = null)
+    {
+        var sql = """
+            SELECT id           AS OrderId,
+                   symbol       AS Symbol,
+                   side         AS Side,
+                   order_type   AS OrderType,
+                   quantity     AS Quantity,
+                   price        AS EntryPrice,
+                   filled_price AS FilledPrice,
+                   filled_qty   AS FilledQty,
+                   stop_loss    AS StopLoss,
+                   take_profit  AS TakeProfit,
+                   status       AS Status,
+                   realized_pnl AS RealizedPnL,
+                   roe_percent  AS RoePercent,
+                   is_paper     AS IsPaperTrade,
+                   success      AS Success,
+                   error_msg    AS ErrorMessage,
+                   time         AS CreatedAt
+            FROM public.orders
+            """
+            + (symbol is not null ? " WHERE symbol = @Symbol" : "")
+            + " ORDER BY time DESC LIMIT @Limit;";
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<OrderSummary>(
+                new CommandDefinition(sql, new { Symbol = symbol, Limit = limit }, cancellationToken: cancellationToken));
+            return rows.AsList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch recent orders");
+            return [];
+        }
+    }
+
+    public sealed record OrderSummary(
+        Guid OrderId,
+        string Symbol,
+        string Side,
+        string OrderType,
+        decimal Quantity,
+        decimal? EntryPrice,
+        decimal? FilledPrice,
+        decimal? FilledQty,
+        decimal? StopLoss,
+        decimal? TakeProfit,
+        string Status,
+        decimal? RealizedPnL,
+        decimal? RoePercent,
+        bool IsPaperTrade,
+        bool Success,
+        string? ErrorMessage,
+        DateTime CreatedAt);
 }
