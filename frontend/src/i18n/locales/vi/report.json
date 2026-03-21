@@ -1,0 +1,74 @@
+{
+  "title": "Báo Cáo Giao Dịch Hàng Ngày",
+  "subtitle": "Phân tích chi tiết hoạt động giao dịch trong ngày",
+  "date": "Ngày",
+  "today": "Hôm nay",
+  "tabs": {
+    "overview": "Tổng quan",
+    "symbols": "Chi tiết theo cặp",
+    "pnl": "Phân tích PnL",
+    "holdings": "Danh mục đang nắm",
+    "time": "Phân tích thời gian"
+  },
+  "kpi": {
+    "totalTrades": "Tổng lệnh",
+    "buyOrders": "Lệnh mua",
+    "sellOrders": "Lệnh bán",
+    "winRate": "Tỷ lệ thắng",
+    "realizedPnL": "PnL thực hiện"
+  },
+  "sections": {
+    "winLoss": "Chất lượng thắng / thua",
+    "orderTypes": "Loại lệnh",
+    "frequency": "Tần suất giao dịch theo cặp",
+    "hourlyHeatmap": "Hoạt động giao dịch theo giờ",
+    "symbolBreakdown": "Giao dịch trong ngày theo cặp tiền",
+    "pnlBySymbol": "PnL theo cặp tiền",
+    "pnlSummary": "Tóm tắt PnL",
+    "openPositions": "Vị thế đang mở",
+    "allocation": "Phân bổ danh mục",
+    "durationHistogram": "Phân phối thời gian nắm giữ",
+    "tradeLog": "Nhật ký giao dịch"
+  },
+  "labels": {
+    "grossProfit": "Lợi nhuận gộp",
+    "grossLoss": "Lỗ gộp",
+    "avgWin": "Thắng trung bình",
+    "avgLoss": "Thua trung bình",
+    "profitFactor": "Hệ số lợi nhuận",
+    "marketOrders": "Lệnh market",
+    "limitOrders": "Lệnh limit",
+    "failedOrders": "Lệnh thất bại",
+    "totalMarketValue": "Tổng giá trị thị trường",
+    "positions": "vị thế",
+    "avgHolding": "Thời gian nắm giữ TB",
+    "avgHoldingWin": "Thời gian nắm (Thắng)",
+    "avgHoldingLoss": "Thời gian nắm (Thua)"
+  },
+  "col": {
+    "symbol": "Cặp tiền",
+    "buyCount": "Mua",
+    "sellCount": "Bán",
+    "buyQty": "KL mua",
+    "sellQty": "KL bán",
+    "avgBuy": "Giá mua TB",
+    "avgSell": "Giá bán TB",
+    "winLoss": "Thắng/Thua",
+    "realizedPnL": "PnL thực hiện",
+    "lastTrade": "Lệnh cuối",
+    "qty": "Số lượng",
+    "entryPrice": "Vào lệnh",
+    "currentPrice": "Hiện tại",
+    "marketValue": "Giá trị thị trường",
+    "unrealizedPnL": "PnL chưa chốt",
+    "roe": "ROE",
+    "side": "Chiều",
+    "openTime": "Mở lệnh",
+    "closeTime": "Đóng lệnh",
+    "duration": "Thời gian"
+  },
+  "empty": {
+    "noTrades": "Không có giao dịch nào trong ngày này.",
+    "noPositions": "Không có vị thế đang mở."
+  }
+}

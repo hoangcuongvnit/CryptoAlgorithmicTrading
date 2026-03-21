@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next'
+import { useSettings } from '../context/SettingsContext.jsx'
+import { formatTime } from '../utils/dateFormat.js'
 
 function timeAgo(isoStr) {
   if (!isoStr) return ''
@@ -7,11 +9,6 @@ function timeAgo(isoStr) {
   if (diff < 3600) return `${Math.round(diff / 60)}m ago`
   if (diff < 86400) return `${Math.round(diff / 3600)}h ago`
   return new Date(isoStr).toLocaleDateString()
-}
-
-function formatTime(isoStr) {
-  if (!isoStr) return ''
-  return new Date(isoStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' })
 }
 
 const CATEGORY_STYLE = {
@@ -23,6 +20,7 @@ const CATEGORY_STYLE = {
 
 export function EventTimeline({ events, maxItems = 30 }) {
   const { t } = useTranslation('common')
+  const { systemTimezone } = useSettings()
 
   if (!events || events.length === 0) {
     return (
@@ -57,7 +55,7 @@ export function EventTimeline({ events, maxItems = 30 }) {
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${style.bg} ${style.text}`}>
                   {label}
                 </span>
-                <span className="text-xs text-gray-400">{formatTime(evt.timestampUtc)} UTC</span>
+                <span className="text-xs text-gray-400">{formatTime(evt.timestampUtc, systemTimezone, { seconds: true })}</span>
                 <span className="text-xs text-gray-300">({timeAgo(evt.timestampUtc)})</span>
               </div>
             </div>

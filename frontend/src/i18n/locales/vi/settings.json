@@ -1,0 +1,22 @@
+{
+  "title": "Cài đặt hệ thống",
+  "subtitle": "Cấu hình các thông số hệ thống toàn cục. Thay đổi có hiệu lực ngay lập tức trên toàn bộ bảng điều khiển.",
+  "timezone": {
+    "label": "Múi giờ hệ thống",
+    "description": "Tất cả thời gian hiển thị trên bảng điều khiển sẽ theo múi giờ này. Dữ liệu luôn được lưu dưới dạng UTC.",
+    "search": "Tìm múi giờ...",
+    "active": "Đang dùng",
+    "pending": "Sẽ áp dụng",
+    "preview": "Giờ hiện tại"
+  },
+  "save": "Lưu cài đặt",
+  "saving": "Đang lưu...",
+  "saveSuccess": "Đã cập nhật múi giờ thành công.",
+  "saveError": "Lưu thất bại. Vui lòng thử lại.",
+  "note": {
+    "title": "Cách hoạt động",
+    "utcStorage": "Toàn bộ dữ liệu giao dịch được lưu theo UTC — không có dữ liệu nào bị thay đổi.",
+    "displayOnly": "Cài đặt này chỉ ảnh hưởng đến hiển thị; chuyển đổi múi giờ diễn ra ở lớp trình bày.",
+    "immediate": "Thay đổi áp dụng ngay cho tất cả các trang mà không cần tải lại."
+  }
+}

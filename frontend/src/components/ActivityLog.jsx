@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSettings } from '../context/SettingsContext.jsx'
+import { formatTime } from '../utils/dateFormat.js'
 
 const CHUNK = 20
 const MAX_ROWS = 100
@@ -13,12 +15,6 @@ function timeAgo(isoStr) {
   return new Date(isoStr).toLocaleDateString()
 }
 
-function formatTime(isoStr) {
-  if (!isoStr) return ''
-  return new Date(isoStr).toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC',
-  })
-}
 
 const CATEGORY_BG = {
   RISK_EVALUATION: { icon: '🛡️', bg: 'bg-purple-100', text: 'text-purple-800' },
@@ -43,6 +39,7 @@ const SEVERITY_BORDER = {
 
 function ActivityRow({ event }) {
   const { t } = useTranslation('common')
+  const { systemTimezone } = useSettings()
   const [expanded, setExpanded] = useState(false)
 
   const catStyle = CATEGORY_BG[event.category] ?? CATEGORY_BG.SYSTEM
@@ -83,7 +80,7 @@ function ActivityRow({ event }) {
               {t(statusLabelKey, { defaultValue: event.status })}
             </span>
             <span className="text-xs text-gray-400 ml-auto shrink-0">
-              {formatTime(event.timestampUtc)} UTC · {timeAgo(event.timestampUtc)}
+              {formatTime(event.timestampUtc, systemTimezone, { seconds: true })} · {timeAgo(event.timestampUtc)}
             </span>
           </div>
           <p className="text-sm text-gray-700 mt-1 leading-snug">{event.message}</p>

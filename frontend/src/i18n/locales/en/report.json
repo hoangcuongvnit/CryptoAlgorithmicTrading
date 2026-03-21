@@ -1,0 +1,74 @@
+{
+  "title": "Daily Trading Report",
+  "subtitle": "Detailed analysis of trading activity for a selected day",
+  "date": "Date",
+  "today": "Today",
+  "tabs": {
+    "overview": "Overview",
+    "symbols": "Symbol Breakdown",
+    "pnl": "PnL Analysis",
+    "holdings": "Holdings",
+    "time": "Time Analytics"
+  },
+  "kpi": {
+    "totalTrades": "Total Trades",
+    "buyOrders": "Buy Orders",
+    "sellOrders": "Sell Orders",
+    "winRate": "Win Rate",
+    "realizedPnL": "Realized PnL"
+  },
+  "sections": {
+    "winLoss": "Win / Loss Quality",
+    "orderTypes": "Order Types",
+    "frequency": "Trade Frequency by Symbol",
+    "hourlyHeatmap": "Hourly Trade Activity",
+    "symbolBreakdown": "Daily Trades by Symbol",
+    "pnlBySymbol": "PnL by Symbol",
+    "pnlSummary": "PnL Summary",
+    "openPositions": "Current Open Positions",
+    "allocation": "Portfolio Allocation",
+    "durationHistogram": "Holding Duration Distribution",
+    "tradeLog": "Trade Log"
+  },
+  "labels": {
+    "grossProfit": "Gross Profit",
+    "grossLoss": "Gross Loss",
+    "avgWin": "Avg Win",
+    "avgLoss": "Avg Loss",
+    "profitFactor": "Profit Factor",
+    "marketOrders": "Market Orders",
+    "limitOrders": "Limit Orders",
+    "failedOrders": "Failed Orders",
+    "totalMarketValue": "Total Market Value",
+    "positions": "positions",
+    "avgHolding": "Avg Holding Duration",
+    "avgHoldingWin": "Avg Duration (Wins)",
+    "avgHoldingLoss": "Avg Duration (Losses)"
+  },
+  "col": {
+    "symbol": "Symbol",
+    "buyCount": "Buys",
+    "sellCount": "Sells",
+    "buyQty": "Buy Qty",
+    "sellQty": "Sell Qty",
+    "avgBuy": "Avg Buy",
+    "avgSell": "Avg Sell",
+    "winLoss": "W/L",
+    "realizedPnL": "Realized PnL",
+    "lastTrade": "Last Trade",
+    "qty": "Quantity",
+    "entryPrice": "Entry",
+    "currentPrice": "Current",
+    "marketValue": "Market Value",
+    "unrealizedPnL": "Unreal. PnL",
+    "roe": "ROE",
+    "side": "Side",
+    "openTime": "Open",
+    "closeTime": "Close",
+    "duration": "Duration"
+  },
+  "empty": {
+    "noTrades": "No trades found for this date.",
+    "noPositions": "No open positions."
+  }
+}

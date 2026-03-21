@@ -95,4 +95,55 @@ app.MapGet("/api/trading/orders", async (
     return Results.Ok(orders);
 });
 
+// ── Daily Report endpoints ────────────────────────────────────────────────
+
+app.MapGet("/api/trading/report/daily", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
+    var summary = await repo.GetDailyReportAsync(reportDate, ct);
+    return Results.Ok(summary);
+});
+
+app.MapGet("/api/trading/report/daily/symbols", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
+    var breakdown = await repo.GetDailySymbolBreakdownAsync(reportDate, ct);
+    return Results.Ok(breakdown);
+});
+
+app.MapGet("/api/trading/report/time-analytics", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
+    var trades = await repo.GetDailyTimeAnalyticsAsync(reportDate, ct);
+    var closedWithDuration = trades.Where(t => t.HoldingMinutes.HasValue).ToList();
+
+    var result = new
+    {
+        trades,
+        avgHoldingMinutes    = closedWithDuration.Count > 0 ? closedWithDuration.Average(t => t.HoldingMinutes!.Value) : 0,
+        avgHoldingWinMinutes = closedWithDuration.Where(t => t.RealizedPnL > 0).Select(t => t.HoldingMinutes!.Value) is var wDur && wDur.Any() ? wDur.Average() : 0,
+        avgHoldingLossMinutes= closedWithDuration.Where(t => t.RealizedPnL < 0).Select(t => t.HoldingMinutes!.Value) is var lDur && lDur.Any() ? lDur.Average() : 0,
+    };
+    return Results.Ok(result);
+});
+
+app.MapGet("/api/trading/report/hourly", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
+    var buckets = await repo.GetHourlyBucketsAsync(reportDate, ct);
+    return Results.Ok(buckets);
+});
+
 app.Run();

@@ -1,4 +1,5 @@
 using CryptoAlgorithmicTrading.Gateway.API.Dashboard;
+using CryptoAlgorithmicTrading.Gateway.API.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -7,6 +8,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection("Dashboard"));
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IDashboardQueryService, DashboardQueryService>();
+builder.Services.AddSingleton(sp =>
+{
+    var cs = builder.Configuration.GetConnectionString("Postgres")
+        ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required");
+    var logger = sp.GetRequiredService<ILogger<SystemSettingsRepository>>();
+    return new SystemSettingsRepository(cs, logger);
+});
 
 builder.Services.AddHttpClient("riskguard", client =>
 {
@@ -301,6 +309,113 @@ tradingGroup.MapGet("/orders", async (
     }
 });
 
+// ── Daily Report proxy endpoints ─────────────────────────────────────────
+
+tradingGroup.MapGet("/report/daily", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var url = string.IsNullOrEmpty(date) ? "/api/trading/report/daily" : $"/api/trading/report/daily?date={Uri.EscapeDataString(date)}";
+        var response = await client.GetAsync(url, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/report/daily/symbols", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var url = string.IsNullOrEmpty(date) ? "/api/trading/report/daily/symbols" : $"/api/trading/report/daily/symbols?date={Uri.EscapeDataString(date)}";
+        var response = await client.GetAsync(url, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/report/time-analytics", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var url = string.IsNullOrEmpty(date) ? "/api/trading/report/time-analytics" : $"/api/trading/report/time-analytics?date={Uri.EscapeDataString(date)}";
+        var response = await client.GetAsync(url, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+tradingGroup.MapGet("/report/hourly", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] string? date,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var url = string.IsNullOrEmpty(date) ? "/api/trading/report/hourly" : $"/api/trading/report/hourly?date={Uri.EscapeDataString(date)}";
+        var response = await client.GetAsync(url, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+// ── System Settings endpoints ──────────────────────────────────────────────
+
+var settingsGroup = app.MapGroup("/api/settings");
+
+settingsGroup.MapGet("/system", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var timezone = await repo.GetTimezoneAsync(ct);
+    return Results.Ok(new { timezone });
+});
+
+settingsGroup.MapGet("/system/timezones", (SystemSettingsRepository repo) =>
+    Results.Ok(SystemSettingsRepository.SupportedTimezones));
+
+settingsGroup.MapPut("/system/timezone", async (
+    SystemSettingsRepository repo,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<TimezoneUpdateRequest>(ct);
+    if (body is null || string.IsNullOrWhiteSpace(body.Timezone))
+        return Results.BadRequest("timezone is required");
+
+    if (!repo.IsValidTimezone(body.Timezone))
+        return Results.BadRequest($"Unknown timezone '{body.Timezone}'. Use a supported IANA timezone ID.");
+
+    await repo.UpdateTimezoneAsync(body.Timezone, body.UpdatedBy, ct);
+    return Results.Ok(new { timezone = body.Timezone });
+});
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Gateway.API", utc = DateTime.UtcNow }));
 app.MapFallbackToFile("index.html");
 
@@ -404,3 +519,5 @@ static void SetCacheHeaders(HttpContext context, int cacheSeconds)
 	context.Response.Headers.CacheControl = $"public, max-age={cacheSeconds}";
 	context.Response.Headers.Expires = DateTime.UtcNow.AddSeconds(cacheSeconds).ToString("R");
 }
+
+record TimezoneUpdateRequest(string Timezone, string? UpdatedBy);

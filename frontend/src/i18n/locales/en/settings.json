@@ -1,0 +1,22 @@
+{
+  "title": "System Settings",
+  "subtitle": "Configure global system parameters. Changes take effect immediately across the dashboard.",
+  "timezone": {
+    "label": "System Timezone",
+    "description": "All timestamps displayed in the dashboard will use this timezone. Data is always stored in UTC.",
+    "search": "Search timezone...",
+    "active": "Active",
+    "pending": "Will be set",
+    "preview": "Current time"
+  },
+  "save": "Save Settings",
+  "saving": "Saving...",
+  "saveSuccess": "Timezone updated successfully.",
+  "saveError": "Failed to save. Please try again.",
+  "note": {
+    "title": "How it works",
+    "utcStorage": "All trade data is stored in UTC internally — no data is changed.",
+    "displayOnly": "This setting controls display only; it converts timestamps at the presentation layer.",
+    "immediate": "Changes apply instantly to all pages without a reload."
+  }
+}

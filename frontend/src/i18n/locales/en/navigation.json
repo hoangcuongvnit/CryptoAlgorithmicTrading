@@ -2,9 +2,11 @@
   "brandSubtitle": "Automated Trading Dashboard",
   "overview": "Overview",
   "tradingSignals": "Trading Signals",
+  "dailyReport": "Daily Report",
   "safetyRisk": "Safety & Risk",
   "eventHistory": "Event History",
   "guidance": "Guidance",
+  "systemSettings": "System Settings",
   "dataRefreshes": "Data refreshes automatically",
   "every15to30s": "Every 15–30 seconds",
   "switchLang": "VI"

@@ -7,11 +7,13 @@ import { EventTimeline } from '../components/EventTimeline.jsx'
 import { PriceChangeChart } from '../components/PriceChangeChart.jsx'
 import { useRiskStats, useRiskConfig, useNotifierStats } from '../hooks/useDashboard.js'
 import { formatPnl, pnlColorClass } from '../utils/indicators.js'
+import { useSettings } from '../context/SettingsContext.jsx'
 
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
 
 export function OverviewPage() {
   const { t } = useTranslation(['overview', 'common'])
+  const { systemTimezone } = useSettings()
   const { data: risk, loading: riskLoading } = useRiskStats()
   const { data: config } = useRiskConfig()
   const { data: notifier, lastUpdated } = useNotifierStats()
@@ -32,7 +34,7 @@ export function OverviewPage() {
           </span>
           {lastUpdated && (
             <span className="text-xs text-gray-400">
-              {t('common:updatedAt', { time: lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) })}
+              {t('common:updatedAt', { time: lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: systemTimezone }) })}
             </span>
           )}
         </div>

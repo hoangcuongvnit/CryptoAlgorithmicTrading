@@ -77,6 +77,43 @@ export function useCandles(symbol, minutesBack = 60) {
   return usePolling(fn, 30000)
 }
 
+export function useDailyReport(date) {
+  const fn = useCallback(() => {
+    const params = date ? `?date=${encodeURIComponent(date)}` : ''
+    return fetchJson(`/api/trading/report/daily${params}`)
+  }, [date])
+  return usePolling(fn, 30000)
+}
+
+export function useDailySymbolBreakdown(date) {
+  const fn = useCallback(() => {
+    const params = date ? `?date=${encodeURIComponent(date)}` : ''
+    return fetchJson(`/api/trading/report/daily/symbols${params}`)
+  }, [date])
+  return usePolling(fn, 30000)
+}
+
+export function useDailyTimeAnalytics(date) {
+  const fn = useCallback(() => {
+    const params = date ? `?date=${encodeURIComponent(date)}` : ''
+    return fetchJson(`/api/trading/report/time-analytics${params}`)
+  }, [date])
+  return usePolling(fn, 30000)
+}
+
+export function useDailyHourly(date) {
+  const fn = useCallback(() => {
+    const params = date ? `?date=${encodeURIComponent(date)}` : ''
+    return fetchJson(`/api/trading/report/hourly${params}`)
+  }, [date])
+  return usePolling(fn, 30000)
+}
+
+export function useSystemSettings() {
+  const fn = useCallback(() => fetchJson('/api/settings/system'), [])
+  return usePolling(fn, 60000)
+}
+
 export function usePriceComparison(symbols, minutesBack = 60) {
   const symbolsKey = symbols.join(',')
   const fn = useCallback(async () => {

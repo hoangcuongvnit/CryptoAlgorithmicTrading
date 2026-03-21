@@ -4,11 +4,14 @@ import { SafetyLight } from '../components/SafetyLight.jsx'
 import { StatCard } from '../components/StatCard.jsx'
 import { useRiskStats, useRiskConfig } from '../hooks/useDashboard.js'
 import { formatPnl, pnlColorClass } from '../utils/indicators.js'
+import { useSettings } from '../context/SettingsContext.jsx'
+import { formatTime } from '../utils/dateFormat.js'
 
 const V_CHUNK = 20
 const V_MAX = 100
 
 function ValidationRow({ v }) {
+  const { systemTimezone } = useSettings()
   return (
     <div className={`flex items-center gap-3 p-3 rounded-lg border text-sm ${
       v.approved ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'
@@ -26,7 +29,7 @@ function ValidationRow({ v }) {
         )}
       </div>
       <span className="text-xs text-gray-400 flex-shrink-0">
-        {v.timestampUtc ? new Date(v.timestampUtc).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'UTC' }) : ''}
+        {formatTime(v.timestampUtc, systemTimezone, { seconds: true })}
       </span>
     </div>
   )

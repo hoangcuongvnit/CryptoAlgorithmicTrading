@@ -9,6 +9,8 @@ import viTrading from './locales/vi/trading.json'
 import viSafety from './locales/vi/safety.json'
 import viEvents from './locales/vi/events.json'
 import viGuidance from './locales/vi/guidance.json'
+import viReport from './locales/vi/report.json'
+import viSettings from './locales/vi/settings.json'
 
 import enNavigation from './locales/en/navigation.json'
 import enCommon from './locales/en/common.json'
@@ -17,6 +19,8 @@ import enTrading from './locales/en/trading.json'
 import enSafety from './locales/en/safety.json'
 import enEvents from './locales/en/events.json'
 import enGuidance from './locales/en/guidance.json'
+import enReport from './locales/en/report.json'
+import enSettings from './locales/en/settings.json'
 
 i18n
   .use(LanguageDetector)
@@ -31,6 +35,8 @@ i18n
         safety: viSafety,
         events: viEvents,
         guidance: viGuidance,
+        report: viReport,
+        settings: viSettings,
       },
       en: {
         navigation: enNavigation,
@@ -40,6 +46,8 @@ i18n
         safety: enSafety,
         events: enEvents,
         guidance: enGuidance,
+        report: enReport,
+        settings: enSettings,
       },
     },
     lng: 'vi',

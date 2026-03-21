@@ -3,6 +3,8 @@ import { SignalCard } from '../components/SignalCard.jsx'
 import { StatCard } from '../components/StatCard.jsx'
 import { useRiskConfig, useOrders, useTradingStats, useOpenPositions } from '../hooks/useDashboard.js'
 import { formatPrice } from '../utils/indicators.js'
+import { useSettings } from '../context/SettingsContext.jsx'
+import { formatTime } from '../utils/dateFormat.js'
 
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
 
@@ -56,6 +58,7 @@ function PositionRow({ pos }) {
 
 function OrderRow({ order }) {
   const { t } = useTranslation('trading')
+  const { systemTimezone } = useSettings()
   const isSuccess = order.success ?? order.filledQty > 0
   const isPaper = order.isPaperTrade ?? order.is_paper
   const side = (order.side ?? '').toLowerCase()
@@ -104,7 +107,7 @@ function OrderRow({ order }) {
         </div>
       </div>
       <div className="flex-shrink-0 text-xs text-gray-400">
-        {order.createdAt ? new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }) : ''}
+        {formatTime(order.createdAt, systemTimezone)}
       </div>
     </div>
   )
@@ -171,7 +174,7 @@ export function TradingPage() {
             <p className="text-sm">{t('position.none')}</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {positions.map((pos, i) => (
               <PositionRow key={pos.symbol ?? i} pos={pos} />
             ))}
@@ -207,7 +210,7 @@ export function TradingPage() {
           </div>
         )}
         {orders && orders.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
             {orders.map((order, i) => (
               <OrderRow key={order.orderId ?? i} order={order} />
             ))}

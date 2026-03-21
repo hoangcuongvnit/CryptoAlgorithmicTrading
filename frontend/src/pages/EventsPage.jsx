@@ -2,10 +2,12 @@ import { useTranslation } from 'react-i18next'
 import { ActivityLog } from '../components/ActivityLog.jsx'
 import { StatCard } from '../components/StatCard.jsx'
 import { useActivities } from '../hooks/useDashboard.js'
+import { useSettings } from '../context/SettingsContext.jsx'
 
 export function EventsPage() {
   const { t } = useTranslation('events')
   const { activities, loading, lastUpdated, refresh } = useActivities()
+  const { systemTimezone } = useSettings()
 
   const riskChecks = activities.filter(e => e.category === 'RISK_EVALUATION').length
   const approved   = activities.filter(e => e.category === 'RISK_EVALUATION' && e.status === 'SUCCESS').length
@@ -19,7 +21,7 @@ export function EventsPage() {
           <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{t('title')}</h1>
           {lastUpdated && (
             <p className="text-xs text-gray-400 mt-0.5">
-              {t('lastUpdated', { time: lastUpdated.toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }) })}
+              {t('lastUpdated', { time: lastUpdated.toLocaleTimeString('en-US', { hour12: false, timeZone: systemTimezone }) })}
             </p>
           )}
         </div>

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePriceComparison } from '../hooks/useDashboard.js'
+import { useSettings } from '../context/SettingsContext.jsx'
 
 const COIN_COLORS = {
   BTCUSDT: '#F59E0B',
@@ -24,6 +25,7 @@ function buildPath(points) {
 
 export function PriceChangeChart({ symbols }) {
   const { t } = useTranslation('overview')
+  const { systemTimezone } = useSettings()
   const { data, loading, lastUpdated } = usePriceComparison(symbols)
 
   const { seriesBySymbol, yMin, yMax, tStart, tEnd } = useMemo(() => {
@@ -111,10 +113,10 @@ export function PriceChangeChart({ symbols }) {
     return Array.from({ length: 7 }, (_, i) => {
       const ms = tStart + (tRange * i) / 6
       const x = PAD.left + ((ms - tStart) / tRange) * CHART_W
-      const label = new Date(ms).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })
+      const label = new Date(ms).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: systemTimezone })
       return { x, label }
     })
-  }, [tStart, tEnd])
+  }, [tStart, tEnd, systemTimezone])
 
   // Zero line Y position
   const zeroY = yMin <= 0 && yMax >= 0
