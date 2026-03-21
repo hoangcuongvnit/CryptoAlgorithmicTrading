@@ -26,7 +26,10 @@ public sealed class RiskGuardGrpcService : RiskGuardService.RiskGuardServiceBase
             (decimal)request.EntryPrice,
             (decimal)request.StopLoss,
             (decimal)request.TakeProfit,
-            context.CancellationToken);
+            context.CancellationToken,
+            request.SessionId,
+            request.SessionPhase,
+            request.IsReduceOnly);
 
         if (!result.IsApproved)
         {

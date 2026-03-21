@@ -8,16 +8,20 @@ service RiskGuardService {
 }
 
 message ValidateOrderRequest {
-  string symbol      = 1;
-  string side        = 2;  // "Buy" or "Sell"
-  double quantity    = 3;
-  double entry_price = 4;
-  double stop_loss   = 5;
-  double take_profit = 6;
+  string symbol        = 1;
+  string side          = 2;  // "Buy" or "Sell"
+  double quantity      = 3;
+  double entry_price   = 4;
+  double stop_loss     = 5;
+  double take_profit   = 6;
+  string session_id    = 7;
+  string session_phase = 8;
+  bool   is_reduce_only = 9;
 }
 
 message ValidateOrderReply {
   bool   is_approved        = 1;
   string rejection_reason   = 2;
   double adjusted_quantity  = 3;
+  string session_id         = 4;
 }

@@ -1,3 +1,4 @@
+using CryptoTrading.Shared.Session;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
 using RiskGuard.API.Infrastructure;
@@ -23,7 +24,14 @@ builder.Services.AddSingleton<OrderStatsRepository>();
 builder.Services.AddSingleton<SystemEventPublisher>();
 builder.Services.AddSingleton<ValidationHistory>();
 
-// Rules — evaluated in this order: fast/cheap checks first, DB-backed checks last
+// Session services
+builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
+builder.Services.AddSingleton<SessionClock>();
+builder.Services.AddSingleton<SessionTradingPolicy>();
+
+// Rules — evaluated in this order: session guards first, then fast/cheap checks, DB-backed checks last
+builder.Services.AddSingleton<IRiskRule, NoCrossSessionCarryRule>();
+builder.Services.AddSingleton<IRiskRule, SessionWindowRule>();
 builder.Services.AddSingleton<IRiskRule, SymbolAllowListRule>();
 builder.Services.AddSingleton<IRiskRule, QuantityRule>();
 builder.Services.AddSingleton<IRiskRule, PositionSizeRule>();

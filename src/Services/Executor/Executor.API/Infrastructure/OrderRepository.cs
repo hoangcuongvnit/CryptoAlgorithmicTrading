@@ -22,11 +22,15 @@ public sealed class OrderRepository
             INSERT INTO orders (
                 id, time, symbol, side, order_type, quantity, price,
                 filled_price, filled_qty, stop_loss, take_profit,
-                strategy, is_paper, success, error_msg, status)
+                strategy, is_paper, success, error_msg, status,
+                session_id, session_phase, is_reduce_only,
+                forced_liquidation, liquidation_reason)
             VALUES (
                 @Id, @Time, @Symbol, @Side, @OrderType, @Quantity, @Price,
                 @FilledPrice, @FilledQty, @StopLoss, @TakeProfit,
-                @Strategy, @IsPaper, @Success, @ErrorMessage, @Status);
+                @Strategy, @IsPaper, @Success, @ErrorMessage, @Status,
+                @SessionId, @SessionPhase, @IsReduceOnly,
+                @ForcedLiquidation, @LiquidationReason);
             """;
 
         var rowId = Guid.NewGuid();
@@ -48,7 +52,12 @@ public sealed class OrderRepository
             IsPaper = result.IsPaperTrade,
             Success = result.Success,
             ErrorMessage = string.IsNullOrWhiteSpace(result.ErrorMessage) ? null : result.ErrorMessage,
-            Status = result.Success ? "OPEN" : "FAILED"
+            Status = result.Success ? "OPEN" : "FAILED",
+            SessionId = request.SessionId,
+            SessionPhase = request.SessionPhase?.ToString(),
+            IsReduceOnly = request.IsReduceOnly,
+            ForcedLiquidation = result.ForcedLiquidation,
+            LiquidationReason = result.LiquidationReason.ToString()
         };
 
         try

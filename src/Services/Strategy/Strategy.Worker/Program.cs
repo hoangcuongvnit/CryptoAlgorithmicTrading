@@ -1,5 +1,6 @@
 using CryptoTrading.Executor.Grpc;
 using CryptoTrading.RiskGuard.Grpc;
+using CryptoTrading.Shared.Session;
 using Grpc.Net.Client;
 using StackExchange.Redis;
 using Strategy.Worker;
@@ -11,6 +12,9 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection("Redis"));
 builder.Services.Configure<GrpcEndpoints>(builder.Configuration.GetSection("Grpc"));
 builder.Services.Configure<TradingSettings>(builder.Configuration.GetSection("Trading"));
+builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
+builder.Services.AddSingleton<SessionClock>();
+builder.Services.AddSingleton<SessionTradingPolicy>();
 
 var redisConnection = builder.Configuration.GetValue<string>("Redis:Connection") ?? "localhost:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>

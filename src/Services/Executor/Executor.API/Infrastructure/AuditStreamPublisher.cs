@@ -19,7 +19,7 @@ public sealed class AuditStreamPublisher
 
         var entries = new NameValueEntry[]
         {
-            new("event_version", "1"),
+            new("event_version", "2"),
             new("order_id", result.OrderId),
             new("symbol", request.Symbol),
             new("side", request.Side.ToString()),
@@ -30,7 +30,12 @@ public sealed class AuditStreamPublisher
             new("success", result.Success.ToString()),
             new("error_code", string.IsNullOrWhiteSpace(result.ErrorMessage) ? string.Empty : "EXECUTION_ERROR"),
             new("error_message", result.ErrorMessage ?? string.Empty),
-            new("time", result.Timestamp.ToString("O"))
+            new("time", result.Timestamp.ToString("O")),
+            new("session_id", request.SessionId ?? string.Empty),
+            new("session_phase", request.SessionPhase?.ToString() ?? string.Empty),
+            new("is_reduce_only", request.IsReduceOnly.ToString()),
+            new("forced_liquidation", result.ForcedLiquidation.ToString()),
+            new("liquidation_reason", result.LiquidationReason.ToString())
         };
 
         await db.StreamAddAsync(RedisChannels.TradesAudit, entries);

@@ -24,7 +24,10 @@ public sealed record RiskContext(
     decimal Quantity,
     decimal EntryPrice,
     decimal StopLoss,
-    decimal TakeProfit);
+    decimal TakeProfit,
+    string? SessionId = null,
+    string? SessionPhase = null,
+    bool IsReduceOnly = false);
 
 public sealed record RuleResult
 {

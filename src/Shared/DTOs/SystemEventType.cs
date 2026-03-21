@@ -9,5 +9,11 @@ public enum SystemEventType
     OrderPlaced,
     OrderRejected,
     MaxDrawdownBreached,
-    Error
+    Error,
+    SessionStarted,
+    SessionEnding,
+    LiquidationStarted,
+    ForcedFlatten,
+    SessionFlat,
+    SessionNotFlat
 }

@@ -1,4 +1,5 @@
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Session;
 using Strategy.Worker.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -13,9 +14,16 @@ public sealed class SignalToOrderMapper
         _settings = settings.Value;
     }
 
-    public bool TryMap(TradeSignal signal, out OrderRequest? orderRequest)
+    public bool TryMap(TradeSignal signal, out OrderRequest? orderRequest, SessionInfo? session = null)
     {
         orderRequest = null;
+
+        // In SoftUnwind phase, only allow Strong signals
+        if (session is not null && session.CurrentPhase == SessionPhase.SoftUnwind
+            && signal.Strength != SignalStrength.Strong)
+        {
+            return false;
+        }
 
         if ((int)signal.Strength < (int)_settings.MinimumSignalStrength)
         {
@@ -47,7 +55,10 @@ public sealed class SignalToOrderMapper
             Price = entry,
             StopLoss = stopLoss,
             TakeProfit = takeProfit,
-            StrategyName = "SignalStrengthEmaStrategy"
+            StrategyName = "SignalStrengthEmaStrategy",
+            SessionId = session?.SessionId,
+            SessionPhase = session?.CurrentPhase,
+            IsReduceOnly = false
         };
 
         return true;

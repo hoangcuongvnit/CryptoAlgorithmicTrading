@@ -4,6 +4,8 @@ using CryptoTrading.RiskGuard.Grpc;
 using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Json;
+using CryptoTrading.Shared.Session;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using Strategy.Worker.Services;
 
@@ -16,6 +18,9 @@ public sealed class Worker : BackgroundService
     private readonly RiskGuardService.RiskGuardServiceClient _riskGuardClient;
     private readonly OrderExecutorService.OrderExecutorServiceClient _executorClient;
     private readonly SignalToOrderMapper _mapper;
+    private readonly SessionClock _sessionClock;
+    private readonly SessionTradingPolicy _sessionPolicy;
+    private readonly SessionSettings _sessionSettings;
     private ISubscriber? _subscriber;
 
     public Worker(
@@ -23,13 +28,19 @@ public sealed class Worker : BackgroundService
         IConnectionMultiplexer redis,
         RiskGuardService.RiskGuardServiceClient riskGuardClient,
         OrderExecutorService.OrderExecutorServiceClient executorClient,
-        SignalToOrderMapper mapper)
+        SignalToOrderMapper mapper,
+        SessionClock sessionClock,
+        SessionTradingPolicy sessionPolicy,
+        IOptions<SessionSettings> sessionSettings)
     {
         _logger = logger;
         _redis = redis;
         _riskGuardClient = riskGuardClient;
         _executorClient = executorClient;
         _mapper = mapper;
+        _sessionClock = sessionClock;
+        _sessionPolicy = sessionPolicy;
+        _sessionSettings = sessionSettings.Value;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -79,7 +90,7 @@ public sealed class Worker : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to deserialize trade signal payload. Raw String={PayloadString} | RedisValue={RedisValue}", 
+            _logger.LogWarning(ex, "Failed to deserialize trade signal payload. Raw String={PayloadString} | RedisValue={RedisValue}",
                 (string?)payload, payload.ToString());
             return;
         }
@@ -89,7 +100,23 @@ public sealed class Worker : BackgroundService
             return;
         }
 
-        if (!_mapper.TryMap(signal, out var order) || order is null)
+        // Session-phase gate: skip new entry signals outside Open/SoftUnwind
+        SessionInfo? session = null;
+        if (_sessionSettings.Enabled)
+        {
+            session = _sessionClock.GetCurrentSession();
+
+            if (!_sessionPolicy.CanOpenNewPosition(session)
+                && session.CurrentPhase != SessionPhase.SoftUnwind)
+            {
+                _logger.LogDebug(
+                    "Signal for {Symbol} skipped: session {SessionId} is in {Phase} phase",
+                    signal.Symbol, session.SessionId, session.CurrentPhase);
+                return;
+            }
+        }
+
+        if (!_mapper.TryMap(signal, out var order, session) || order is null)
         {
             _logger.LogDebug("Signal for {Symbol} ignored by strategy mapper", signal.Symbol);
             return;
@@ -102,7 +129,10 @@ public sealed class Worker : BackgroundService
             Quantity = (double)order.Quantity,
             EntryPrice = (double)order.Price,
             StopLoss = (double)order.StopLoss,
-            TakeProfit = (double)order.TakeProfit
+            TakeProfit = (double)order.TakeProfit,
+            SessionId = order.SessionId ?? string.Empty,
+            SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
+            IsReduceOnly = order.IsReduceOnly
         }, cancellationToken: cancellationToken);
 
         if (!riskResponse.IsApproved)
@@ -127,17 +157,21 @@ public sealed class Worker : BackgroundService
             Price = (double)order.Price,
             StopLoss = (double)order.StopLoss,
             TakeProfit = (double)order.TakeProfit,
-            Strategy = order.StrategyName
+            Strategy = order.StrategyName,
+            SessionId = order.SessionId ?? string.Empty,
+            SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
+            IsReduceOnly = order.IsReduceOnly
         }, cancellationToken: cancellationToken);
 
         if (executionReply.Success)
         {
             _logger.LogInformation(
-                "Order executed for {Symbol} | Qty={Qty} | Price={Price} | Paper={Paper}",
+                "Order executed for {Symbol} | Qty={Qty} | Price={Price} | Paper={Paper} | Session={Session}",
                 order.Symbol,
                 executionReply.FilledQty,
                 executionReply.FilledPrice,
-                executionReply.IsPaper);
+                executionReply.IsPaper,
+                order.SessionId);
             return;
         }
 

@@ -38,4 +38,9 @@ public static class RedisChannels
     /// Signal channel pattern for subscription: signal:*
     /// </summary>
     public const string SignalPattern = "signal:*";
+
+    /// <summary>
+    /// Session lifecycle events channel: session:events
+    /// </summary>
+    public const string SessionEvents = "session:events";
 }

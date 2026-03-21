@@ -14,7 +14,8 @@ public sealed class PositionTracker
         decimal Quantity,
         decimal AvgEntryPrice,
         decimal CurrentPrice,
-        DateTime OpenedAt);
+        DateTime OpenedAt,
+        string? SessionId = null);
 
     public sealed record ClosedTrade(
         string Symbol,
@@ -41,7 +42,7 @@ public sealed class PositionTracker
         {
             _positions.AddOrUpdate(
                 result.Symbol,
-                _ => new OpenPosition(result.Symbol, result.FilledQty, result.FilledPrice, result.FilledPrice, result.Timestamp),
+                _ => new OpenPosition(result.Symbol, result.FilledQty, result.FilledPrice, result.FilledPrice, result.Timestamp, request.SessionId),
                 (_, existing) =>
                 {
                     var totalQty = existing.Quantity + result.FilledQty;
@@ -76,6 +77,10 @@ public sealed class PositionTracker
         if (_positions.TryGetValue(symbol, out var pos))
             _positions[symbol] = pos with { CurrentPrice = price };
     }
+
+    public bool HasOpenPositions() => !_positions.IsEmpty;
+
+    public IReadOnlyList<OpenPosition> GetRawPositions() => _positions.Values.ToList();
 
     public IReadOnlyList<object> GetOpenPositions()
     {

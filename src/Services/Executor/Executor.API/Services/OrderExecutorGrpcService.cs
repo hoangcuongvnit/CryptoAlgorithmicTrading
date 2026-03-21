@@ -1,4 +1,5 @@
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Session;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Executor.API.Protos;
@@ -17,6 +18,9 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     private readonly AuditStreamPublisher _auditStreamPublisher;
     private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionMetrics _metrics;
+    private readonly SessionClock _sessionClock;
+    private readonly SessionTradingPolicy _sessionPolicy;
+    private readonly SessionSettings _sessionSettings;
     private readonly ILogger<OrderExecutorGrpcService> _logger;
 
     public OrderExecutorGrpcService(
@@ -27,6 +31,9 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         AuditStreamPublisher auditStreamPublisher,
         PositionTracker positionTracker,
         OrderExecutionMetrics metrics,
+        SessionClock sessionClock,
+        SessionTradingPolicy sessionPolicy,
+        IOptions<SessionSettings> sessionSettings,
         ILogger<OrderExecutorGrpcService> logger)
     {
         _tradingSettings = tradingSettings.Value;
@@ -36,6 +43,9 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         _auditStreamPublisher = auditStreamPublisher;
         _positionTracker = positionTracker;
         _metrics = metrics;
+        _sessionClock = sessionClock;
+        _sessionPolicy = sessionPolicy;
+        _sessionSettings = sessionSettings.Value;
         _logger = logger;
     }
 
@@ -57,6 +67,32 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             _metrics.RecordOrderRejected(orderRequest.Symbol, "Global kill switch");
             orderResult = BuildFailureResult(orderRequest.Symbol, "Global kill switch is enabled.", _tradingSettings.PaperTradingMode);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+        }
+
+        // Session boundary enforcement
+        if (_sessionSettings.Enabled)
+        {
+            var session = _sessionClock.GetCurrentSession();
+
+            // Reject cross-session orders
+            if (!string.IsNullOrEmpty(request.SessionId) && request.SessionId != session.SessionId)
+            {
+                _metrics.RecordOrderRejected(orderRequest.Symbol, "Stale session");
+                orderResult = BuildFailureResult(orderRequest.Symbol,
+                    $"Stale session order. Current: {session.SessionId}, Order: {request.SessionId}",
+                    _tradingSettings.PaperTradingMode);
+                return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+            }
+
+            // Block new positions in liquidation/forced-flatten phases
+            if (!request.IsReduceOnly && !_sessionPolicy.CanOpenNewPosition(session))
+            {
+                _metrics.RecordOrderRejected(orderRequest.Symbol, "Session liquidation window");
+                orderResult = BuildFailureResult(orderRequest.Symbol,
+                    $"Session {session.SessionId} is in {session.CurrentPhase} phase. New positions blocked.",
+                    _tradingSettings.PaperTradingMode);
+                return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+            }
         }
 
         if (_tradingSettings.AllowedSymbols.Count > 0 &&
@@ -149,7 +185,10 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             FilledPrice = (double)result.FilledPrice,
             FilledQty = (double)result.FilledQty,
             ErrorMessage = result.ErrorMessage,
-            IsPaper = result.IsPaperTrade
+            IsPaper = result.IsPaperTrade,
+            SessionId = result.SessionId ?? string.Empty,
+            ForcedLiquidation = result.ForcedLiquidation,
+            LiquidationReason = result.LiquidationReason.ToString()
         };
     }
 
@@ -246,7 +285,10 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             Price = price,
             StopLoss = stopLoss,
             TakeProfit = takeProfit,
-            StrategyName = request.Strategy?.Trim() ?? string.Empty
+            StrategyName = request.Strategy?.Trim() ?? string.Empty,
+            SessionId = string.IsNullOrEmpty(request.SessionId) ? null : request.SessionId,
+            SessionPhase = Enum.TryParse<SessionPhase>(request.SessionPhase, true, out var sp) ? sp : null,
+            IsReduceOnly = request.IsReduceOnly
         };
 
         validationError = null;

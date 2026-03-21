@@ -10,4 +10,7 @@ public sealed record OrderRequest
     public decimal StopLoss { get; init; }
     public decimal TakeProfit { get; init; }
     public string StrategyName { get; init; } = string.Empty;
+    public string? SessionId { get; init; }
+    public SessionPhase? SessionPhase { get; init; }
+    public bool IsReduceOnly { get; init; }
 }

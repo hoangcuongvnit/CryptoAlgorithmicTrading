@@ -1,5 +1,6 @@
 using Binance.Net.Clients;
 using Binance.Net.Interfaces.Clients;
+using CryptoTrading.Shared.Session;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Executor.API.Services;
@@ -13,8 +14,9 @@ using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Create metrics instance first (before OTEL config)
+// Create metrics instances first (before OTEL config)
 var metrics = new OrderExecutionMetrics();
+var sessionMetrics = new SessionMetrics();
 
 // OpenTelemetry - Tracing
 var tracingOtel = builder.Services.AddOpenTelemetry()
@@ -28,6 +30,7 @@ var tracingOtel = builder.Services.AddOpenTelemetry()
     {
         metricsBuilder
             .AddMeter(metrics.GetMeter().Name)
+            .AddMeter(sessionMetrics.GetMeter().Name)
             .AddAspNetCoreInstrumentation()
             .AddConsoleExporter();
     });
@@ -56,6 +59,15 @@ builder.Services.AddSingleton<PaperOrderSimulator>();
 builder.Services.AddSingleton<BinanceOrderClient>();
 builder.Services.AddSingleton<PositionTracker>();
 builder.Services.AddSingleton(metrics);
+builder.Services.AddSingleton(sessionMetrics);
+
+// Session services
+builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
+builder.Services.AddSingleton<SessionClock>();
+builder.Services.AddSingleton<SessionTradingPolicy>();
+builder.Services.AddSingleton<PositionLifecycleManager>();
+builder.Services.AddSingleton<OrderExecutionService>();
+builder.Services.AddHostedService<LiquidationOrchestrator>();
 
 var app = builder.Build();
 
@@ -144,6 +156,37 @@ app.MapGet("/api/trading/report/hourly", async (
     var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
     var buckets = await repo.GetHourlyBucketsAsync(reportDate, ct);
     return Results.Ok(buckets);
+});
+
+// ── Session endpoints ─────────────────────────────────────────────────────
+
+app.MapGet("/api/trading/session", ([FromServices] SessionClock clock) =>
+{
+    var session = clock.GetCurrentSession();
+    return Results.Ok(new
+    {
+        sessionId       = session.SessionId,
+        sessionNumber   = session.SessionNumber,
+        currentPhase    = session.CurrentPhase.ToString(),
+        sessionStartUtc = session.SessionStartUtc,
+        sessionEndUtc   = session.SessionEndUtc,
+        minutesToEnd    = session.TimeToEnd.TotalMinutes,
+        minutesToLiquidation = session.TimeToLiquidation.TotalMinutes
+    });
+});
+
+app.MapGet("/api/trading/session/positions", (
+    [FromServices] PositionTracker tracker,
+    [FromServices] SessionClock clock) =>
+{
+    var session = clock.GetCurrentSession();
+    var positions = tracker.GetOpenPositions();
+    return Results.Ok(new
+    {
+        sessionId = session.SessionId,
+        phase     = session.CurrentPhase.ToString(),
+        positions
+    });
 });
 
 app.Run();

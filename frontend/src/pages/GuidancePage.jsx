@@ -38,6 +38,67 @@ export function GuidancePage({ onNavigate }) {
       {/* Section B: Rules & Safety */}
       <RuleStatusGrid config={riskConfig} riskStats={riskStats} />
 
+      {/* Section B2: Session-Locked Campaign Rules */}
+      <div className="rounded-xl p-5" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15,23,42,0.08)' }}>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold mb-1" style={{ color: '#0f172a' }}>{t('campaign.title')}</h2>
+            <p className="text-sm text-gray-500">{t('campaign.subtitle')}</p>
+          </div>
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: '#155e75', background: '#ecfeff', border: '1px solid #a5f3fc' }}>
+            {t('campaign.badge')}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div>
+            <h3 className="text-sm font-semibold mb-2" style={{ color: '#0f172a' }}>{t('campaign.sessionTableTitle')}</h3>
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">{t('campaign.table.session')}</th>
+                    <th className="text-left px-3 py-2 font-medium">{t('campaign.table.window')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-gray-700">
+                  {[1, 2, 3, 4, 5, 6].map(index => (
+                    <tr key={index}>
+                      <td className="px-3 py-2">{t(`campaign.sessions.s${index}.label`)}</td>
+                      <td className="px-3 py-2">{t(`campaign.sessions.s${index}.time`)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold mb-2" style={{ color: '#0f172a' }}>{t('campaign.mustHaveTitle')}</h3>
+            <ul className="space-y-2 text-sm text-gray-700 list-disc pl-5">
+              {[1, 2, 3, 4, 5].map(item => (
+                <li key={item}>{t(`campaign.mustHave.${item}`)}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-gray-100">
+          <h3 className="text-sm font-semibold mb-2" style={{ color: '#0f172a' }}>{t('campaign.documentsTitle')}</h3>
+          <p className="text-xs text-gray-500 mb-2">{t('campaign.documentsHint')}</p>
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 3, 4].map(item => (
+              <span
+                key={item}
+                className="text-xs px-2.5 py-1 rounded-md border border-gray-200 bg-gray-50 text-gray-700"
+              >
+                {t(`campaign.documents.items.${item}`)}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Section C: Live Activity Now */}
       <div className="rounded-xl p-5" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15,23,42,0.08)' }}>
         <h2 className="text-lg font-semibold mb-1" style={{ color: '#0f172a' }}>{t('liveActivity.title')}</h2>

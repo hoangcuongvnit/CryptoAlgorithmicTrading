@@ -30,13 +30,17 @@ public sealed class RiskValidationEngine
         decimal entryPrice,
         decimal stopLoss,
         decimal takeProfit,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        string? sessionId = null,
+        string? sessionPhase = null,
+        bool isReduceOnly = false)
     {
         var effectiveQty = quantity;
 
         foreach (var rule in _rules)
         {
-            var context = new RiskContext(symbol, side, effectiveQty, entryPrice, stopLoss, takeProfit);
+            var context = new RiskContext(symbol, side, effectiveQty, entryPrice, stopLoss, takeProfit,
+                sessionId, sessionPhase, isReduceOnly);
             var result = await rule.EvaluateAsync(context, ct);
 
             if (result.IsRejected)

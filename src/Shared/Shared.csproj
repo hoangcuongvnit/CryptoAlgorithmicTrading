@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <!-- Core packages for Shared library -->
+    <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="Grpc.Tools">
