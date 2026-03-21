@@ -1,6 +1,59 @@
 {
   "title": "System Settings",
   "subtitle": "Configure global system parameters. Changes take effect immediately across the dashboard.",
+  "telegram": {
+    "title": "Telegram Notifications",
+    "subtitle": "Send trade alerts and system events to a Telegram chat.",
+    "enabledLabel": "Enabled",
+    "botToken": "Bot Token",
+    "botTokenPlaceholder": "110201543:AAHdqTcvCH1vGW...",
+    "leaveBlankToKeep": "leave blank to keep existing",
+    "chatId": "Chat ID",
+    "chatIdPlaceholder": "e.g. 123456789",
+    "tokenMasked": "Token",
+    "chatIdMasked": "Chat ID",
+    "updatedBy": "Last updated by",
+    "lastTested": "Last tested",
+    "lastError": "Last error",
+    "testConnection": "Test Connection",
+    "validating": "Testing...",
+    "validateSuccess": "Connection successful",
+    "validateFailed": "Connection failed",
+    "save": "Save Configuration",
+    "saving": "Saving...",
+    "saveSuccess": "Telegram configuration saved.",
+    "saveFailed": "Failed to save configuration.",
+    "sendTestMessage": "Send Test Message",
+    "sending": "Sending...",
+    "testMessageText": "Test message from Admin UI",
+    "testMessageSuccess": "Test message sent successfully.",
+    "testMessageFailed": "Failed to send test message.",
+    "status": {
+      "connected": "Connected",
+      "notConfigured": "Not Configured",
+      "invalid": "Invalid Credentials",
+      "failed": "Last Test Failed"
+    },
+    "credentialHint": {
+      "saved": "Test Connection and Send Test Message use saved credentials.",
+      "input": "Test Connection will use the token entered above."
+    },
+    "errors": {
+      "tokenRequired": "Bot token is required.",
+      "chatIdRequired": "A valid numeric Chat ID is required.",
+      "networkError": "Network error. Please try again."
+    },
+    "setupGuide": {
+      "toggle": "Setup guide",
+      "title": "How to configure Telegram",
+      "step1": "Open Telegram and search @BotFather. Send /newbot and follow the prompts.",
+      "step2": "Copy the bot token provided by BotFather.",
+      "step3": "Open a chat with your new bot and send /start.",
+      "step4": "Get your Chat ID using the Telegram getUpdates API or a helper tool.",
+      "step5": "Paste the token and Chat ID above, then click Test Connection.",
+      "warning": "Never share your bot token. If leaked, regenerate it immediately via BotFather."
+    }
+  },
   "timezone": {
     "label": "System Timezone",
     "description": "All timestamps displayed in the dashboard will use this timezone. Data is always stored in UTC.",

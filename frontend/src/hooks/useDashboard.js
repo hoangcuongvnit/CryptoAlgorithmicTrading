@@ -229,3 +229,11 @@ export async function apiCancelCloseAll(operationId) {
   return postJson('/api/control/close-all/cancel', { operationId })
 }
 
+export async function apiResumeTrading({ reason, requestedBy }) {
+  return postJson('/api/control/trading/resume', {
+    reason,
+    requestedBy,
+    confirmationToken: 'RESUME TRADING',
+  })
+}
+

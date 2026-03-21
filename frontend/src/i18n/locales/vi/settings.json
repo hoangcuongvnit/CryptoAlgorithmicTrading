@@ -1,6 +1,59 @@
 {
   "title": "Cài đặt hệ thống",
   "subtitle": "Cấu hình các thông số hệ thống toàn cục. Thay đổi có hiệu lực ngay lập tức trên toàn bộ bảng điều khiển.",
+  "telegram": {
+    "title": "Thông báo Telegram",
+    "subtitle": "Gửi cảnh báo giao dịch và sự kiện hệ thống đến chat Telegram.",
+    "enabledLabel": "Bật",
+    "botToken": "Bot Token",
+    "botTokenPlaceholder": "110201543:AAHdqTcvCH1vGW...",
+    "leaveBlankToKeep": "bỏ trống để giữ nguyên",
+    "chatId": "Chat ID",
+    "chatIdPlaceholder": "ví dụ: 123456789",
+    "tokenMasked": "Token",
+    "chatIdMasked": "Chat ID",
+    "updatedBy": "Cập nhật lần cuối bởi",
+    "lastTested": "Kiểm tra lần cuối",
+    "lastError": "Lỗi gần nhất",
+    "testConnection": "Kiểm tra kết nối",
+    "validating": "Đang kiểm tra...",
+    "validateSuccess": "Kết nối thành công",
+    "validateFailed": "Kết nối thất bại",
+    "save": "Lưu cấu hình",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu cấu hình Telegram.",
+    "saveFailed": "Lưu cấu hình thất bại.",
+    "sendTestMessage": "Gửi tin nhắn thử",
+    "sending": "Đang gửi...",
+    "testMessageText": "Tin nhắn thử từ Admin UI",
+    "testMessageSuccess": "Đã gửi tin nhắn thử thành công.",
+    "testMessageFailed": "Gửi tin nhắn thử thất bại.",
+    "status": {
+      "connected": "Đã kết nối",
+      "notConfigured": "Chưa cấu hình",
+      "invalid": "Thông tin không hợp lệ",
+      "failed": "Kiểm tra lần cuối thất bại"
+    },
+    "credentialHint": {
+      "saved": "Kiểm tra kết nối và Gửi tin nhắn thử sử dụng thông tin đã lưu.",
+      "input": "Kiểm tra kết nối sẽ dùng token đang nhập ở trên."
+    },
+    "errors": {
+      "tokenRequired": "Bot token là bắt buộc.",
+      "chatIdRequired": "Chat ID phải là số hợp lệ.",
+      "networkError": "Lỗi mạng. Vui lòng thử lại."
+    },
+    "setupGuide": {
+      "toggle": "Hướng dẫn cài đặt",
+      "title": "Cách cấu hình Telegram",
+      "step1": "Mở Telegram và tìm @BotFather. Gửi /newbot và làm theo hướng dẫn.",
+      "step2": "Sao chép bot token được BotFather cung cấp.",
+      "step3": "Mở chat với bot mới và gửi /start.",
+      "step4": "Lấy Chat ID bằng API getUpdates của Telegram hoặc công cụ hỗ trợ.",
+      "step5": "Dán token và Chat ID vào ô trên, sau đó nhấn Kiểm tra kết nối.",
+      "warning": "Không chia sẻ bot token. Nếu bị lộ, hãy tạo lại ngay trong BotFather."
+    }
+  },
   "timezone": {
     "label": "Múi giờ hệ thống",
     "description": "Tất cả thời gian hiển thị trên bảng điều khiển sẽ theo múi giờ này. Dữ liệu luôn được lưu dưới dạng UTC.",

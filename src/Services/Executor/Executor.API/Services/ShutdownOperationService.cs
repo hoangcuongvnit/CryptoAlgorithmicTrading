@@ -33,6 +33,8 @@ public sealed class ShutdownOperationService
 
     private readonly object _lock = new();
     private OperationInfo _current = new() { Status = "Idle" };
+    private string _tradingMode = "TradingEnabled";
+    private const string TradingModeRedisKey = "executor:trading:mode";
     private readonly IConnectionMultiplexer _redis;
     private readonly string _connectionString;
     private readonly ILogger<ShutdownOperationService> _logger;
@@ -44,7 +46,27 @@ public sealed class ShutdownOperationService
     /// True while an active close-all operation is in progress.
     /// When true, the order gate blocks all non-reduce-only orders.
     /// </summary>
-    public bool IsExitOnlyMode => ActiveStatuses.Contains(_current.Status);
+    public bool IsExitOnlyMode => _tradingMode == "ExitOnly";
+
+    public string TradingMode => _tradingMode;
+
+    public bool ResumeAllowed
+    {
+        get { lock (_lock) { return _tradingMode == "ExitOnly" && !ActiveStatuses.Contains(_current.Status); } }
+    }
+
+    public IReadOnlyList<string> GetResumeBlockReasons()
+    {
+        lock (_lock)
+        {
+            var reasons = new List<string>();
+            if (_tradingMode != "ExitOnly")
+                reasons.Add("Trading is already enabled.");
+            else if (ActiveStatuses.Contains(_current.Status))
+                reasons.Add($"Active operation {_current.OperationId} is currently {_current.Status}. Wait for completion or cancel first.");
+            return reasons;
+        }
+    }
 
     public OperationInfo Current => _current;
 
@@ -66,6 +88,11 @@ public sealed class ShutdownOperationService
         {
             var db = _redis.GetDatabase();
             var json = await db.StringGetAsync(RedisKey);
+            var modeValue = await db.StringGetAsync(TradingModeRedisKey);
+            if (!modeValue.IsNullOrEmpty && (string)modeValue! == "ExitOnly")
+            {
+                lock (_lock) { _tradingMode = "ExitOnly"; }
+            }
             if (json.IsNullOrEmpty) return;
 
             var loaded = JsonSerializer.Deserialize<OperationInfo>((string)json!);
@@ -117,6 +144,8 @@ public sealed class ShutdownOperationService
                 "CloseAll requested: operationId={OperationId} by={RequestedBy} reason={Reason}",
                 operationId, requestedBy, reason);
 
+            _tradingMode = "ExitOnly";
+            _ = PersistTradingModeToRedisAsync("ExitOnly");
             _ = PersistToRedisAsync(_current);
             _ = InsertToDbAsync(_current);
             return (true, null, operationId);
@@ -154,6 +183,8 @@ public sealed class ShutdownOperationService
                 "CloseAll scheduled: operationId={OperationId} at={ScheduledFor} by={RequestedBy}",
                 operationId, executeAtUtc, requestedBy);
 
+            _tradingMode = "ExitOnly";
+            _ = PersistTradingModeToRedisAsync("ExitOnly");
             _ = PersistToRedisAsync(_current);
             _ = InsertToDbAsync(_current);
             return (true, null, operationId);
@@ -178,6 +209,25 @@ public sealed class ShutdownOperationService
 
             _ = PersistToRedisAsync(_current);
             _ = UpdateStatusInDbAsync(_current);
+            return (true, null);
+        }
+    }
+
+    public (bool Success, string? Error) TryResume(string reason, string requestedBy)
+    {
+        lock (_lock)
+        {
+            if (ActiveStatuses.Contains(_current.Status))
+                return (false, $"Cannot resume: active operation {_current.OperationId} is currently {_current.Status}. Cancel or wait for completion first.");
+
+            if (_tradingMode == "TradingEnabled")
+                return (true, null); // Already enabled — idempotent
+
+            _tradingMode = "TradingEnabled";
+            _logger.LogInformation(
+                "Trading resumed: requestedBy={RequestedBy} reason={Reason}",
+                requestedBy, reason);
+            _ = PersistTradingModeToRedisAsync("TradingEnabled");
             return (true, null);
         }
     }
@@ -317,6 +367,19 @@ public sealed class ShutdownOperationService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to insert close-all operation to DB: operationId={OperationId}", info.OperationId);
+        }
+    }
+
+    private async Task PersistTradingModeToRedisAsync(string mode)
+    {
+        try
+        {
+            var db = _redis.GetDatabase();
+            await db.StringSetAsync(TradingModeRedisKey, mode, TimeSpan.FromDays(30));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist trading mode to Redis");
         }
     }
 

@@ -13,6 +13,7 @@
     "openPositions": "Open Positions",
     "shutdownReady": "Shutdown Ready",
     "exitOnlyMode": "Exit-Only Mode Active",
+    "tradingEnabled": "Trading Enabled",
     "noActiveOp": "No active operation",
     "positionsClosed": "Positions Closed",
     "scheduledFor": "Scheduled For",
@@ -82,5 +83,18 @@
   "error": {
     "fetchFailed": "Failed to load status",
     "submitFailed": "Operation failed"
+  },
+  "resume": {
+    "title": "Resume Normal Trading",
+    "desc": "Re-enable new position entries. Exit-only mode will be lifted.",
+    "btn": "Resume Trading",
+    "dialogTitle": "Confirm: Resume Trading",
+    "dialogBody": "This will re-enable new entry orders. Make sure the system is healthy before resuming.",
+    "typeToConfirm": "Type RESUME TRADING to confirm",
+    "placeholder": "RESUME TRADING",
+    "confirmBtn": "Resume Trading",
+    "success": "Trading has been resumed. New entries are now allowed.",
+    "blockedTitle": "Resume not available yet",
+    "tradingEnabled": "Trading Enabled"
   }
 }

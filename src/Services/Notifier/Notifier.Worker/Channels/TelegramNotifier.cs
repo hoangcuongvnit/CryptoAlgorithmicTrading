@@ -5,30 +5,44 @@ namespace Notifier.Worker.Channels;
 
 public sealed class TelegramNotifier
 {
-    private readonly TelegramBotClient? _botClient;
-    private readonly long _chatId;
+    // Volatile config state — swapped atomically on hot-reload
+    private volatile TelegramClientState _state;
     private readonly ILogger<TelegramNotifier> _logger;
-    private readonly bool _enabled;
 
-    public bool IsEnabled => _enabled;
+    public bool IsEnabled => _state.Enabled;
 
     public TelegramNotifier(
         string botToken,
         long chatId,
         ILogger<TelegramNotifier> logger)
     {
-        _chatId = chatId;
         _logger = logger;
+        _state = BuildState(botToken, chatId, logger);
+    }
 
-        if (string.IsNullOrWhiteSpace(botToken) || chatId == 0)
+    /// <summary>Hot-reloads Telegram credentials without restarting the process. Thread-safe.</summary>
+    public void Reconfigure(string botToken, long chatId, bool enabled)
+    {
+        if (!enabled)
         {
-            _enabled = false;
-            _logger.LogWarning("Telegram notifications disabled: BotToken or ChatId not configured.");
+            _state = new TelegramClientState(null, 0, false);
+            _logger.LogInformation("Telegram notifications disabled via runtime config reload");
             return;
         }
 
-        _botClient = new TelegramBotClient(botToken);
-        _enabled = true;
+        _state = BuildState(botToken, chatId, _logger);
+        _logger.LogInformation("Telegram client reloaded. Enabled={Enabled}", _state.Enabled);
+    }
+
+    private static TelegramClientState BuildState(string botToken, long chatId, ILogger logger)
+    {
+        if (string.IsNullOrWhiteSpace(botToken) || chatId == 0)
+        {
+            logger.LogWarning("Telegram notifications disabled: BotToken or ChatId not configured.");
+            return new TelegramClientState(null, 0, false);
+        }
+
+        return new TelegramClientState(new TelegramBotClient(botToken), chatId, true);
     }
 
     public async Task SendStartupNotificationAsync(CancellationToken cancellationToken = default)
@@ -81,20 +95,21 @@ public sealed class TelegramNotifier
 
     private async Task SendMessageAsync(string message, CancellationToken cancellationToken)
     {
-        if (!_enabled)
+        var state = _state;
+        if (!state.Enabled)
         {
-            _logger.LogDebug("[Telegram disabled] {Message}", message.Substring(0, Math.Min(50, message.Length)));
+            _logger.LogDebug("[Telegram disabled] {Message}", message[..Math.Min(50, message.Length)]);
             return;
         }
 
         try
         {
-            await _botClient!.SendMessage(
-                chatId: _chatId,
+            await state.Client!.SendMessage(
+                chatId: state.ChatId,
                 text: message,
                 cancellationToken: cancellationToken);
 
-            _logger.LogDebug("Sent Telegram notification: {Message}", message.Substring(0, Math.Min(50, message.Length)));
+            _logger.LogDebug("Sent Telegram notification: {Message}", message[..Math.Min(50, message.Length)]);
         }
         catch (Exception ex)
         {
@@ -104,7 +119,8 @@ public sealed class TelegramNotifier
 
     public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
-        if (!_enabled)
+        var state = _state;
+        if (!state.Enabled)
         {
             _logger.LogWarning("Telegram connection test skipped: notifications disabled.");
             return false;
@@ -112,7 +128,7 @@ public sealed class TelegramNotifier
 
         try
         {
-            var me = await _botClient!.GetMe(cancellationToken);
+            var me = await state.Client!.GetMe(cancellationToken);
             _logger.LogInformation("Telegram bot connected: @{Username}", me.Username);
             return true;
         }
@@ -122,4 +138,48 @@ public sealed class TelegramNotifier
             return false;
         }
     }
+
+    /// <summary>Sends an arbitrary message using the current active config. Used by test-message endpoint.</summary>
+    public Task SendDirectMessageAsync(string message, CancellationToken cancellationToken = default)
+        => SendMessageAsync(message, cancellationToken);
+
+    /// <summary>Validates credentials by creating a temporary client. Does not modify current state.</summary>
+    public static async Task<(bool Valid, string? BotUsername, string Message)> ValidateCredentialsAsync(
+        string botToken,
+        long chatId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(botToken) || chatId == 0)
+            return (false, null, "Bot token and chat ID are required");
+
+        try
+        {
+            var tempClient = new TelegramBotClient(botToken);
+            var me = await tempClient.GetMe(cancellationToken);
+            // Attempt to send a silent probe to verify chat reachability
+            bool chatReachable;
+            try
+            {
+                await tempClient.SendMessage(chatId: chatId, text: "\u2705 Telegram connected",
+                    cancellationToken: cancellationToken);
+                chatReachable = true;
+            }
+            catch
+            {
+                chatReachable = false;
+            }
+
+            var msg = chatReachable
+                ? "Connection successful"
+                : $"Bot token valid (@{me.Username}) but chat not reachable. Ensure the bot was started in this chat.";
+            return (chatReachable, me.Username, msg);
+        }
+        catch (Exception ex)
+        {
+            return (false, null, $"Invalid token: {ex.Message}");
+        }
+    }
 }
+
+/// <summary>Immutable snapshot of active Telegram client configuration.</summary>
+internal sealed record TelegramClientState(TelegramBotClient? Client, long ChatId, bool Enabled);

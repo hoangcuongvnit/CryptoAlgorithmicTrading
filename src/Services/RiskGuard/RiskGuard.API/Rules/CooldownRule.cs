@@ -58,6 +58,9 @@ public sealed class CooldownRule : IRiskRule
         return ValueTask.FromResult(RuleResult.Pass());
     }
 
+    /// <summary>Returns the total number of symbols that have a cooldown entry (active or expired).</summary>
+    public int GetStoredCooldownCount() => _lastOrderTime.Count;
+
     /// <summary>Returns symbols that are currently within the cooldown window.</summary>
     public IReadOnlyList<CooldownInfo> GetActiveCooldowns()
     {
@@ -99,7 +102,10 @@ public sealed class CooldownRule : IRiskRule
                     (_, existing) => existing >= timestampUtc ? existing : timestampUtc);
             }
 
-            _logger.LogInformation("Loaded {Count} cooldown entries from Redis", loaded.Count);
+            var activeCount = GetActiveCooldowns().Count;
+            _logger.LogInformation(
+                "Loaded {Total} cooldown entries from Redis ({Active} active within {CooldownSeconds}s window)",
+                loaded.Count, activeCount, _settings.CooldownSeconds);
         }
         catch (Exception ex)
         {

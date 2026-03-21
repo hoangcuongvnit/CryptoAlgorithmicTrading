@@ -76,6 +76,56 @@ app.MapGet("/api/notifier/stats", (NotificationHistory history) =>
     });
 });
 
+// POST /api/notifier/validate  — test credentials without saving
+app.MapPost("/api/notifier/validate", async (HttpRequest request, CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<TelegramCredentialsRequest>(ct);
+    if (body is null || string.IsNullOrWhiteSpace(body.BotToken) || body.ChatId == 0)
+        return Results.BadRequest("botToken and chatId are required");
+
+    var (valid, botUsername, message) = await TelegramNotifier.ValidateCredentialsAsync(
+        body.BotToken, body.ChatId, ct);
+
+    return Results.Ok(new
+    {
+        valid,
+        botUsername,
+        chatReachable = valid,
+        message,
+    });
+});
+
+// POST /api/notifier/reload-config  — hot-swap Telegram credentials
+app.MapPost("/api/notifier/reload-config", async (TelegramNotifier notifier, HttpRequest request, CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<TelegramReloadRequest>(ct);
+    if (body is null)
+        return Results.BadRequest("Request body is required");
+
+    notifier.Reconfigure(body.BotToken ?? "", body.ChatId, body.Enabled);
+    return Results.Ok(new { reloaded = true, enabled = notifier.IsEnabled });
+});
+
+// POST /api/notifier/test-message  — send a test message using current config
+app.MapPost("/api/notifier/test-message", async (TelegramNotifier notifier, HttpRequest request, CancellationToken ct) =>
+{
+    if (!notifier.IsEnabled)
+        return Results.BadRequest(new { success = false, error = "Telegram is not configured or disabled" });
+
+    var body = await request.ReadFromJsonAsync<TestMessageRequest>(ct);
+    var message = body?.Message ?? "Test message from Admin UI";
+
+    try
+    {
+        await notifier.SendDirectMessageAsync(message, ct);
+        return Results.Ok(new { success = true, sentAtUtc = DateTime.UtcNow });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { success = false, error = ex.Message });
+    }
+});
+
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Notifier.Worker" }));
 
 app.Run();
@@ -86,3 +136,7 @@ static string MaskChatId(long id)
     if (s.Length <= 4) return new string('*', s.Length);
     return s[..2] + new string('*', s.Length - 4) + s[^2..];
 }
+
+record TelegramCredentialsRequest(string BotToken, long ChatId);
+record TelegramReloadRequest(string? BotToken, long ChatId, bool Enabled);
+record TestMessageRequest(string? Message);

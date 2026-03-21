@@ -19,6 +19,10 @@
     "current": "Hiện tại",
     "none": "Không có vị thế đang mở"
   },
+  "col": {
+    "symbol": "Cặp tiền",
+    "time": "Thời gian"
+  },
   "order": {
     "price": "Giá",
     "qty": "SL",

@@ -13,7 +13,17 @@ function PnLValue({ value }) {
   const n = Number(value)
   const color = n >= 0 ? 'text-green-600' : 'text-red-500'
   const sign = n >= 0 ? '+' : ''
-  return <span className={color}>{sign}${n.toFixed(2)}</span>
+  return <span className={`font-semibold ${color}`}>{sign}${n.toFixed(2)}</span>
+}
+
+const TABLE_STYLE = { border: '1px solid #dbe4ef', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }
+
+function TableHeader({ children }) {
+  return (
+    <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+      {children}
+    </th>
+  )
 }
 
 function PositionRow({ pos }) {
@@ -24,35 +34,23 @@ function PositionRow({ pos }) {
   const sign = pnl >= 0 ? '+' : ''
 
   return (
-    <div
-      className="flex items-center gap-3 p-3 rounded-lg"
-      style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 2px 8px rgba(15,23,42,0.05)' }}
-    >
-      <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
-        <div>
+    <tr className="border-b border-gray-100 hover:bg-blue-50/30 transition-colors">
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-2">
           <span className="font-semibold text-gray-800">{pos.symbol?.replace('USDT', '/USDT')}</span>
-          <span className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+          <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">
             {t('position.long')}
           </span>
         </div>
-        <div className="text-gray-600">
-          <span className="text-xs text-gray-400">{t('position.qty')} </span>
-          <span className="font-medium">{Number(pos.quantity).toFixed(6)}</span>
-        </div>
-        <div className="text-gray-600">
-          <span className="text-xs text-gray-400">{t('position.entry')} </span>
-          <span className="font-medium">${formatPrice(pos.entryPrice)}</span>
-        </div>
-        <div className="text-gray-600">
-          <span className="text-xs text-gray-400">{t('position.current')} </span>
-          <span className="font-medium">${formatPrice(pos.currentPrice)}</span>
-        </div>
-        <div>
-          <span className={`font-medium ${pnlColor}`}>{sign}${pnl.toFixed(2)}</span>
-          <span className={`ml-1 text-xs ${pnlColor}`}>({sign}{roe.toFixed(2)}%)</span>
-        </div>
-      </div>
-    </div>
+      </td>
+      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">{Number(pos.quantity).toFixed(6)}</td>
+      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">${formatPrice(pos.entryPrice)}</td>
+      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">${formatPrice(pos.currentPrice)}</td>
+      <td className={`py-3 px-4 text-sm font-semibold tabular-nums ${pnlColor}`}>
+        {sign}${pnl.toFixed(2)}
+        <span className="ml-1 text-xs font-normal opacity-75">({sign}{roe.toFixed(2)}%)</span>
+      </td>
+    </tr>
   )
 }
 
@@ -67,49 +65,34 @@ function OrderRow({ order }) {
   const isClosed = (order.status ?? '').toUpperCase() === 'CLOSED'
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg transition-colors" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)' }}>
-      <div className="flex-shrink-0">
-        <span className={`inline-block w-2 h-2 rounded-full ${isSuccess ? 'bg-green-400' : 'bg-red-400'}`} />
-      </div>
-      <div className="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
-        <div>
+    <tr className="border-b border-gray-100 hover:bg-blue-50/30 transition-colors">
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-2">
+          <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${isSuccess ? 'bg-green-400' : 'bg-red-400'}`} />
           <span className="font-semibold text-gray-800">{order.symbol?.replace('USDT', '/USDT')}</span>
-          <span className={`ml-2 text-xs font-medium px-1.5 py-0.5 rounded ${
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
             side === 'buy' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
           }`}>
             {(order.side ?? '').toUpperCase()}
           </span>
-        </div>
-        <div className="text-gray-600">
-          <span className="text-xs text-gray-400">{t('order.price')} </span>
-          <span className="font-medium">${formatPrice(order.filledPrice ?? order.entryPrice)}</span>
-        </div>
-        <div className="text-gray-600">
-          <span className="text-xs text-gray-400">{t('order.qty')} </span>
-          <span className="font-medium">{Number(order.filledQty ?? order.quantity ?? 0).toFixed(6)}</span>
-        </div>
-        <div>
-          {hasPnL && isClosed && (
-            <PnLValue value={pnl} />
-          )}
-          {!hasPnL && isSuccess && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">{t('order.open')}</span>
-          )}
-          {!isSuccess && (
-            <span className="text-xs text-red-500 truncate" title={order.errorMessage}>
-              {t('order.failed')}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
           {isPaper && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">{t('order.paper')}</span>}
-          {isSuccess && !hasPnL && <span className="text-xs text-green-600">{t('order.filled')}</span>}
         </div>
-      </div>
-      <div className="flex-shrink-0 text-xs text-gray-400">
+      </td>
+      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">${formatPrice(order.filledPrice ?? order.entryPrice)}</td>
+      <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">{Number(order.filledQty ?? order.quantity ?? 0).toFixed(6)}</td>
+      <td className="py-3 px-4 text-sm">
+        {hasPnL && isClosed && <PnLValue value={pnl} />}
+        {!hasPnL && isSuccess && (
+          <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">{t('order.open')}</span>
+        )}
+        {!isSuccess && (
+          <span className="text-xs text-red-500 truncate" title={order.errorMessage}>{t('order.failed')}</span>
+        )}
+      </td>
+      <td className="py-3 px-4 text-xs text-gray-400 whitespace-nowrap tabular-nums">
         {formatTime(order.createdAt, systemTimezone)}
-      </div>
-    </div>
+      </td>
+    </tr>
   )
 }
 
@@ -137,23 +120,27 @@ export function TradingPage() {
             value={`${pnlSign}$${Number(stats.totalPnL ?? 0).toFixed(2)}`}
             colorClass={pnlColor}
             subtitle={t('stats.realized')}
+            icon="💰"
           />
           <StatCard
             title={t('stats.winRate')}
             value={`${(Number(stats.winRate ?? 0) * 100).toFixed(1)}%`}
             subtitle={`${stats.winTrades ?? 0}W / ${stats.lossTrades ?? 0}L`}
             colorClass="text-blue-600"
+            icon="🎯"
           />
           <StatCard
             title={t('stats.maxDrawdown')}
             value={`${(Number(stats.maxDrawdown ?? 0) * 100).toFixed(2)}%`}
             colorClass={Number(stats.maxDrawdown ?? 0) > 0.1 ? 'text-red-500' : 'text-gray-700'}
+            icon="📉"
           />
           <StatCard
             title={t('stats.totalTrades')}
             value={stats.totalTrades ?? 0}
             subtitle={t('stats.paperMode')}
             colorClass="text-purple-600"
+            icon="📊"
           />
         </div>
       )}
@@ -174,10 +161,23 @@ export function TradingPage() {
             <p className="text-sm">{t('position.none')}</p>
           </div>
         ) : (
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {positions.map((pos, i) => (
-              <PositionRow key={pos.symbol ?? i} pos={pos} />
-            ))}
+          <div className="overflow-x-auto rounded-xl" style={TABLE_STYLE}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50/80">
+                  <TableHeader>{t('col.symbol')}</TableHeader>
+                  <TableHeader>{t('position.qty')}</TableHeader>
+                  <TableHeader>{t('position.entry')}</TableHeader>
+                  <TableHeader>{t('position.current')}</TableHeader>
+                  <TableHeader>P&L / ROE</TableHeader>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {positions.map((pos, i) => (
+                  <PositionRow key={pos.symbol ?? i} pos={pos} />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -210,10 +210,23 @@ export function TradingPage() {
           </div>
         )}
         {orders && orders.length > 0 && (
-          <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-            {orders.map((order, i) => (
-              <OrderRow key={order.orderId ?? i} order={order} />
-            ))}
+          <div className="overflow-x-auto rounded-xl" style={TABLE_STYLE}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50/80">
+                  <TableHeader>{t('col.symbol')}</TableHeader>
+                  <TableHeader>{t('order.price')}</TableHeader>
+                  <TableHeader>{t('order.qty')}</TableHeader>
+                  <TableHeader>P&L</TableHeader>
+                  <TableHeader>{t('col.time')}</TableHeader>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {orders.map((order, i) => (
+                  <OrderRow key={order.orderId ?? i} order={order} />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

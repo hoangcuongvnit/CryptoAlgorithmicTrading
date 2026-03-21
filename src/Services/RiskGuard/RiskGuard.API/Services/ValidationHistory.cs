@@ -108,7 +108,9 @@ public sealed class ValidationHistory
                     AddToBufferUnsafe(record);
             }
 
-            _logger.LogInformation("Loaded {Count} validation records from Redis", records.Count);
+            _logger.LogInformation(
+                "Loaded {Count} validation records from Redis (today: {Approved} approved, {Rejected} rejected)",
+                records.Count, approved, rejected);
         }
         catch (Exception ex)
         {

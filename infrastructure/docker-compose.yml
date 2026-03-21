@@ -32,8 +32,11 @@ services:
   redis:
     image: redis:7-alpine
     container_name: trading_redis
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -343,3 +346,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:

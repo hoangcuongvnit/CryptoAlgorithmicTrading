@@ -8,12 +8,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection("Dashboard"));
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IDashboardQueryService, DashboardQueryService>();
+builder.Services.AddDataProtection();
+
 builder.Services.AddSingleton(sp =>
 {
     var cs = builder.Configuration.GetConnectionString("Postgres")
         ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required");
+    var protectionProvider = sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+    var protector = protectionProvider.CreateProtector("TelegramBotToken");
     var logger = sp.GetRequiredService<ILogger<SystemSettingsRepository>>();
-    return new SystemSettingsRepository(cs, logger);
+    return new SystemSettingsRepository(cs, protector, logger);
 });
 
 builder.Services.AddHttpClient("riskguard", client =>
@@ -451,6 +455,149 @@ settingsGroup.MapPut("/system/timezone", async (
     return Results.Ok(new { timezone = body.Timezone });
 });
 
+// GET /api/settings/notifications/telegram
+settingsGroup.MapGet("/notifications/telegram", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetTelegramSettingsAsync(ct);
+    return Results.Ok(new
+    {
+        enabled = cfg.Enabled,
+        isConfigured = cfg.IsConfigured,
+        tokenMasked = cfg.TokenMasked,
+        chatIdMasked = cfg.ChatIdMasked,
+        lastTestStatus = cfg.LastTestStatus,
+        lastTestAtUtc = cfg.LastTestAtUtc,
+        lastError = cfg.LastError,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// POST /api/settings/notifications/telegram/validate
+settingsGroup.MapPost("/notifications/telegram/validate", async (
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<TelegramValidateRequest>(ct);
+    if (body is null || string.IsNullOrWhiteSpace(body.BotToken))
+        return Results.BadRequest("botToken is required");
+    if (body.ChatId == 0)
+        return Results.BadRequest("chatId is required and must be non-zero");
+
+    var client = factory.CreateClient("notifier");
+    try
+    {
+        var response = await client.PostAsJsonAsync("/api/notifier/validate",
+            new { botToken = body.BotToken, chatId = body.ChatId }, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+// POST /api/settings/notifications/telegram/validate-saved
+settingsGroup.MapPost("/notifications/telegram/validate-saved", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    CancellationToken ct) =>
+{
+    var botToken = await repo.GetDecryptedBotTokenAsync(ct);
+    var chatId = await repo.GetChatIdAsync(ct);
+
+    if (botToken is null || !chatId.HasValue)
+        return Results.BadRequest(new { valid = false, message = "No saved credentials found" });
+
+    var client = factory.CreateClient("notifier");
+    try
+    {
+        var response = await client.PostAsJsonAsync("/api/notifier/validate",
+            new { botToken, chatId = chatId.Value }, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+// PUT /api/settings/notifications/telegram
+settingsGroup.MapPut("/notifications/telegram", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<TelegramSaveRequest>(ct);
+    if (body is null)
+        return Results.BadRequest("Request body is required");
+    if (body.ChatId == 0)
+        return Results.BadRequest("chatId is required and must be non-zero");
+
+    var isFirstConfig = !(await repo.GetTelegramSettingsAsync(ct)).IsConfigured;
+    if (isFirstConfig && string.IsNullOrWhiteSpace(body.BotToken))
+        return Results.BadRequest("botToken is required for first-time configuration");
+
+    if (!string.IsNullOrWhiteSpace(body.BotToken) && body.BotToken.Length < 20)
+        return Results.BadRequest("botToken appears to be invalid (too short)");
+
+    await repo.SaveTelegramSettingsAsync(body.BotToken, body.ChatId, body.Enabled, body.UpdatedBy, ct);
+
+    // Trigger Notifier hot-reload with decrypted credentials
+    var botToken = await repo.GetDecryptedBotTokenAsync(ct);
+    var chatId = await repo.GetChatIdAsync(ct);
+    if (botToken is not null && chatId.HasValue)
+    {
+        var notifierClient = factory.CreateClient("notifier");
+        try
+        {
+            await notifierClient.PostAsJsonAsync("/api/notifier/reload-config",
+                new { botToken, chatId = chatId.Value, enabled = body.Enabled }, ct);
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: settings are saved; Notifier will use new config on next restart
+            // Log but do not fail the request
+            _ = ex; // suppress unused warning
+        }
+    }
+
+    return Results.Ok(new { saved = true });
+});
+
+// POST /api/settings/notifications/telegram/test-message
+settingsGroup.MapPost("/notifications/telegram/test-message", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<TelegramTestMessageRequest>(ct);
+    var message = body?.Message ?? "Test message from Admin UI";
+
+    var notifierClient = factory.CreateClient("notifier");
+    try
+    {
+        var response = await notifierClient.PostAsJsonAsync("/api/notifier/test-message",
+            new { message }, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        var success = response.IsSuccessStatusCode;
+        await repo.UpdateTelegramTestResultAsync(success, success ? null : responseBody, ct);
+
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        await repo.UpdateTelegramTestResultAsync(false, ex.Message, ct);
+        return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 // ── Trading Control proxy endpoints ──────────────────────────────────────
 
 var controlGroup = app.MapGroup("/api/control");
@@ -539,8 +686,56 @@ controlGroup.MapGet("/close-all/history", async (
     }
 });
 
+controlGroup.MapPost("/trading/resume", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var body = await req.ReadFromJsonAsync<object>(ct);
+        var response = await client.PostAsJsonAsync("/api/trading/control/resume", body, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Gateway.API", utc = DateTime.UtcNow }));
 app.MapFallbackToFile("index.html");
+
+// Push saved Telegram credentials to Notifier on startup so Notifier doesn't need env vars
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = Task.Run(async () =>
+    {
+        await Task.Delay(TimeSpan.FromSeconds(3)); // allow Notifier to finish starting
+        var logger = app.Services.GetRequiredService<ILogger<SystemSettingsRepository>>();
+        try
+        {
+            var repo = app.Services.GetRequiredService<SystemSettingsRepository>();
+            var botToken = await repo.GetDecryptedBotTokenAsync();
+            var chatId = await repo.GetChatIdAsync();
+            var cfg = await repo.GetTelegramSettingsAsync();
+            if (botToken is null || !chatId.HasValue)
+            {
+                logger.LogInformation("No saved Telegram credentials found — skipping startup sync to Notifier");
+                return;
+            }
+
+            var factory = app.Services.GetRequiredService<IHttpClientFactory>();
+            var client = factory.CreateClient("notifier");
+            await client.PostAsJsonAsync("/api/notifier/reload-config",
+                new { botToken, chatId = chatId.Value, enabled = cfg.Enabled });
+            logger.LogInformation("Telegram config synced to Notifier on startup (enabled={Enabled})", cfg.Enabled);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to sync Telegram config to Notifier on startup — Notifier will use its own config");
+        }
+    });
+});
 
 app.Run();
 
@@ -644,3 +839,6 @@ static void SetCacheHeaders(HttpContext context, int cacheSeconds)
 }
 
 record TimezoneUpdateRequest(string Timezone, string? UpdatedBy);
+record TelegramValidateRequest(string BotToken, long ChatId);
+record TelegramSaveRequest(bool Enabled, string? BotToken, long ChatId, string? UpdatedBy);
+record TelegramTestMessageRequest(string? Message);

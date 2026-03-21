@@ -97,6 +97,8 @@ app.MapGet("/api/risk/stats", async (
         maxDrawdownUsd = maxLoss,
         todayApproved = approved,
         todayRejected = rejected,
+        cooldownSeconds = s.CooldownSeconds,
+        cooldownsStored = cooldownRule.GetStoredCooldownCount(),
         cooldowns = cooldowns.Select(c => new
         {
             symbol = c.Symbol,

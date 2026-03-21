@@ -13,6 +13,7 @@
     "openPositions": "Vị thế đang mở",
     "shutdownReady": "Sẵn sàng tắt",
     "exitOnlyMode": "Chế độ chỉ đóng lệnh",
+    "tradingEnabled": "Giao Dịch Đang Hoạt Động",
     "noActiveOp": "Không có thao tác nào đang chạy",
     "positionsClosed": "Vị thế đã đóng",
     "scheduledFor": "Thời gian thực hiện",
@@ -82,5 +83,18 @@
   "error": {
     "fetchFailed": "Không tải được trạng thái",
     "submitFailed": "Thao tác thất bại"
+  },
+  "resume": {
+    "title": "Khôi Phục Giao Dịch Bình Thường",
+    "desc": "Cho phép mở vị thế mới. Chế độ chỉ đóng lệnh sẽ được hủy.",
+    "btn": "Khôi Phục Giao Dịch",
+    "dialogTitle": "Xác Nhận: Khôi Phục Giao Dịch",
+    "dialogBody": "Thao tác này sẽ cho phép mở lệnh mới. Hãy đảm bảo hệ thống hoạt động bình thường trước khi khôi phục.",
+    "typeToConfirm": "Nhập RESUME TRADING để xác nhận",
+    "placeholder": "RESUME TRADING",
+    "confirmBtn": "Khôi Phục Giao Dịch",
+    "success": "Giao dịch đã được khôi phục. Lệnh mới được phép mở.",
+    "blockedTitle": "Chưa thể khôi phục giao dịch",
+    "tradingEnabled": "Giao Dịch Đang Hoạt Động"
   }
 }

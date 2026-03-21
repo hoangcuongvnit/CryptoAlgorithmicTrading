@@ -359,6 +359,9 @@ app.MapGet("/api/trading/control/close-all/status", ([FromServices] ShutdownOper
         positionsClosedCount = op.PositionsClosedCount,
         openPositionsRemaining = tracker.GetOpenPositions().Count,
         exitOnlyMode = shutdownOp.IsExitOnlyMode,
+        tradingMode = shutdownOp.TradingMode,
+        resumeAllowed = shutdownOp.ResumeAllowed,
+        resumeBlockReasons = shutdownOp.GetResumeBlockReasons(),
         lastError = op.LastError
     });
 });
@@ -370,6 +373,34 @@ app.MapGet("/api/trading/control/close-all/history", async (
 {
     var history = await shutdownOp.GetHistoryAsync(limit ?? 20, ct);
     return Results.Ok(history);
+});
+
+app.MapPost("/api/trading/control/resume", async (
+    [FromServices] ShutdownOperationService shutdownOp,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<ResumeTradingRequest>(ct);
+    if (body is null)
+        return Results.BadRequest(new { error = "Request body is required." });
+
+    if (!string.Equals(body.ConfirmationToken, "RESUME TRADING", StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new { error = "Invalid confirmation token. Type 'RESUME TRADING' to confirm." });
+
+    var (success, error) = shutdownOp.TryResume(
+        body.Reason ?? "operator_resume",
+        body.RequestedBy ?? "operator");
+
+    if (!success)
+        return Results.Conflict(new { error });
+
+    return Results.Ok(new
+    {
+        status = "Completed",
+        tradingMode = "TradingEnabled",
+        resumedAtUtc = DateTime.UtcNow,
+        message = "Trading has been resumed. New entries are now allowed."
+    });
 });
 
 app.Run();
@@ -388,3 +419,5 @@ record ScheduleCloseAllRequest(
     string IdempotencyKey);
 
 record CancelCloseAllRequest(string OperationId);
+
+record ResumeTradingRequest(string? Reason, string? RequestedBy, string ConfirmationToken);

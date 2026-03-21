@@ -19,6 +19,10 @@
     "current": "Current",
     "none": "No open positions"
   },
+  "col": {
+    "symbol": "Symbol",
+    "time": "Time"
+  },
   "order": {
     "price": "Price",
     "qty": "Qty",

@@ -7,6 +7,7 @@ import {
   apiCloseAllNow,
   apiScheduleCloseAll,
   apiCancelCloseAll,
+  apiResumeTrading,
 } from '../hooks/useDashboard.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -172,6 +173,64 @@ function ConfirmDialog({ mode, scheduledDate, positionCount, onConfirm, onClose,
   )
 }
 
+// ── Resume dialog ─────────────────────────────────────────────────────────
+
+function ResumeDialog({ onConfirm, onClose, isSubmitting, error, t }) {
+  const [text, setText] = useState('')
+  const confirmed = text.toUpperCase() === 'RESUME TRADING'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="px-6 py-4 rounded-t-2xl border-b bg-green-50 border-green-100">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">▶️</span>
+            <h3 className="font-bold text-lg text-green-800">{t('resume.dialogTitle')}</h3>
+          </div>
+        </div>
+        <div className="px-6 py-5 space-y-3">
+          <p className="text-sm text-gray-600">{t('resume.dialogBody')}</p>
+          <div className="pt-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              {t('resume.typeToConfirm')}
+            </label>
+            <input
+              autoFocus
+              type="text"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder={t('resume.placeholder')}
+              className="w-full px-3 py-2 border-2 rounded-lg font-mono text-sm focus:outline-none uppercase tracking-widest"
+              style={{ borderColor: confirmed ? '#22c55e' : '#d1d5db' }}
+            />
+          </div>
+          {error && (
+            <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+        </div>
+        <div className="px-6 pb-5 flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {t('dialog.cancel')}
+          </button>
+          <button
+            onClick={() => onConfirm()}
+            disabled={!confirmed || isSubmitting}
+            className="px-5 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-40"
+          >
+            {isSubmitting ? '…' : t('resume.confirmBtn')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Status badge ──────────────────────────────────────────────────────────
 
 function StatusBadge({ status, t }) {
@@ -273,11 +332,17 @@ export function ShutdownControlPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
+  const [showResumeDialog, setShowResumeDialog] = useState(false)
+  const [resumeError, setResumeError] = useState(null)
+  const [isResuming, setIsResuming] = useState(false)
 
   const openPositions = Array.isArray(positions) ? positions.length : 0
   const opStatus = status?.status ?? 'Idle'
   const isActive = ACTIVE.has(opStatus)
   const style = STATUS_STYLE[opStatus] ?? STATUS_STYLE.Idle
+  const tradingMode = status?.tradingMode ?? 'TradingEnabled'
+  const resumeAllowed = status?.resumeAllowed ?? false
+  const resumeBlockReasons = status?.resumeBlockReasons ?? []
 
   // Auto-refresh status when executing
   useEffect(() => {
@@ -334,6 +399,21 @@ export function ShutdownControlPage() {
     }
   }, [status, refreshStatus])
 
+  const handleResume = useCallback(async () => {
+    setIsResuming(true)
+    setResumeError(null)
+    try {
+      await apiResumeTrading({ reason: 'operator_resume', requestedBy: 'operator' })
+      setShowResumeDialog(false)
+      setSuccessMsg(t('resume.success'))
+      setTimeout(refreshStatus, 400)
+    } catch (err) {
+      setResumeError(err.message ?? t('error.submitFailed'))
+    } finally {
+      setIsResuming(false)
+    }
+  }, [refreshStatus, t])
+
   const scheduledDate = scheduledTime ? localInputToDate(scheduledTime) : null
 
   return (
@@ -367,6 +447,11 @@ export function ShutdownControlPage() {
               {status?.exitOnlyMode && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-100 border border-orange-200 text-orange-700 text-xs font-semibold">
                   🔒 {t('status.exitOnlyMode')}
+                </span>
+              )}
+              {!status?.exitOnlyMode && tradingMode === 'TradingEnabled' && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-700 text-xs font-semibold">
+                  ✅ {t('status.tradingEnabled')}
                 </span>
               )}
               {status?.shutdownReady && (
@@ -446,6 +531,39 @@ export function ShutdownControlPage() {
             <p className="text-green-700 text-sm mt-0.5">
               {t('completedBanner.body', { count: status.positionsClosedCount ?? 0 })}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Resume Trading — shown when in exit-only mode and resume is allowed */}
+      {resumeAllowed && (
+        <div className="rounded-2xl border border-green-200 bg-green-50 p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
+          <div className="flex-1">
+            <p className="font-bold text-green-800">{t('resume.title')}</p>
+            <p className="text-green-700 text-sm mt-0.5">{t('resume.desc')}</p>
+          </div>
+          <button
+            onClick={() => { setShowResumeDialog(true); setResumeError(null) }}
+            className="shrink-0 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-sm transition-colors shadow-sm"
+          >
+            ▶️ {t('resume.btn')}
+          </button>
+        </div>
+      )}
+
+      {/* Exit-only warning when resume is not yet allowed */}
+      {status?.exitOnlyMode && !resumeAllowed && (
+        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 flex items-start gap-3">
+          <span className="text-lg shrink-0">🔒</span>
+          <div>
+            <p className="font-semibold text-orange-800 text-sm">{t('resume.blockedTitle')}</p>
+            {resumeBlockReasons.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {resumeBlockReasons.map((r, i) => (
+                  <li key={i} className="text-xs text-orange-700">{r}</li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}
@@ -593,6 +711,17 @@ export function ShutdownControlPage() {
           onClose={closeDialog}
           isSubmitting={isSubmitting}
           error={submitError}
+          t={t}
+        />
+      )}
+
+      {/* Resume dialog */}
+      {showResumeDialog && (
+        <ResumeDialog
+          onConfirm={handleResume}
+          onClose={() => setShowResumeDialog(false)}
+          isSubmitting={isResuming}
+          error={resumeError}
           t={t}
         />
       )}
