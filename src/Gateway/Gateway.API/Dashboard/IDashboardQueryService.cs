@@ -35,6 +35,8 @@ public interface IDashboardQueryService
 
     Task<SchemaResponse> GetSchemaAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<OrderRow>> GetRecentOrdersAsync(int limit, CancellationToken cancellationToken);
+
     Task<WorkbenchResponse> RunWorkbenchTemplateAsync(
         string templateId,
         DateTime startUtc,

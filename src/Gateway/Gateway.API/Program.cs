@@ -160,6 +160,17 @@ dashboardGroup.MapGet("/workbench/template/{templateId}", async (
 	return Results.Ok(result);
 });
 
+// ── Live operational endpoints ───────────────────────────────────────────
+
+app.MapGet("/api/live/orders", async (
+    [FromServices] IDashboardQueryService service,
+    [FromQuery] int? limit,
+    CancellationToken ct) =>
+{
+    var result = await service.GetRecentOrdersAsync(limit ?? 20, ct);
+    return Results.Ok(result);
+});
+
 // ── Risk Guard proxy endpoints ────────────────────────────────────────────
 
 var riskGroup = app.MapGroup("/api/risk");

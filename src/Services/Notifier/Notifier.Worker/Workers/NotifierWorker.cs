@@ -67,7 +67,21 @@ public sealed class NotifierWorker : BackgroundService
     private async Task PollTradesAuditStreamAsync(CancellationToken stoppingToken)
     {
         var db = _redis.GetDatabase();
-        var lastId = "$";
+
+        // StreamReadAsync does not support "$" (new-messages-only) — get the latest entry ID at startup
+        // so we only process NEW audit events, not historical ones
+        string lastId;
+        try
+        {
+            var latest = await db.StreamRangeAsync(
+                RedisChannels.TradesAudit, minId: "-", maxId: "+", count: 1,
+                messageOrder: StackExchange.Redis.Order.Descending);
+            lastId = latest.Length > 0 ? latest[0].Id.ToString() : "0-0";
+        }
+        catch
+        {
+            lastId = "0-0"; // Stream doesn't exist yet — start from beginning when it does
+        }
 
         _logger.LogInformation("Polling {Stream} Redis stream for order notifications...", RedisChannels.TradesAudit);
 
@@ -79,7 +93,7 @@ public sealed class NotifierWorker : BackgroundService
 
                 foreach (var entry in entries)
                 {
-                    lastId = entry.Id;
+                    lastId = entry.Id.ToString();
                     var orderResult = ParseStreamEntry(entry);
                     if (orderResult != null)
                     {

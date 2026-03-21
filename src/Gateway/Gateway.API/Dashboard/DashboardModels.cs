@@ -96,6 +96,22 @@ public sealed record PagedResponse<T>(
     int TotalRows,
     IReadOnlyList<T> Rows);
 
+public sealed record OrderRow(
+    string OrderId,
+    string Symbol,
+    string Side,
+    string OrderType,
+    decimal Quantity,
+    decimal EntryPrice,
+    decimal StopLoss,
+    decimal TakeProfit,
+    decimal FilledPrice,
+    decimal FilledQty,
+    bool Success,
+    bool IsPaperTrade,
+    string? ErrorMessage,
+    DateTime CreatedAt);
+
 public sealed record WorkbenchResponse(
     string TemplateId,
     int PageNumber,

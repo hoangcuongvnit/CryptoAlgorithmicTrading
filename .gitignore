@@ -45,6 +45,23 @@ bld/
 # Docker volumes
 postgres_data/
 
+# Frontend artifacts (Vite/Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+
+# Test and coverage outputs
+TestResults/
+**/TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Log files
+*.log
+logs/
+
 # OS files
 .DS_Store
 Thumbs.db

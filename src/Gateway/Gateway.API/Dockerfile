@@ -1,3 +1,12 @@
+# Stage 0: Build React frontend
+FROM node:22-alpine AS frontend-build
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install --prefer-offline 2>/dev/null || npm install
+COPY frontend/ .
+# Output into a temp directory; .NET publish will copy it to wwwroot
+RUN npm run build -- --outDir /frontend-dist
+
 # Stage 1: Build
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
@@ -33,6 +42,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=publish /app/publish .
+# Overlay with the React build output (replaces static files from source wwwroot)
+COPY --from=frontend-build /frontend-dist ./wwwroot
 
 # HTTP port exposure
 EXPOSE 5000
