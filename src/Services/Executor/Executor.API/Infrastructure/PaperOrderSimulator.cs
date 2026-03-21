@@ -1,5 +1,5 @@
-using Executor.API.Configuration;
 using CryptoTrading.Shared.DTOs;
+using Executor.API.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Executor.API.Infrastructure;

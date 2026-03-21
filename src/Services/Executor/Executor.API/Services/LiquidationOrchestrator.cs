@@ -1,11 +1,11 @@
 using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Json;
 using CryptoTrading.Shared.Session;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using System.Text.Json;
-using CryptoTrading.Shared.Json;
 
 namespace Executor.API.Services;
 

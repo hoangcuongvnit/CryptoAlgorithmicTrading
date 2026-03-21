@@ -1,4 +1,3 @@
-using System.Text.Json;
 using CryptoTrading.Executor.Grpc;
 using CryptoTrading.RiskGuard.Grpc;
 using CryptoTrading.Shared.Constants;
@@ -8,6 +7,7 @@ using CryptoTrading.Shared.Session;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using Strategy.Worker.Services;
+using System.Text.Json;
 
 namespace Strategy.Worker;
 

@@ -1,8 +1,8 @@
-using StackExchange.Redis;
-using System.Text.Json;
+using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Json;
-using CryptoTrading.Shared.Constants;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace Ingestor.Worker.Infrastructure;
 
@@ -27,7 +27,7 @@ public sealed class RedisPublisher
         {
             var json = JsonSerializer.Serialize(tick, TradingJsonContext.Default.PriceTick);
             var channel = RedisChannels.Price(tick.Symbol);
-            
+
             await _subscriber.PublishAsync(
                 RedisChannel.Literal(channel),
                 json);
@@ -45,7 +45,7 @@ public sealed class RedisPublisher
         try
         {
             var json = JsonSerializer.Serialize(evt, TradingJsonContext.Default.SystemEvent);
-            
+
             await _subscriber.PublishAsync(
                 RedisChannel.Literal(RedisChannels.SystemEvents),
                 json);

@@ -1,9 +1,8 @@
+using Binance.Net.Clients;
+using Binance.Net.Interfaces.Clients;
 using Ingestor.Worker.Configuration;
 using Ingestor.Worker.Infrastructure;
 using Ingestor.Worker.Workers;
-using Binance.Net;
-using Binance.Net.Clients;
-using Binance.Net.Interfaces.Clients;
 using StackExchange.Redis;
 
 var builder = Host.CreateApplicationBuilder(args);

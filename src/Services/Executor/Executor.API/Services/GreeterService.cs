@@ -1,5 +1,4 @@
 using Grpc.Core;
-using Executor.API;
 
 namespace Executor.API.Services;
 

@@ -17,7 +17,7 @@ public static class SpanExtensions
     {
         if (count >= span.Length)
             return span;
-        
+
         return span.Slice(span.Length - count, count);
     }
 
@@ -34,7 +34,7 @@ public static class SpanExtensions
         {
             sum += value;
         }
-        
+
         return sum / values.Length;
     }
 }

@@ -1,5 +1,5 @@
-using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Database;
+using CryptoTrading.Shared.DTOs;
 using Dapper;
 using HistoricalCollector.Worker.Models;
 using Npgsql;
@@ -38,14 +38,14 @@ public sealed class PriceTickBatchRepository
         {
             // Ensure table exists for this year (auto-creates if needed)
             await PriceTicksTableHelper.EnsureTableExistsAsync(connection, ticks[0].Timestamp, cancellationToken);
-            
+
             // Generate INSERT SQL for this year's table
             var insertSql = PriceTicksTableHelper.GenerateInsertSql(year);
-            
+
             // Execute batch insert
             var inserted = await connection.ExecuteAsync(
                 new CommandDefinition(insertSql, ticks, cancellationToken: cancellationToken));
-            
+
             totalInserted += inserted;
         }
 
@@ -68,7 +68,7 @@ public sealed class PriceTickBatchRepository
         // Determine which yearly tables we need to query
         var startYear = startDateUtc.Year;
         var endYear = endDateUtc.Year;
-        
+
         // Build UNION ALL query across relevant yearly tables
         var tableQueries = new List<string>();
         for (var year = startYear; year <= endYear; year++)
@@ -83,7 +83,7 @@ public sealed class PriceTickBatchRepository
                   AND time < date_trunc('day', @EndDateUtc::timestamptz) + interval '1 day'
             ");
         }
-        
+
         var unionQuery = string.Join(" UNION ALL ", tableQueries);
         var dataGapsTable = PriceTicksTableHelper.GetDataGapsTableName();
 
@@ -152,7 +152,7 @@ public sealed class PriceTickBatchRepository
     public async Task<IReadOnlyList<DataGap>> GetOpenGapsAsync(string interval, int maxRows, CancellationToken cancellationToken)
     {
         var dataGapsTable = PriceTicksTableHelper.GetDataGapsTableName();
-        
+
         var sql = $"""
             SELECT
                 id,
@@ -183,7 +183,7 @@ public sealed class PriceTickBatchRepository
     public async Task MarkGapFilledAsync(long id, CancellationToken cancellationToken)
     {
         var dataGapsTable = PriceTicksTableHelper.GetDataGapsTableName();
-        
+
         var sql = $"""
             UPDATE {dataGapsTable}
             SET filled_at = NOW()

@@ -1,6 +1,5 @@
-using Telegram.Bot;
-using Telegram.Bot.Types;
 using CryptoTrading.Shared.DTOs;
+using Telegram.Bot;
 
 namespace Notifier.Worker.Channels;
 

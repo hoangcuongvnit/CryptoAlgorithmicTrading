@@ -148,7 +148,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     {
         stopwatch.Stop();
         var latencyMs = stopwatch.Elapsed.TotalMilliseconds;
-        
+
         var requestForPersistence = mappedRequest ?? BuildFallbackOrderRequest(originalRequest);
 
         // Record latency metric

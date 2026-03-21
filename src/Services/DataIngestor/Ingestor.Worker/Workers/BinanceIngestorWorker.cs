@@ -1,12 +1,10 @@
-using Binance.Net.Clients;
 using Binance.Net.Interfaces.Clients;
-using CryptoExchange.Net.Sockets;
+using CryptoExchange.Net.Objects.Sockets;
 using CryptoTrading.Shared.DTOs;
 using Ingestor.Worker.Configuration;
 using Ingestor.Worker.Infrastructure;
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
-using CryptoExchange.Net.Objects.Sockets;
+using System.Collections.Concurrent;
 
 namespace Ingestor.Worker.Workers;
 
@@ -129,7 +127,7 @@ public sealed class BinanceIngestorWorker : BackgroundService
             }
             else
             {
-                _logger.LogError("Failed to subscribe to ticker for {Symbol}: {Error}", 
+                _logger.LogError("Failed to subscribe to ticker for {Symbol}: {Error}",
                     symbol, tickerResult.Error?.Message);
             }
 
@@ -167,14 +165,14 @@ public sealed class BinanceIngestorWorker : BackgroundService
             }
             else
             {
-                _logger.LogError("Failed to subscribe to klines for {Symbol}: {Error}", 
+                _logger.LogError("Failed to subscribe to klines for {Symbol}: {Error}",
                     symbol, klineResult.Error?.Message);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error subscribing to {Symbol}", symbol);
-            
+
             await _redisPublisher.PublishSystemEventAsync(new SystemEvent
             {
                 Type = SystemEventType.Error,

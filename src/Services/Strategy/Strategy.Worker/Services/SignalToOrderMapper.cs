@@ -1,7 +1,7 @@
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
-using Strategy.Worker.Configuration;
 using Microsoft.Extensions.Options;
+using Strategy.Worker.Configuration;
 
 namespace Strategy.Worker.Services;
 

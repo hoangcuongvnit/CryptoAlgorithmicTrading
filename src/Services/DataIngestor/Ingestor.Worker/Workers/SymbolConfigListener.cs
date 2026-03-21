@@ -1,9 +1,8 @@
-using StackExchange.Redis;
-using Ingestor.Worker.Configuration;
-using Ingestor.Worker.Infrastructure;
-using System.Text.Json;
 using CryptoTrading.Shared.Constants;
+using Ingestor.Worker.Configuration;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace Ingestor.Worker.Workers;
 
@@ -39,7 +38,7 @@ public sealed class SymbolConfigListener : BackgroundService
                     if (newSymbols != null)
                     {
                         _logger.LogInformation("Received symbol configuration update: {Count} symbols", newSymbols.Count);
-                        
+
                         // In a full implementation, this would trigger re-subscription
                         // For now, just log it
                         // TODO: Implement dynamic subscription management

@@ -1,6 +1,6 @@
+using CryptoTrading.Shared.DTOs;
 using Dapper;
 using Npgsql;
-using CryptoTrading.Shared.DTOs;
 
 namespace Executor.API.Infrastructure;
 
@@ -218,7 +218,7 @@ public sealed class OrderRepository
     public async Task<DailyReportSummary> GetDailyReportAsync(DateTime date, CancellationToken cancellationToken)
     {
         var startUtc = date.Date.ToUniversalTime();
-        var endUtc   = startUtc.AddDays(1);
+        var endUtc = startUtc.AddDays(1);
 
         const string sql = """
             SELECT
@@ -246,29 +246,29 @@ public sealed class OrderRepository
             var row = await connection.QuerySingleAsync<dynamic>(
                 new CommandDefinition(sql, new { Start = startUtc, End = endUtc }, cancellationToken: cancellationToken));
 
-            int total    = (int)(long)row.total_trades;
-            int wins     = (int)(long)row.win_trades;
-            int losses   = (int)(long)row.loss_trades;
-            decimal gp   = (decimal)row.gross_profit;
-            decimal gl   = (decimal)row.gross_loss;
+            int total = (int)(long)row.total_trades;
+            int wins = (int)(long)row.win_trades;
+            int losses = (int)(long)row.loss_trades;
+            decimal gp = (decimal)row.gross_profit;
+            decimal gl = (decimal)row.gross_loss;
 
             return new DailyReportSummary(
-                Date:          date.Date,
-                TotalTrades:   total,
-                BuyOrders:     (int)(long)row.buy_orders,
-                SellOrders:    (int)(long)row.sell_orders,
-                WinTrades:     wins,
-                LossTrades:    losses,
-                WinRate:       total > 0 ? decimal.Round((decimal)wins / total, 4) : 0m,
-                RealizedPnL:   decimal.Round((decimal)row.realized_pnl, 4),
-                GrossProfit:   decimal.Round(gp, 4),
-                GrossLoss:     decimal.Round(gl, 4),
-                ProfitFactor:  gl > 0 ? decimal.Round(gp / gl, 4) : (gp > 0 ? 999m : 0m),
-                AvgWin:        decimal.Round((decimal)row.avg_win, 4),
-                AvgLoss:       decimal.Round((decimal)row.avg_loss, 4),
-                MarketOrders:  (int)(long)row.market_orders,
-                LimitOrders:   (int)(long)row.limit_orders,
-                FailedOrders:  (int)(long)row.failed_orders);
+                Date: date.Date,
+                TotalTrades: total,
+                BuyOrders: (int)(long)row.buy_orders,
+                SellOrders: (int)(long)row.sell_orders,
+                WinTrades: wins,
+                LossTrades: losses,
+                WinRate: total > 0 ? decimal.Round((decimal)wins / total, 4) : 0m,
+                RealizedPnL: decimal.Round((decimal)row.realized_pnl, 4),
+                GrossProfit: decimal.Round(gp, 4),
+                GrossLoss: decimal.Round(gl, 4),
+                ProfitFactor: gl > 0 ? decimal.Round(gp / gl, 4) : (gp > 0 ? 999m : 0m),
+                AvgWin: decimal.Round((decimal)row.avg_win, 4),
+                AvgLoss: decimal.Round((decimal)row.avg_loss, 4),
+                MarketOrders: (int)(long)row.market_orders,
+                LimitOrders: (int)(long)row.limit_orders,
+                FailedOrders: (int)(long)row.failed_orders);
         }
         catch (Exception ex)
         {
@@ -280,7 +280,7 @@ public sealed class OrderRepository
     public async Task<IReadOnlyList<DailySymbolBreakdown>> GetDailySymbolBreakdownAsync(DateTime date, CancellationToken cancellationToken)
     {
         var startUtc = date.Date.ToUniversalTime();
-        var endUtc   = startUtc.AddDays(1);
+        var endUtc = startUtc.AddDays(1);
 
         const string sql = """
             SELECT
@@ -309,16 +309,16 @@ public sealed class OrderRepository
                 new CommandDefinition(sql, new { Start = startUtc, End = endUtc }, cancellationToken: cancellationToken));
 
             return rows.Select(r => new DailySymbolBreakdown(
-                Symbol:        (string)r.symbol,
-                BuyCount:      (int)(long)r.buy_count,
-                SellCount:     (int)(long)r.sell_count,
-                BuyQty:        (decimal)r.buy_qty,
-                SellQty:       (decimal)r.sell_qty,
-                AvgBuyPrice:   r.avg_buy_price is null ? (decimal?)null : decimal.Round((decimal)r.avg_buy_price, 4),
-                AvgSellPrice:  r.avg_sell_price is null ? (decimal?)null : decimal.Round((decimal)r.avg_sell_price, 4),
-                RealizedPnL:   decimal.Round((decimal)r.realized_pnl, 4),
-                WinCount:      (int)(long)r.win_count,
-                LossCount:     (int)(long)r.loss_count,
+                Symbol: (string)r.symbol,
+                BuyCount: (int)(long)r.buy_count,
+                SellCount: (int)(long)r.sell_count,
+                BuyQty: (decimal)r.buy_qty,
+                SellQty: (decimal)r.sell_qty,
+                AvgBuyPrice: r.avg_buy_price is null ? (decimal?)null : decimal.Round((decimal)r.avg_buy_price, 4),
+                AvgSellPrice: r.avg_sell_price is null ? (decimal?)null : decimal.Round((decimal)r.avg_sell_price, 4),
+                RealizedPnL: decimal.Round((decimal)r.realized_pnl, 4),
+                WinCount: (int)(long)r.win_count,
+                LossCount: (int)(long)r.loss_count,
                 LastTradeTime: (DateTime?)r.last_trade_time
             )).ToList();
         }
@@ -332,7 +332,7 @@ public sealed class OrderRepository
     public async Task<IReadOnlyList<TradeTimeRecord>> GetDailyTimeAnalyticsAsync(DateTime date, CancellationToken cancellationToken)
     {
         var startUtc = date.Date.ToUniversalTime();
-        var endUtc   = startUtc.AddDays(1);
+        var endUtc = startUtc.AddDays(1);
 
         const string sql = """
             SELECT
@@ -358,12 +358,12 @@ public sealed class OrderRepository
                 new CommandDefinition(sql, new { Start = startUtc, End = endUtc }, cancellationToken: cancellationToken));
 
             return rows.Select(r => new TradeTimeRecord(
-                OrderId:        (Guid)r.order_id,
-                Symbol:         (string)r.symbol,
-                Side:           (string)r.side,
-                RealizedPnL:    (decimal?)r.realized_pnl,
-                OpenTime:       (DateTime)r.open_time,
-                CloseTime:      (DateTime?)r.close_time,
+                OrderId: (Guid)r.order_id,
+                Symbol: (string)r.symbol,
+                Side: (string)r.side,
+                RealizedPnL: (decimal?)r.realized_pnl,
+                OpenTime: (DateTime)r.open_time,
+                CloseTime: (DateTime?)r.close_time,
                 HoldingMinutes: (double?)r.holding_minutes
             )).ToList();
         }
@@ -377,7 +377,7 @@ public sealed class OrderRepository
     public async Task<IReadOnlyList<HourlyTradeBucket>> GetHourlyBucketsAsync(DateTime date, CancellationToken cancellationToken)
     {
         var startUtc = date.Date.ToUniversalTime();
-        var endUtc   = startUtc.AddDays(1);
+        var endUtc = startUtc.AddDays(1);
 
         const string sql = """
             SELECT
@@ -398,8 +398,8 @@ public sealed class OrderRepository
                 new CommandDefinition(sql, new { Start = startUtc, End = endUtc }, cancellationToken: cancellationToken));
 
             return rows.Select(r => new HourlyTradeBucket(
-                Hour:      (int)r.hour,
-                BuyCount:  (int)(long)r.buy_count,
+                Hour: (int)r.hour,
+                BuyCount: (int)(long)r.buy_count,
                 SellCount: (int)(long)r.sell_count
             )).ToList();
         }

@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 
 builder.Services.AddSingleton<OrderStatsRepository>();
 builder.Services.AddSingleton<SystemEventPublisher>();
+builder.Services.AddSingleton<IRedisPersistenceService, RedisPersistenceService>();
 builder.Services.AddSingleton<ValidationHistory>();
 
 // Session services
@@ -53,14 +54,14 @@ app.MapGet("/api/risk/config", (IOptions<RiskSettings> opts) =>
     var s = opts.Value;
     return Results.Ok(new
     {
-        minRiskReward          = s.MinRiskReward,
-        maxOrderNotional       = s.MaxOrderNotional,
+        minRiskReward = s.MinRiskReward,
+        maxOrderNotional = s.MaxOrderNotional,
         maxPositionSizePercent = s.MaxPositionSizePercent,
-        virtualAccountBalance  = s.VirtualAccountBalance,
-        maxDrawdownPercent     = s.MaxDrawdownPercent,
-        cooldownSeconds        = s.CooldownSeconds,
-        paperTradingOnly       = s.PaperTradingOnly,
-        allowedSymbols         = s.AllowedSymbols
+        virtualAccountBalance = s.VirtualAccountBalance,
+        maxDrawdownPercent = s.MaxDrawdownPercent,
+        cooldownSeconds = s.CooldownSeconds,
+        paperTradingOnly = s.PaperTradingOnly,
+        allowedSymbols = s.AllowedSymbols
     });
 });
 
@@ -83,30 +84,55 @@ app.MapGet("/api/risk/stats", async (
         : 0m;
 
     var (approved, rejected) = history.GetTodayCounts();
-    var recent  = history.GetRecent();
+    var recent = history.GetRecent();
     var cooldowns = cooldownRule.GetActiveCooldowns();
 
     return Results.Ok(new
     {
         dailyPnl,
         drawdownUsedPercent,
-        maxDrawdownUsd    = maxLoss,
-        todayApproved     = approved,
-        todayRejected     = rejected,
-        cooldowns         = cooldowns.Select(c => new
+        maxDrawdownUsd = maxLoss,
+        todayApproved = approved,
+        todayRejected = rejected,
+        cooldowns = cooldowns.Select(c => new
         {
-            symbol           = c.Symbol,
-            lastOrderUtc     = c.LastOrderUtc,
+            symbol = c.Symbol,
+            lastOrderUtc = c.LastOrderUtc,
             remainingSeconds = c.RemainingSeconds
         }),
         recentValidations = recent.Select(r => new
         {
-            symbol          = r.Symbol,
-            side            = r.Side,
-            approved        = r.Approved,
+            symbol = r.Symbol,
+            side = r.Side,
+            approved = r.Approved,
             rejectionReason = r.RejectionReason,
-            timestampUtc    = r.TimestampUtc
+            timestampUtc = r.TimestampUtc
         })
+    });
+});
+
+app.MapGet("/api/risk/persistence-status", async Task<IResult> (IRedisPersistenceService redis, CancellationToken ct) =>
+{
+    if (!await redis.IsAvailableAsync(ct))
+    {
+        return Results.Json(
+            new { status = "degraded", error = "Redis unavailable" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
+    var cooldowns = await redis.LoadAllCooldownsAsync(ct);
+    var (approved, rejected) = await redis.LoadTodayCountsAsync(ct);
+
+    return Results.Ok(new
+    {
+        status = "operational",
+        redis = new
+        {
+            cooldownsStored = cooldowns.Count,
+            todayApproved = approved,
+            todayRejected = rejected,
+            timestamp = DateTime.UtcNow
+        }
     });
 });
 

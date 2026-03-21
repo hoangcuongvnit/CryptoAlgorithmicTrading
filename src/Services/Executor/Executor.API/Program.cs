@@ -5,12 +5,9 @@ using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Executor.API.Services;
 using Microsoft.AspNetCore.Mvc;
-using OpenTelemetry;
-using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
-using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,9 +42,9 @@ builder.Services.Configure<BinanceSettings>(builder.Configuration.GetSection("Bi
 var redisConnection = builder.Configuration.GetValue<string>("Redis:Connection") ?? "localhost:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 {
-	var config = ConfigurationOptions.Parse(redisConnection);
-	config.AbortOnConnectFail = false;
-	return ConnectionMultiplexer.Connect(config);
+    var config = ConfigurationOptions.Parse(redisConnection);
+    config.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(config);
 });
 
 builder.Services.AddSingleton<IBinanceRestClient>(_ => new BinanceRestClient());
@@ -84,12 +81,12 @@ app.MapGet("/api/trading/stats", ([FromServices] PositionTracker tracker) =>
     var stats = tracker.GetStats();
     return Results.Ok(new
     {
-        totalTrades    = stats.TotalTrades,
-        winTrades      = stats.WinTrades,
-        lossTrades     = stats.LossTrades,
-        totalPnL       = stats.TotalPnL,
-        winRate        = stats.WinRate,
-        maxDrawdown    = stats.MaxDrawdown,
+        totalTrades = stats.TotalTrades,
+        winTrades = stats.WinTrades,
+        lossTrades = stats.LossTrades,
+        totalPnL = stats.TotalPnL,
+        winRate = stats.WinRate,
+        maxDrawdown = stats.MaxDrawdown,
         avgPnLPerTrade = stats.AvgPnLPerTrade
     });
 });
@@ -141,9 +138,9 @@ app.MapGet("/api/trading/report/time-analytics", async (
     var result = new
     {
         trades,
-        avgHoldingMinutes    = closedWithDuration.Count > 0 ? closedWithDuration.Average(t => t.HoldingMinutes!.Value) : 0,
+        avgHoldingMinutes = closedWithDuration.Count > 0 ? closedWithDuration.Average(t => t.HoldingMinutes!.Value) : 0,
         avgHoldingWinMinutes = closedWithDuration.Where(t => t.RealizedPnL > 0).Select(t => t.HoldingMinutes!.Value) is var wDur && wDur.Any() ? wDur.Average() : 0,
-        avgHoldingLossMinutes= closedWithDuration.Where(t => t.RealizedPnL < 0).Select(t => t.HoldingMinutes!.Value) is var lDur && lDur.Any() ? lDur.Average() : 0,
+        avgHoldingLossMinutes = closedWithDuration.Where(t => t.RealizedPnL < 0).Select(t => t.HoldingMinutes!.Value) is var lDur && lDur.Any() ? lDur.Average() : 0,
     };
     return Results.Ok(result);
 });
@@ -165,12 +162,12 @@ app.MapGet("/api/trading/session", ([FromServices] SessionClock clock) =>
     var session = clock.GetCurrentSession();
     return Results.Ok(new
     {
-        sessionId       = session.SessionId,
-        sessionNumber   = session.SessionNumber,
-        currentPhase    = session.CurrentPhase.ToString(),
+        sessionId = session.SessionId,
+        sessionNumber = session.SessionNumber,
+        currentPhase = session.CurrentPhase.ToString(),
         sessionStartUtc = session.SessionStartUtc,
-        sessionEndUtc   = session.SessionEndUtc,
-        minutesToEnd    = session.TimeToEnd.TotalMinutes,
+        sessionEndUtc = session.SessionEndUtc,
+        minutesToEnd = session.TimeToEnd.TotalMinutes,
         minutesToLiquidation = session.TimeToLiquidation.TotalMinutes
     });
 });
@@ -184,7 +181,7 @@ app.MapGet("/api/trading/session/positions", (
     return Results.Ok(new
     {
         sessionId = session.SessionId,
-        phase     = session.CurrentPhase.ToString(),
+        phase = session.CurrentPhase.ToString(),
         positions
     });
 });

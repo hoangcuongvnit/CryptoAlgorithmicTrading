@@ -1,7 +1,7 @@
 using Dapper;
 using Npgsql;
 
-namespace CryptoAlgorithmicTrading.Gateway.API.Settings;
+namespace Gateway.API.Settings;
 
 public sealed class SystemSettingsRepository
 {

@@ -1,10 +1,10 @@
-using System.Data;
 using Dapper;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using System.Data;
 
-namespace CryptoAlgorithmicTrading.Gateway.API.Dashboard;
+namespace Gateway.API.Dashboard;
 
 public sealed class DashboardQueryService : IDashboardQueryService
 {
@@ -342,9 +342,9 @@ public sealed class DashboardQueryService : IDashboardQueryService
             })
             .ToList();
 
-                var result = new PagedResponse<GapRow>(normalizedPageNumber, normalizedPageSize, totalRows, rows);
-                _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheSeconds));
-                return result;
+        var result = new PagedResponse<GapRow>(normalizedPageNumber, normalizedPageSize, totalRows, rows);
+        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(_options.CacheSeconds));
+        return result;
     }
 
     public async Task<SchemaResponse> GetSchemaAsync(CancellationToken cancellationToken)

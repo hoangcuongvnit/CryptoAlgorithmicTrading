@@ -1,5 +1,4 @@
 using Grpc.Core;
-using RiskGuard.API;
 
 namespace RiskGuard.API.Services;
 

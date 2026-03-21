@@ -1,5 +1,5 @@
-using System.Globalization;
 using CryptoTrading.Shared.DTOs;
+using System.Globalization;
 
 namespace HistoricalCollector.Worker.Parsers;
 

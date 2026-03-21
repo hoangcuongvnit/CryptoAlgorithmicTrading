@@ -1,4 +1,4 @@
-namespace CryptoAlgorithmicTrading.Gateway.API.Dashboard;
+namespace Gateway.API.Dashboard;
 
 public sealed class DashboardOptions
 {

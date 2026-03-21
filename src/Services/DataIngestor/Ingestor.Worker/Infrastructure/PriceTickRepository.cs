@@ -1,7 +1,7 @@
+using CryptoTrading.Shared.Database;
+using CryptoTrading.Shared.DTOs;
 using Dapper;
 using Npgsql;
-using CryptoTrading.Shared.DTOs;
-using CryptoTrading.Shared.Database;
 
 namespace Ingestor.Worker.Infrastructure;
 
@@ -43,17 +43,17 @@ public sealed class PriceTickRepository
             {
                 // Ensure table exists for this year (auto-creates if needed)
                 await PriceTicksTableHelper.EnsureTableExistsAsync(connection, yearTicks[0].Timestamp, cancellationToken);
-                
+
                 // Generate INSERT SQL for this year's table
                 var insertSql = PriceTicksTableHelper.GenerateInsertSql(year);
-                
+
                 // Execute batch insert
                 var inserted = await connection.ExecuteAsync(new CommandDefinition(
                     insertSql,
                     yearTicks,
                     transaction: transaction,
                     cancellationToken: cancellationToken));
-                
+
                 totalInserted += inserted;
             }
 

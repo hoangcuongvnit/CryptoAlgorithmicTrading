@@ -1,6 +1,7 @@
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
+using RiskGuard.API.Infrastructure;
+using System.Collections.Concurrent;
 
 namespace RiskGuard.API.Rules;
 
@@ -11,16 +12,29 @@ namespace RiskGuard.API.Rules;
 public sealed class CooldownRule : IRiskRule
 {
     private readonly RiskSettings _settings;
+    private readonly IRedisPersistenceService _redis;
+    private readonly ILogger<CooldownRule> _logger;
+    private readonly Task _initializeTask;
     private readonly ConcurrentDictionary<string, DateTime> _lastOrderTime =
         new(StringComparer.OrdinalIgnoreCase);
 
     public string Name => nameof(CooldownRule);
 
-    public CooldownRule(IOptions<RiskSettings> settings)
-        => _settings = settings.Value;
+    public CooldownRule(
+        IOptions<RiskSettings> settings,
+        IRedisPersistenceService redis,
+        ILogger<CooldownRule> logger)
+    {
+        _settings = settings.Value;
+        _redis = redis;
+        _logger = logger;
+        _initializeTask = InitializeFromRedisAsync();
+    }
 
     public ValueTask<RuleResult> EvaluateAsync(RiskContext context, CancellationToken ct = default)
     {
+        ObserveInitializationFailure();
+
         if (_settings.CooldownSeconds <= 0)
             return ValueTask.FromResult(RuleResult.Pass());
 
@@ -39,6 +53,8 @@ public sealed class CooldownRule : IRiskRule
 
         // Record approval timestamp so subsequent requests are gated
         _lastOrderTime[context.Symbol] = now;
+        _ = PersistCooldownAsync(context.Symbol, now);
+
         return ValueTask.FromResult(RuleResult.Pass());
     }
 
@@ -62,6 +78,45 @@ public sealed class CooldownRule : IRiskRule
         }
 
         return result;
+    }
+
+    private void ObserveInitializationFailure()
+    {
+        if (_initializeTask.IsFaulted)
+            _ = _initializeTask.Exception;
+    }
+
+    private async Task InitializeFromRedisAsync()
+    {
+        try
+        {
+            var loaded = await _redis.LoadAllCooldownsAsync(CancellationToken.None);
+            foreach (var (symbol, timestampUtc) in loaded)
+            {
+                _lastOrderTime.AddOrUpdate(
+                    symbol,
+                    timestampUtc,
+                    (_, existing) => existing >= timestampUtc ? existing : timestampUtc);
+            }
+
+            _logger.LogInformation("Loaded {Count} cooldown entries from Redis", loaded.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize cooldowns from Redis; starting with in-memory state");
+        }
+    }
+
+    private async Task PersistCooldownAsync(string symbol, DateTime timestampUtc)
+    {
+        try
+        {
+            await _redis.SetCooldownAsync(symbol, timestampUtc, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist cooldown for {Symbol}", symbol);
+        }
     }
 }
 

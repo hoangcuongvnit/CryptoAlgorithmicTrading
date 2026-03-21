@@ -65,6 +65,9 @@ services:
       - Risk__MaxDrawdownPercent=${MAX_DRAWDOWN_PERCENT:-5.0}
       - Risk__CooldownSeconds=${COOLDOWN_SECONDS:-30}
       - Risk__PaperTradingOnly=${PAPER_TRADING_MODE:-true}
+      - RISKGUARD_REDIS_ENABLED=${RISKGUARD_REDIS_ENABLED:-true}
+      - RISKGUARD_REDIS_TTL_SECONDS=${RISKGUARD_REDIS_TTL_SECONDS:-86400}
+      - RISKGUARD_REDIS_SYNC_INTERVAL=${RISKGUARD_REDIS_SYNC_INTERVAL:-60}
     ports:
       - "5013:5013"
       - "5093:5093"

@@ -1,6 +1,6 @@
-using System.Text.Json.Serialization;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
+using System.Text.Json.Serialization;
 
 namespace CryptoTrading.Shared.Json;
 

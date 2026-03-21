@@ -1,7 +1,7 @@
-using System.Threading.Channels;
 using CryptoTrading.Shared.DTOs;
 using Ingestor.Worker.Configuration;
 using Microsoft.Extensions.Options;
+using System.Threading.Channels;
 
 namespace Ingestor.Worker.Infrastructure;
 

@@ -50,11 +50,11 @@ app.MapGet("/api/notifier/config", (
 
     return Results.Ok(new
     {
-        telegramEnabled  = notifier.IsEnabled,
-        chatId           = maskedChatId,
-        botConfigured    = !string.IsNullOrWhiteSpace(t.BotToken) && t.BotToken != "your_telegram_bot_token_here",
-        redisConnection  = redisOpts.Value.Connection,
-        historyCapacity  = 100
+        telegramEnabled = notifier.IsEnabled,
+        chatId = maskedChatId,
+        botConfigured = !string.IsNullOrWhiteSpace(t.BotToken) && t.BotToken != "your_telegram_bot_token_here",
+        redisConnection = redisOpts.Value.Connection,
+        historyCapacity = 100
     });
 });
 
@@ -65,12 +65,12 @@ app.MapGet("/api/notifier/stats", (NotificationHistory history) =>
 
     return Results.Ok(new
     {
-        todayTotal      = total,
+        todayTotal = total,
         todayByCategory = byCategory,
         recentNotifications = recent.Select(r => new
         {
-            category     = r.Category,
-            summary      = r.Summary,
+            category = r.Category,
+            summary = r.Summary,
             timestampUtc = r.TimestampUtc
         })
     });

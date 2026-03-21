@@ -1,8 +1,8 @@
-using System.Diagnostics;
 using CryptoTrading.Shared.DTOs;
 using Ingestor.Worker.Configuration;
 using Ingestor.Worker.Infrastructure;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace Ingestor.Worker.Workers;
 

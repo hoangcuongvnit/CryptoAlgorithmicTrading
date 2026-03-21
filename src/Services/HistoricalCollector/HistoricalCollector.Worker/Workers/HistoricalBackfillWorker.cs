@@ -1,4 +1,3 @@
-using CryptoTrading.Shared.DTOs;
 using HistoricalCollector.Worker.Configuration;
 using HistoricalCollector.Worker.Infrastructure;
 using Microsoft.Extensions.Options;
