@@ -1,0 +1,68 @@
+{
+  "paperMode": "📝 Paper Mode",
+  "liveTrading": "💰 Live Trading",
+  "updatedAt": "Updated {{time}}",
+  "todayPnl": "Today's P&L",
+  "simulated": "Simulated",
+  "realized": "Realized",
+  "notifications": "Notifications",
+  "sentToday": "sent today",
+
+  "safetyLight": {
+    "tradingHalted": "TRADING HALTED",
+    "tradingHaltedDesc": "Daily loss limit reached. All trading is paused until midnight UTC.",
+    "cooldownActive": "COOLDOWN ACTIVE",
+    "cooldownActiveDesc": "Waiting before placing new trades on {{symbols}}.",
+    "allClear": "ALL CLEAR",
+    "allClearDesc": "System is healthy. Trading is active.",
+    "dailyLossUsed": "Daily Loss Used",
+    "ofLimit": "of ${{limit}} limit",
+    "activeCooldowns": "Active Cooldowns",
+    "wait": "Wait {{seconds}}s"
+  },
+
+  "activityLog": {
+    "allCategories": "All Categories",
+    "riskEvaluation": "Risk Evaluation",
+    "orders": "Orders",
+    "system": "System",
+    "allStatuses": "All Statuses",
+    "success": "Success",
+    "rejected": "Rejected",
+    "failed": "Failed",
+    "searchPlaceholder": "Search symbol, message...",
+    "loadingStream": "Loading activity stream...",
+    "noEvents": "No events yet. Waiting for activity...",
+    "noEventsMatch": "No events match the current filters.",
+    "catLabel": {
+      "riskCheck": "Risk Check",
+      "order": "Order",
+      "system": "System",
+      "price": "Price",
+      "signal": "Signal"
+    },
+    "statusLabel": {
+      "SUCCESS": "SUCCESS",
+      "REJECTED": "REJECTED",
+      "FAILED": "FAILED",
+      "SKIPPED": "SKIPPED"
+    },
+    "side": "Side",
+    "decision": "Decision",
+    "reason": "Reason",
+    "service": "Service",
+    "action": "Action",
+    "decisionApproved": "✓ Approved",
+    "decisionRejected": "✗ Rejected"
+  },
+
+  "eventTimeline": {
+    "noEvents": "No events yet. Waiting for activity...",
+    "catLabel": {
+      "trade": "Trade",
+      "rejected": "Rejected",
+      "startup": "Startup",
+      "system": "System"
+    }
+  }
+}

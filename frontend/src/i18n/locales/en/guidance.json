@@ -1,0 +1,191 @@
+{
+  "title": "System Guidance",
+  "subtitle": "Everything a new operator needs to understand this platform — in under 5 minutes.",
+
+  "liveActivity": {
+    "title": "Live Activity Now",
+    "desc": "Real-time event feed merging risk checks, orders, and notifications. Use filters to focus on what matters."
+  },
+
+  "filters": {
+    "allSeverities": "All Severities",
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error",
+    "allSymbols": "All Symbols",
+    "clearFilters": "Clear filters"
+  },
+
+  "flow": {
+    "title": "How the System Works",
+    "subtitle": "Market data enters on the left and travels through each stage before an order is placed.",
+    "hoverHint": "Hover any step to see what can go wrong.",
+    "tooltipTitle": "⚠ What can go wrong?",
+    "steps": {
+      "ingestor": {
+        "label": "Data Ingestor",
+        "desc": "Receives live price ticks from Binance exchange.",
+        "risk": "If disconnected, no market data flows to any downstream service."
+      },
+      "analyzer": {
+        "label": "Analyzer",
+        "desc": "Computes RSI, moving averages, and price momentum.",
+        "risk": "Stale or missing ticks produce incorrect indicators and bad signals."
+      },
+      "strategy": {
+        "label": "Strategy",
+        "desc": "Evaluates indicator signals to find trade opportunities.",
+        "risk": "False signals generate low-quality orders that burden risk checks."
+      },
+      "riskguard": {
+        "label": "Risk Guard",
+        "desc": "Validates every order against safety rules before it proceeds.",
+        "risk": "Rule violations block the order and log a rejection event."
+      },
+      "executor": {
+        "label": "Executor",
+        "desc": "Places orders on Binance, or simulates fills in paper trading mode.",
+        "risk": "API errors or network issues can delay or miss order fills."
+      },
+      "notifier": {
+        "label": "Notifier",
+        "desc": "Sends Telegram alerts for trades, rejections, and system events.",
+        "risk": "Silent failures leave operators unaware of problems in real time."
+      }
+    }
+  },
+
+  "rules": {
+    "title": "Rules & Safety",
+    "subtitle": "Active rules enforced by Risk Guard before every order. Each card shows the current state and impact if the rule is violated.",
+    "loading": "Loading risk configuration...",
+    "status": {
+      "pass": "Pass",
+      "warning": "Warning",
+      "block": "Block"
+    },
+    "configured": "Configured",
+    "current": "Current",
+    "ifViolated": "If violated:",
+    "noData": "No data yet",
+    "enforced": "Enforced on each order",
+    "maxDrawdown": {
+      "label": "Max Drawdown",
+      "configSuffix": "% of balance",
+      "meaning": "Limits total portfolio loss for the day. If losses reach this threshold, all trading stops automatically.",
+      "currentUsed": "{{pct}}% used",
+      "impact": "All trading halts until the drawdown resets at the next period."
+    },
+    "maxPositionSize": {
+      "label": "Max Position Size",
+      "configSuffix": "% per order",
+      "meaning": "No single order can use more than this percentage of the virtual account balance.",
+      "currentValue": "Enforced on each order",
+      "impact": "Oversized orders are rejected before reaching the exchange."
+    },
+    "minRiskReward": {
+      "label": "Min Risk/Reward",
+      "configSuffix": ":1 ratio",
+      "meaning": "A trade must offer at least this ratio of potential gain vs potential loss before it is allowed.",
+      "currentValue": "Evaluated per signal",
+      "impact": "Low-quality signals are blocked before any order is placed."
+    },
+    "cooldown": {
+      "label": "Cooldown Period",
+      "configSuffix": "s between orders",
+      "meaning": "Prevents over-trading by requiring a pause between consecutive orders on the same symbol.",
+      "currentValue": "Enforced per symbol",
+      "impact": "Orders placed too quickly after a prior trade are rejected during cooldown."
+    },
+    "tradingMode": {
+      "label": "Trading Mode",
+      "paperMeaning": "Paper trading is active — orders are fully simulated. No real money is at risk.",
+      "liveMeaning": "Live trading is active — orders are sent to Binance using real funds.",
+      "paperConfig": "Paper Mode",
+      "liveConfig": "Live Mode",
+      "paperCurrent": "Safe — no real orders",
+      "liveCurrent": "Active — real orders enabled",
+      "paperImpact": "Enable live mode in configuration to trade with real funds.",
+      "liveImpact": "Every approved order uses real money. Verify rules before deploying."
+    },
+    "maxOrderValue": {
+      "label": "Max Order Value",
+      "configSuffix": "$ per order",
+      "meaning": "Each individual order is capped at this notional value, regardless of position size percentage.",
+      "currentValue": "Checked on each order",
+      "impact": "Orders above this value are blocked even if the position size % is within limits."
+    }
+  },
+
+  "health": {
+    "title": "Current System Health",
+    "subtitle": "Traffic-light status based on data freshness from each service probe.",
+    "actionRequired": "🔴 Action Required",
+    "allHealthy": "🟢 All Healthy",
+    "degraded": "🟡 Degraded",
+    "status": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "stale": "Stale",
+      "error": "Error",
+      "noData": "No Data"
+    },
+    "lastData": "Last data: {{time}}",
+    "monitoringInferred": "Monitoring: inferred from system activity",
+    "never": "Never",
+    "legend": "🟢 Healthy — data received within the last 2 minutes. \u00a0🟡 Degraded — last seen 2–10 minutes ago. \u00a0🔴 Attention — no data for 10+ minutes or an error occurred.",
+    "services": {
+      "riskGuard": {
+        "name": "Risk Guard",
+        "desc": "Validates orders against all risk rules via gRPC."
+      },
+      "notifier": {
+        "name": "Notifier",
+        "desc": "Sends Telegram alerts for trade events and system status."
+      },
+      "ingestorAnalyzerStrategy": {
+        "name": "Ingestor / Analyzer / Strategy",
+        "desc": "Streams price ticks, computes signals, and generates trade ideas."
+      },
+      "executor": {
+        "name": "Executor",
+        "desc": "Places orders on Binance or simulates fills in paper mode."
+      }
+    }
+  },
+
+  "checklist": {
+    "title": "What Should I Do Next?",
+    "subtitle": "Guided actions for new operators getting started with this platform.",
+    "items": {
+      "readFlow": {
+        "title": "Read the system flow",
+        "desc": "Scroll up to \"How the System Works\" to understand the data pipeline from tick to trade."
+      },
+      "checkRules": {
+        "title": "Check risk rules before going live",
+        "desc": "Verify drawdown limit, position size, and cooldown values are set correctly.",
+        "action": "Open Safety & Risk"
+      },
+      "reviewSignals": {
+        "title": "Review active trading signals",
+        "desc": "See live signals and recent orders across all trading pairs.",
+        "action": "Open Trading Signals"
+      },
+      "browseHistory": {
+        "title": "Browse event history",
+        "desc": "Inspect every system event: approvals, rejections, and notifications.",
+        "action": "Open Event History"
+      },
+      "viewOverview": {
+        "title": "View the dashboard overview",
+        "desc": "Check today's P&L, drawdown usage, and market sentiment at a glance.",
+        "action": "Open Overview"
+      },
+      "contactOncall": {
+        "title": "Contact on-call if status is red",
+        "desc": "If any service shows a red health indicator above, escalate to the on-call operator immediately."
+      }
+    }
+  }
+}

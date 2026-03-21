@@ -1,0 +1,58 @@
+import i18n from 'i18next'
+import { initReactI18next } from 'react-i18next'
+import LanguageDetector from 'i18next-browser-languagedetector'
+
+import viNavigation from './locales/vi/navigation.json'
+import viCommon from './locales/vi/common.json'
+import viOverview from './locales/vi/overview.json'
+import viTrading from './locales/vi/trading.json'
+import viSafety from './locales/vi/safety.json'
+import viEvents from './locales/vi/events.json'
+import viGuidance from './locales/vi/guidance.json'
+
+import enNavigation from './locales/en/navigation.json'
+import enCommon from './locales/en/common.json'
+import enOverview from './locales/en/overview.json'
+import enTrading from './locales/en/trading.json'
+import enSafety from './locales/en/safety.json'
+import enEvents from './locales/en/events.json'
+import enGuidance from './locales/en/guidance.json'
+
+i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    resources: {
+      vi: {
+        navigation: viNavigation,
+        common: viCommon,
+        overview: viOverview,
+        trading: viTrading,
+        safety: viSafety,
+        events: viEvents,
+        guidance: viGuidance,
+      },
+      en: {
+        navigation: enNavigation,
+        common: enCommon,
+        overview: enOverview,
+        trading: enTrading,
+        safety: enSafety,
+        events: enEvents,
+        guidance: enGuidance,
+      },
+    },
+    lng: 'vi',
+    fallbackLng: 'en',
+    defaultNS: 'common',
+    detection: {
+      order: ['localStorage'],
+      lookupLocalStorage: 'lang',
+      cacheUserLanguage: true,
+    },
+    interpolation: {
+      escapeValue: false,
+    },
+  })
+
+export default i18n

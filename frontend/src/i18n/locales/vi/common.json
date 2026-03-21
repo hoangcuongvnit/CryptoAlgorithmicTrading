@@ -1,0 +1,68 @@
+{
+  "paperMode": "📝 Chế độ ảo",
+  "liveTrading": "💰 Giao dịch thực",
+  "updatedAt": "Cập nhật {{time}}",
+  "todayPnl": "Lãi/lỗ hôm nay",
+  "simulated": "Mô phỏng",
+  "realized": "Thực tế",
+  "notifications": "Thông báo",
+  "sentToday": "đã gửi hôm nay",
+
+  "safetyLight": {
+    "tradingHalted": "DỪNG GIAO DỊCH",
+    "tradingHaltedDesc": "Đã đạt giới hạn lỗ ngày. Tất cả giao dịch tạm dừng đến 00:00 UTC.",
+    "cooldownActive": "ĐANG NGHỈ",
+    "cooldownActiveDesc": "Đang chờ trước khi đặt lệnh mới trên {{symbols}}.",
+    "allClear": "AN TOÀN",
+    "allClearDesc": "Hệ thống bình thường. Giao dịch đang hoạt động.",
+    "dailyLossUsed": "Lỗ ngày đã dùng",
+    "ofLimit": "của giới hạn ${{limit}}",
+    "activeCooldowns": "Đang trong thời gian chờ",
+    "wait": "Chờ {{seconds}}s"
+  },
+
+  "activityLog": {
+    "allCategories": "Tất cả danh mục",
+    "riskEvaluation": "Đánh giá rủi ro",
+    "orders": "Lệnh",
+    "system": "Hệ thống",
+    "allStatuses": "Tất cả trạng thái",
+    "success": "Thành công",
+    "rejected": "Từ chối",
+    "failed": "Thất bại",
+    "searchPlaceholder": "Tìm ký hiệu, tin nhắn...",
+    "loadingStream": "Đang tải dữ liệu hoạt động...",
+    "noEvents": "Chưa có sự kiện. Đang chờ hoạt động...",
+    "noEventsMatch": "Không có sự kiện nào khớp với bộ lọc.",
+    "catLabel": {
+      "riskCheck": "Kiểm tra rủi ro",
+      "order": "Lệnh",
+      "system": "Hệ thống",
+      "price": "Giá",
+      "signal": "Tín hiệu"
+    },
+    "statusLabel": {
+      "SUCCESS": "THÀNH CÔNG",
+      "REJECTED": "TỪ CHỐI",
+      "FAILED": "THẤT BẠI",
+      "SKIPPED": "BỎ QUA"
+    },
+    "side": "Chiều",
+    "decision": "Quyết định",
+    "reason": "Lý do",
+    "service": "Dịch vụ",
+    "action": "Hành động",
+    "decisionApproved": "✓ Đã duyệt",
+    "decisionRejected": "✗ Từ chối"
+  },
+
+  "eventTimeline": {
+    "noEvents": "Chưa có sự kiện. Đang chờ hoạt động...",
+    "catLabel": {
+      "trade": "Giao dịch",
+      "rejected": "Từ chối",
+      "startup": "Khởi động",
+      "system": "Hệ thống"
+    }
+  }
+}

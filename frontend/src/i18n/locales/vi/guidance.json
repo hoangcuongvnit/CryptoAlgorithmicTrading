@@ -1,0 +1,191 @@
+{
+  "title": "Hướng dẫn hệ thống",
+  "subtitle": "Tất cả những gì người vận hành mới cần hiểu về nền tảng này — trong dưới 5 phút.",
+
+  "liveActivity": {
+    "title": "Hoạt động trực tiếp",
+    "desc": "Luồng sự kiện thời gian thực kết hợp kiểm tra rủi ro, lệnh và thông báo. Dùng bộ lọc để tập trung vào điều quan trọng."
+  },
+
+  "filters": {
+    "allSeverities": "Tất cả mức độ",
+    "info": "Thông tin",
+    "warning": "Cảnh báo",
+    "error": "Lỗi",
+    "allSymbols": "Tất cả ký hiệu",
+    "clearFilters": "Xóa bộ lọc"
+  },
+
+  "flow": {
+    "title": "Cách hệ thống hoạt động",
+    "subtitle": "Dữ liệu thị trường vào từ bên trái và đi qua từng giai đoạn trước khi lệnh được đặt.",
+    "hoverHint": "Rê chuột lên từng bước để xem điều gì có thể xảy ra sai.",
+    "tooltipTitle": "⚠ Điều gì có thể xảy ra sai?",
+    "steps": {
+      "ingestor": {
+        "label": "Thu thập dữ liệu",
+        "desc": "Nhận dữ liệu giá trực tiếp từ sàn Binance.",
+        "risk": "Nếu mất kết nối, dữ liệu thị trường sẽ không đến được các dịch vụ phía sau."
+      },
+      "analyzer": {
+        "label": "Phân tích",
+        "desc": "Tính RSI, đường trung bình động và đà giá.",
+        "risk": "Dữ liệu không đầy đủ sẽ tạo ra chỉ báo sai và tín hiệu không chính xác."
+      },
+      "strategy": {
+        "label": "Chiến lược",
+        "desc": "Đánh giá các tín hiệu chỉ báo để tìm cơ hội giao dịch.",
+        "risk": "Tín hiệu sai tạo ra lệnh chất lượng thấp, làm nặng tải cho kiểm tra rủi ro."
+      },
+      "riskguard": {
+        "label": "Kiểm soát rủi ro",
+        "desc": "Xác thực mỗi lệnh theo các quy tắc an toàn trước khi tiến hành.",
+        "risk": "Vi phạm quy tắc sẽ chặn lệnh và ghi nhận sự kiện từ chối."
+      },
+      "executor": {
+        "label": "Thực thi",
+        "desc": "Đặt lệnh trên Binance, hoặc mô phỏng khớp lệnh trong chế độ giao dịch ảo.",
+        "risk": "Lỗi API hoặc sự cố mạng có thể trì hoãn hoặc bỏ lỡ khớp lệnh."
+      },
+      "notifier": {
+        "label": "Thông báo",
+        "desc": "Gửi cảnh báo Telegram cho giao dịch, từ chối và sự kiện hệ thống.",
+        "risk": "Lỗi im lặng khiến người vận hành không biết về sự cố trong thời gian thực."
+      }
+    }
+  },
+
+  "rules": {
+    "title": "Quy tắc & An toàn",
+    "subtitle": "Các quy tắc đang áp dụng bởi Kiểm soát rủi ro trước mỗi lệnh. Mỗi thẻ hiển thị trạng thái hiện tại và tác động nếu vi phạm.",
+    "loading": "Đang tải cấu hình rủi ro...",
+    "status": {
+      "pass": "Đạt",
+      "warning": "Cảnh báo",
+      "block": "Chặn"
+    },
+    "configured": "Đã cấu hình",
+    "current": "Hiện tại",
+    "ifViolated": "Nếu vi phạm:",
+    "noData": "Chưa có dữ liệu",
+    "enforced": "Đang áp dụng",
+    "maxDrawdown": {
+      "label": "Mức giảm vốn tối đa",
+      "configSuffix": "% số dư",
+      "meaning": "Giới hạn tổng lỗ danh mục trong ngày. Nếu lỗ đạt ngưỡng này, mọi giao dịch dừng tự động.",
+      "currentUsed": "{{pct}}% đã dùng",
+      "impact": "Tất cả giao dịch dừng cho đến khi mức giảm vốn được đặt lại vào chu kỳ tiếp theo."
+    },
+    "maxPositionSize": {
+      "label": "Quy mô vị thế tối đa",
+      "configSuffix": "% mỗi lệnh",
+      "meaning": "Không một lệnh nào được dùng nhiều hơn tỷ lệ phần trăm này của số dư tài khoản ảo.",
+      "currentValue": "Áp dụng cho mỗi lệnh",
+      "impact": "Lệnh quá lớn bị từ chối trước khi đến sàn giao dịch."
+    },
+    "minRiskReward": {
+      "label": "Tỷ lệ rủi ro/lợi nhuận tối thiểu",
+      "configSuffix": ":1 tỷ lệ",
+      "meaning": "Một giao dịch phải có tỷ lệ lợi nhuận tiềm năng so với rủi ro tiềm năng đạt mức này mới được phép.",
+      "currentValue": "Đánh giá theo từng tín hiệu",
+      "impact": "Tín hiệu chất lượng thấp bị chặn trước khi lệnh được đặt."
+    },
+    "cooldown": {
+      "label": "Thời gian nghỉ",
+      "configSuffix": "s giữa các lệnh",
+      "meaning": "Ngăn giao dịch quá mức bằng cách yêu cầu khoảng dừng giữa các lệnh liên tiếp trên cùng một ký hiệu.",
+      "currentValue": "Áp dụng theo từng ký hiệu",
+      "impact": "Lệnh đặt quá nhanh sau lệnh trước sẽ bị từ chối trong thời gian nghỉ."
+    },
+    "tradingMode": {
+      "label": "Chế độ giao dịch",
+      "paperMeaning": "Đang dùng chế độ giao dịch ảo — lệnh được mô phỏng hoàn toàn. Không có tiền thật nào bị rủi ro.",
+      "liveMeaning": "Đang giao dịch thực — lệnh được gửi đến Binance bằng tiền thật.",
+      "paperConfig": "Chế độ ảo",
+      "liveConfig": "Chế độ thực",
+      "paperCurrent": "An toàn — không có lệnh thật",
+      "liveCurrent": "Đang hoạt động — lệnh thật được bật",
+      "paperImpact": "Bật chế độ thực trong cấu hình để giao dịch với tiền thật.",
+      "liveImpact": "Mỗi lệnh được duyệt sẽ dùng tiền thật. Kiểm tra quy tắc trước khi triển khai."
+    },
+    "maxOrderValue": {
+      "label": "Giá trị lệnh tối đa",
+      "configSuffix": "$ mỗi lệnh",
+      "meaning": "Mỗi lệnh riêng lẻ bị giới hạn ở giá trị danh nghĩa này, bất kể tỷ lệ quy mô vị thế.",
+      "currentValue": "Kiểm tra mỗi lệnh",
+      "impact": "Lệnh vượt giá trị này bị chặn dù tỷ lệ quy mô vị thế trong giới hạn."
+    }
+  },
+
+  "health": {
+    "title": "Tình trạng hệ thống hiện tại",
+    "subtitle": "Trạng thái đèn giao thông dựa trên độ tươi mới dữ liệu từ mỗi probe dịch vụ.",
+    "actionRequired": "🔴 Cần xử lý",
+    "allHealthy": "🟢 Tất cả bình thường",
+    "degraded": "🟡 Giảm hiệu suất",
+    "status": {
+      "healthy": "Bình thường",
+      "degraded": "Giảm hiệu suất",
+      "stale": "Dữ liệu cũ",
+      "error": "Lỗi",
+      "noData": "Không có dữ liệu"
+    },
+    "lastData": "Dữ liệu cuối: {{time}}",
+    "monitoringInferred": "Giám sát: suy ra từ hoạt động hệ thống",
+    "never": "Chưa bao giờ",
+    "legend": "🟢 Bình thường — dữ liệu nhận trong 2 phút qua. \u00a0🟡 Giảm hiệu suất — lần cuối 2–10 phút trước. \u00a0🔴 Chú ý — không có dữ liệu hơn 10 phút hoặc xảy ra lỗi.",
+    "services": {
+      "riskGuard": {
+        "name": "Kiểm soát rủi ro",
+        "desc": "Xác thực lệnh theo tất cả quy tắc rủi ro qua gRPC."
+      },
+      "notifier": {
+        "name": "Thông báo",
+        "desc": "Gửi cảnh báo Telegram cho sự kiện giao dịch và trạng thái hệ thống."
+      },
+      "ingestorAnalyzerStrategy": {
+        "name": "Thu thập / Phân tích / Chiến lược",
+        "desc": "Luồng tích giá, tính toán tín hiệu và tạo ý tưởng giao dịch."
+      },
+      "executor": {
+        "name": "Thực thi",
+        "desc": "Đặt lệnh trên Binance hoặc mô phỏng khớp lệnh trong chế độ ảo."
+      }
+    }
+  },
+
+  "checklist": {
+    "title": "Tôi nên làm gì tiếp theo?",
+    "subtitle": "Các hành động hướng dẫn cho người vận hành mới bắt đầu với nền tảng này.",
+    "items": {
+      "readFlow": {
+        "title": "Đọc quy trình hệ thống",
+        "desc": "Cuộn lên phần \"Cách hệ thống hoạt động\" để hiểu quy trình dữ liệu từ tick đến lệnh giao dịch."
+      },
+      "checkRules": {
+        "title": "Kiểm tra quy tắc rủi ro trước khi giao dịch thực",
+        "desc": "Xác minh giới hạn giảm vốn, quy mô vị thế và thời gian nghỉ được đặt đúng.",
+        "action": "Mở An toàn & Rủi ro"
+      },
+      "reviewSignals": {
+        "title": "Xem xét tín hiệu giao dịch đang hoạt động",
+        "desc": "Xem tín hiệu trực tiếp và lệnh gần đây trên tất cả cặp giao dịch.",
+        "action": "Mở Tín hiệu giao dịch"
+      },
+      "browseHistory": {
+        "title": "Duyệt lịch sử sự kiện",
+        "desc": "Kiểm tra mọi sự kiện hệ thống: duyệt, từ chối và thông báo.",
+        "action": "Mở Lịch sử sự kiện"
+      },
+      "viewOverview": {
+        "title": "Xem tổng quan bảng điều khiển",
+        "desc": "Kiểm tra lãi/lỗ hôm nay, mức giảm vốn và tâm lý thị trường trong nháy mắt.",
+        "action": "Mở Tổng quan"
+      },
+      "contactOncall": {
+        "title": "Liên hệ trực ca nếu trạng thái đỏ",
+        "desc": "Nếu bất kỳ dịch vụ nào hiển thị chỉ số sức khỏe màu đỏ ở trên, hãy báo ngay cho người trực ca."
+      }
+    }
+  }
+}

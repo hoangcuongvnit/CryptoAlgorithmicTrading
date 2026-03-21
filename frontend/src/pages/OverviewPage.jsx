@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/StatCard.jsx'
 import { SentimentGauge } from '../components/SentimentGauge.jsx'
 import { SafetyLight } from '../components/SafetyLight.jsx'
@@ -9,6 +10,7 @@ import { formatPnl, pnlColorClass } from '../utils/indicators.js'
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
 
 export function OverviewPage() {
+  const { t } = useTranslation(['overview', 'common'])
   const { data: risk, loading: riskLoading } = useRiskStats()
   const { data: config } = useRiskConfig()
   const { data: notifier, lastUpdated } = useNotifierStats()
@@ -22,14 +24,14 @@ export function OverviewPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">Trading Overview</h1>
+        <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{t('title')}</h1>
         <div className="flex items-center gap-3">
           <span className={`px-3 py-1 rounded-full text-sm font-medium ${mode === 'Paper' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-            {mode === 'Paper' ? '📝 Paper Mode' : '💰 Live Trading'}
+            {mode === 'Paper' ? t('common:paperMode') : t('common:liveTrading')}
           </span>
           {lastUpdated && (
             <span className="text-xs text-gray-400">
-              Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+              {t('common:updatedAt', { time: lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) })}
             </span>
           )}
         </div>
@@ -41,23 +43,23 @@ export function OverviewPage() {
       {/* Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Today's P&L"
+          title={t('common:todayPnl')}
           value={risk ? formatPnl(risk.dailyPnl) : '—'}
-          subtitle={mode === 'Paper' ? 'Simulated' : 'Realized'}
+          subtitle={mode === 'Paper' ? t('common:simulated') : t('common:realized')}
           icon="💵"
           colorClass={risk ? pnlColorClass(risk.dailyPnl) : 'text-gray-400'}
         />
         <StatCard
-          title="Trades Today"
+          title={t('stats.tradesTotal')}
           value={totalOrders}
-          subtitle={`${risk?.todayApproved ?? 0} approved`}
+          subtitle={t('stats.approved', { count: risk?.todayApproved ?? 0 })}
           icon="📊"
           colorClass="text-gray-800"
         />
         <StatCard
-          title="Drawdown Used"
+          title={t('stats.drawdownUsed')}
           value={risk ? `${Number(risk.drawdownUsedPercent).toFixed(1)}%` : '—'}
-          subtitle={`of $${Number(risk?.maxDrawdownUsd ?? 0).toFixed(0)} max`}
+          subtitle={t('stats.drawdownOf', { max: Number(risk?.maxDrawdownUsd ?? 0).toFixed(0) })}
           icon="🛡️"
           colorClass={
             !risk ? 'text-gray-400' :
@@ -67,9 +69,9 @@ export function OverviewPage() {
           }
         />
         <StatCard
-          title="Notifications"
+          title={t('common:notifications')}
           value={notifier?.todayTotal ?? '—'}
-          subtitle="sent today"
+          subtitle={t('common:sentToday')}
           icon="🔔"
           colorClass="text-gray-800"
         />
@@ -77,7 +79,7 @@ export function OverviewPage() {
 
       {/* Market Sentiment Gauges */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">Market Sentiment</h2>
+        <h2 className="text-lg font-semibold mb-3" style={{ color: '#0f172a' }}>{t('marketSentiment')}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {symbols.map(sym => (
             <SentimentGauge key={sym} symbol={sym} />
@@ -87,7 +89,7 @@ export function OverviewPage() {
 
       {/* Recent Events */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">Recent Activity</h2>
+        <h2 className="text-lg font-semibold mb-3" style={{ color: '#0f172a' }}>{t('recentActivity')}</h2>
         <EventTimeline events={notifier?.recent} maxItems={10} />
       </div>
     </div>

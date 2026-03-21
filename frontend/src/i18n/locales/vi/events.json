@@ -1,0 +1,14 @@
+{
+  "title": "Nhật ký hoạt động",
+  "lastUpdated": "Cập nhật lần cuối: {{time}} UTC",
+  "refresh": "↻ Làm mới",
+  "stats": {
+    "riskChecks": "Kiểm tra rủi ro",
+    "approved": "Đã duyệt",
+    "rejected": "Từ chối",
+    "ordersFilled": "Lệnh đã khớp"
+  },
+  "liveStream": {
+    "title": "Luồng hoạt động trực tiếp"
+  }
+}

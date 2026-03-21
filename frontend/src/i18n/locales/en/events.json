@@ -1,0 +1,14 @@
+{
+  "title": "Activity Log",
+  "lastUpdated": "Last updated: {{time}} UTC",
+  "refresh": "↻ Refresh",
+  "stats": {
+    "riskChecks": "Risk Checks",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "ordersFilled": "Orders Filled"
+  },
+  "liveStream": {
+    "title": "Live Activity Stream"
+  }
+}

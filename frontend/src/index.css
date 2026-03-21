@@ -1,3 +1,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: #f3f7fb;
+    --bg-page-alt: #e9f0f8;
+    --bg-surface: #ffffff;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --sidebar-bg: #0b1730;
+    --sidebar-border: #1d2b4a;
+    --sidebar-text: #dbe7ff;
+    --sidebar-active: #2f6fed;
+    --border-soft: #dbe4ef;
+    --shadow-soft: 0 8px 30px rgba(15, 23, 42, 0.08);
+  }
+
+  body {
+    background: linear-gradient(180deg, #f3f7fb 0%, #e9f0f8 100%);
+    background-attachment: fixed;
+    color: #0f172a;
+    min-height: 100vh;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}

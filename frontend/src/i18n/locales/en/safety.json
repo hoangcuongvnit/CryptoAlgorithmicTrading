@@ -1,0 +1,26 @@
+{
+  "title": "Safety & Risk Guard",
+  "stats": {
+    "approved": "Approved",
+    "ordersPassed": "orders passed",
+    "rejected": "Rejected",
+    "ordersBlocked": "orders blocked",
+    "approvalRate": "Approval Rate",
+    "ofChecks": "of {{total}} checks"
+  },
+  "riskConfig": {
+    "title": "Risk Configuration",
+    "minRiskReward": "Min Risk/Reward",
+    "maxPositionSize": "Max Position Size",
+    "maxOrderValue": "Max Order Value",
+    "maxDailyLoss": "Max Daily Loss",
+    "cooldownPeriod": "Cooldown Period",
+    "virtualBalance": "Virtual Balance",
+    "allowedPairs": "Allowed Trading Pairs"
+  },
+  "validationHistory": {
+    "title": "Recent Safety Checks",
+    "last": "(last {{count}})",
+    "noHistory": "No validation history yet"
+  }
+}

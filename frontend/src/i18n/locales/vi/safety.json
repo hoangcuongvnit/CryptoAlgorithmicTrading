@@ -1,0 +1,26 @@
+{
+  "title": "An toàn & Kiểm soát rủi ro",
+  "stats": {
+    "approved": "Đã duyệt",
+    "ordersPassed": "lệnh được chấp thuận",
+    "rejected": "Từ chối",
+    "ordersBlocked": "lệnh bị chặn",
+    "approvalRate": "Tỷ lệ duyệt",
+    "ofChecks": "trong {{total}} lần kiểm tra"
+  },
+  "riskConfig": {
+    "title": "Cấu hình rủi ro",
+    "minRiskReward": "Tỷ lệ rủi ro/lợi nhuận tối thiểu",
+    "maxPositionSize": "Quy mô vị thế tối đa",
+    "maxOrderValue": "Giá trị lệnh tối đa",
+    "maxDailyLoss": "Lỗ tối đa trong ngày",
+    "cooldownPeriod": "Thời gian nghỉ",
+    "virtualBalance": "Số dư ảo",
+    "allowedPairs": "Cặp giao dịch được phép"
+  },
+  "validationHistory": {
+    "title": "Kiểm tra an toàn gần đây",
+    "last": "({{count}} gần nhất)",
+    "noHistory": "Chưa có lịch sử kiểm tra"
+  }
+}

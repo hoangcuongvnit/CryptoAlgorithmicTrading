@@ -1,0 +1,12 @@
+{
+  "title": "Tín hiệu giao dịch",
+  "subtitle": "Phân tích thị trường trực tiếp — cập nhật mỗi 30 giây",
+  "recentOrders": "Lệnh gần đây",
+  "order": {
+    "price": "Giá",
+    "qty": "SL",
+    "paper": "Ảo",
+    "filled": "✅ Đã khớp",
+    "noOrders": "Chưa có lệnh nào. Đang phân tích tín hiệu..."
+  }
+}

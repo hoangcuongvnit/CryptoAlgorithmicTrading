@@ -1,0 +1,11 @@
+{
+  "title": "Trading Overview",
+  "marketSentiment": "Market Sentiment",
+  "recentActivity": "Recent Activity",
+  "stats": {
+    "tradesTotal": "Trades Today",
+    "approved": "{{count}} approved",
+    "drawdownUsed": "Drawdown Used",
+    "drawdownOf": "of ${{max}} max"
+  }
+}

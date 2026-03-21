@@ -1,0 +1,12 @@
+{
+  "title": "Trading Signals",
+  "subtitle": "Live market analysis — updated every 30 seconds",
+  "recentOrders": "Recent Orders",
+  "order": {
+    "price": "Price",
+    "qty": "Qty",
+    "paper": "Paper",
+    "filled": "✅ Filled",
+    "noOrders": "No orders yet. Signals are being analyzed..."
+  }
+}

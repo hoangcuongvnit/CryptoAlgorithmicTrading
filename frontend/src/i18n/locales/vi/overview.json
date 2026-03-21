@@ -1,0 +1,11 @@
+{
+  "title": "Tổng quan giao dịch",
+  "marketSentiment": "Tâm lý thị trường",
+  "recentActivity": "Hoạt động gần đây",
+  "stats": {
+    "tradesTotal": "Giao dịch hôm nay",
+    "approved": "{{count}} đã duyệt",
+    "drawdownUsed": "Mức giảm vốn",
+    "drawdownOf": "của tối đa ${{max}}"
+  }
+}

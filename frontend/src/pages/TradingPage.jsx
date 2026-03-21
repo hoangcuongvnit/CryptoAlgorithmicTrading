@@ -1,16 +1,18 @@
+import { useTranslation } from 'react-i18next'
 import { SignalCard } from '../components/SignalCard.jsx'
 import { useRiskConfig, useOrders } from '../hooks/useDashboard.js'
-import { formatPrice, formatPnl, pnlColorClass } from '../utils/indicators.js'
+import { formatPrice } from '../utils/indicators.js'
 
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']
 
 function OrderRow({ order }) {
+  const { t } = useTranslation('trading')
   const isSuccess = order.success ?? order.filledQty > 0
   const isPaper = order.isPaperTrade
   const side = order.side?.toLowerCase()
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+    <div className="flex items-center gap-3 p-3 rounded-lg transition-colors" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)' }}>
       <div className="flex-shrink-0">
         <span className={`inline-block w-2 h-2 rounded-full ${isSuccess ? 'bg-green-400' : 'bg-red-400'}`} />
       </div>
@@ -24,19 +26,19 @@ function OrderRow({ order }) {
           </span>
         </div>
         <div className="text-gray-600">
-          <span className="text-xs text-gray-400">Price </span>
+          <span className="text-xs text-gray-400">{t('order.price')} </span>
           <span className="font-medium">${formatPrice(order.filledPrice || order.entryPrice)}</span>
         </div>
         <div className="text-gray-600">
-          <span className="text-xs text-gray-400">Qty </span>
+          <span className="text-xs text-gray-400">{t('order.qty')} </span>
           <span className="font-medium">{Number(order.filledQty || order.quantity).toFixed(6)}</span>
         </div>
         <div className="flex items-center gap-2">
-          {isPaper && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">Paper</span>}
+          {isPaper && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">{t('order.paper')}</span>}
           {!isSuccess && order.errorMessage && (
             <span className="text-xs text-red-500 truncate" title={order.errorMessage}>❌ {order.errorMessage}</span>
           )}
-          {isSuccess && <span className="text-xs text-green-600">✅ Filled</span>}
+          {isSuccess && <span className="text-xs text-green-600">{t('order.filled')}</span>}
         </div>
       </div>
       <div className="flex-shrink-0 text-xs text-gray-400">
@@ -47,6 +49,7 @@ function OrderRow({ order }) {
 }
 
 export function TradingPage() {
+  const { t } = useTranslation('trading')
   const { data: config } = useRiskConfig()
   const { data: orders, loading: ordersLoading } = useOrders()
 
@@ -54,13 +57,11 @@ export function TradingPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Trading Signals</h1>
+      <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{t('title')}</h1>
 
       {/* Signal Cards */}
       <div>
-        <p className="text-sm text-gray-500 mb-3">
-          Live market analysis — updated every 30 seconds
-        </p>
+        <p className="text-sm text-gray-500 mb-3">{t('subtitle')}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {symbols.map(sym => (
             <SignalCard key={sym} symbol={sym} />
@@ -70,7 +71,7 @@ export function TradingPage() {
 
       {/* Recent Orders */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">Recent Orders</h2>
+        <h2 className="text-lg font-semibold mb-3" style={{ color: '#0f172a' }}>{t('recentOrders')}</h2>
         {ordersLoading && !orders && (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
@@ -81,7 +82,7 @@ export function TradingPage() {
         {orders?.length === 0 && (
           <div className="text-center py-10 text-gray-400">
             <p className="text-4xl mb-2">📭</p>
-            <p>No orders yet. Signals are being analyzed...</p>
+            <p>{t('order.noOrders')}</p>
           </div>
         )}
         {orders && orders.length > 0 && (

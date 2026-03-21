@@ -1,5 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { usePolling } from './usePolling.js'
+import { mergeAndSort } from '../utils/activityNormalizer.js'
 
 const BASE = ''
 
@@ -27,6 +28,24 @@ export function useNotifierStats() {
 export function useOrders() {
   const fn = useCallback(() => fetchJson('/api/live/orders?limit=20'), [])
   return usePolling(fn, 20000)
+}
+
+export function useActivities() {
+  const { data: riskData, loading: riskLoading, error: riskError, lastUpdated: riskUpdated, refresh: refreshRisk } = useRiskStats()
+  const { data: notifierData, loading: notifierLoading, error: notifierError, lastUpdated: notifierUpdated, refresh: refreshNotifier } = useNotifierStats()
+
+  const activities = useMemo(
+    () => mergeAndSort(riskData?.recentValidations ?? [], notifierData?.recent ?? []),
+    [riskData, notifierData]
+  )
+
+  return {
+    activities,
+    loading: riskLoading || notifierLoading,
+    error: riskError || notifierError,
+    lastUpdated: notifierUpdated ?? riskUpdated,
+    refresh: () => { refreshRisk(); refreshNotifier() },
+  }
 }
 
 export function useCandles(symbol, minutesBack = 60) {

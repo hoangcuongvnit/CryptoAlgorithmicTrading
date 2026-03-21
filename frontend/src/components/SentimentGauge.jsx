@@ -17,7 +17,7 @@ export function SentimentGauge({ symbol }) {
 
   if (loading && !ctx) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 animate-pulse">
+      <div className="rounded-xl p-4 animate-pulse" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}>
         <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
         <div className="h-8 bg-gray-200 rounded w-16" />
       </div>
@@ -26,7 +26,7 @@ export function SentimentGauge({ symbol }) {
 
   if (!ctx) {
     return (
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <div className="rounded-xl p-4" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}>
         <p className="text-sm font-semibold text-gray-600">{symbol}</p>
         <p className="text-xs text-gray-400 mt-1">No data</p>
       </div>
@@ -36,7 +36,7 @@ export function SentimentGauge({ symbol }) {
   const emoji = HEAT_EMOJIS[ctx.heat] ?? '❓'
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+    <div className="rounded-xl p-4 transition-shadow hover:shadow-lg" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}>
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm font-semibold text-gray-700">{symbol.replace('USDT', '')}</p>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ctx.heatBg}`}>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { SafetyLight } from '../components/SafetyLight.jsx'
 import { StatCard } from '../components/StatCard.jsx'
 import { useRiskStats, useRiskConfig } from '../hooks/useDashboard.js'
@@ -28,6 +29,7 @@ function ValidationRow({ v }) {
 }
 
 export function SafetyPage() {
+  const { t } = useTranslation(['safety', 'common'])
   const { data: risk } = useRiskStats()
   const { data: config } = useRiskConfig()
 
@@ -36,9 +38,18 @@ export function SafetyPage() {
     ? Math.round((risk.todayApproved / totalToday) * 100)
     : null
 
+  const riskConfigRows = config ? [
+    { label: t('riskConfig.minRiskReward'), value: config.minRiskReward },
+    { label: t('riskConfig.maxPositionSize'), value: `${config.maxPositionSizePercent}%` },
+    { label: t('riskConfig.maxOrderValue'), value: `$${config.maxOrderNotional}` },
+    { label: t('riskConfig.maxDailyLoss'), value: `${config.maxDrawdownPercent}%` },
+    { label: t('riskConfig.cooldownPeriod'), value: `${config.cooldownSeconds}s` },
+    { label: t('riskConfig.virtualBalance'), value: `$${Number(config.virtualAccountBalance).toLocaleString()}` },
+  ] : []
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Safety & Risk Guard</h1>
+      <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{t('title')}</h1>
 
       {/* Main Safety Status */}
       <SafetyLight riskStats={risk} riskConfig={config} />
@@ -46,29 +57,29 @@ export function SafetyPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Today's P&L"
+          title={t('common:todayPnl')}
           value={risk ? formatPnl(risk.dailyPnl) : '—'}
           icon="💵"
           colorClass={risk ? pnlColorClass(risk.dailyPnl) : 'text-gray-400'}
         />
         <StatCard
-          title="Approved"
+          title={t('stats.approved')}
           value={risk?.todayApproved ?? '—'}
-          subtitle="orders passed"
+          subtitle={t('stats.ordersPassed')}
           icon="✅"
           colorClass="text-green-600"
         />
         <StatCard
-          title="Rejected"
+          title={t('stats.rejected')}
           value={risk?.todayRejected ?? '—'}
-          subtitle="orders blocked"
+          subtitle={t('stats.ordersBlocked')}
           icon="🛑"
           colorClass="text-red-600"
         />
         <StatCard
-          title="Approval Rate"
+          title={t('stats.approvalRate')}
           value={approvalRate !== null ? `${approvalRate}%` : '—'}
-          subtitle={`of ${totalToday} checks`}
+          subtitle={t('stats.ofChecks', { total: totalToday })}
           icon="📊"
           colorClass={approvalRate !== null && approvalRate < 50 ? 'text-red-500' : 'text-gray-800'}
         />
@@ -76,25 +87,18 @@ export function SafetyPage() {
 
       {/* Risk Settings */}
       {config && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Risk Configuration</h2>
+        <div className="rounded-xl p-5" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}>
+          <h2 className="text-lg font-semibold mb-4" style={{ color: '#0f172a' }}>{t('riskConfig.title')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {[
-              { label: 'Min Risk/Reward', value: config.minRiskReward },
-              { label: 'Max Position Size', value: `${config.maxPositionSizePercent}%` },
-              { label: 'Max Order Value', value: `$${config.maxOrderNotional}` },
-              { label: 'Max Daily Loss', value: `${config.maxDrawdownPercent}%` },
-              { label: 'Cooldown Period', value: `${config.cooldownSeconds}s` },
-              { label: 'Virtual Balance', value: `$${Number(config.virtualAccountBalance).toLocaleString()}` },
-            ].map(item => (
-              <div key={item.label} className="bg-gray-50 rounded-lg p-3">
+            {riskConfigRows.map(item => (
+              <div key={item.label} className="rounded-lg p-3" style={{ background: '#f3f7fb' }}>
                 <p className="text-xs text-gray-500">{item.label}</p>
                 <p className="text-base font-semibold text-gray-800 mt-0.5">{item.value}</p>
               </div>
             ))}
           </div>
           <div className="mt-4">
-            <p className="text-xs text-gray-500 mb-2">Allowed Trading Pairs</p>
+            <p className="text-xs text-gray-500 mb-2">{t('riskConfig.allowedPairs')}</p>
             <div className="flex flex-wrap gap-2">
               {config.allowedSymbols?.map(s => (
                 <span key={s} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-lg font-medium">
@@ -108,16 +112,16 @@ export function SafetyPage() {
 
       {/* Validation History */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">
-          Recent Safety Checks
+        <h2 className="text-lg font-semibold mb-3" style={{ color: '#0f172a' }}>
+          {t('validationHistory.title')}
           {risk?.recentValidations?.length > 0 && (
             <span className="ml-2 text-sm font-normal text-gray-400">
-              (last {Math.min(risk.recentValidations.length, 50)})
+              {t('validationHistory.last', { count: Math.min(risk.recentValidations.length, 50) })}
             </span>
           )}
         </h2>
         {!risk?.recentValidations?.length ? (
-          <div className="text-center py-8 text-gray-400">No validation history yet</div>
+          <div className="text-center py-8 text-gray-400">{t('validationHistory.noHistory')}</div>
         ) : (
           <div className="space-y-2">
             {risk.recentValidations.slice(0, 50).map((v, i) => (
