@@ -219,6 +219,41 @@ riskGroup.MapGet("/stats", async (IHttpClientFactory factory, CancellationToken 
     }
 });
 
+// ── Risk Evaluation history endpoints ────────────────────────────────────
+
+app.MapGet("/api/risk-evaluations", async (
+    HttpRequest req, IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("riskguard");
+    try
+    {
+        var qs = req.QueryString.Value ?? string.Empty;
+        var response = await client.GetAsync($"/api/risk-evaluations{qs}", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"RiskGuard unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+app.MapGet("/api/risk-evaluations/{evaluationId:guid}", async (
+    Guid evaluationId, IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("riskguard");
+    try
+    {
+        var response = await client.GetAsync($"/api/risk-evaluations/{evaluationId}", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"RiskGuard unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 // ── Notifier proxy endpoints ──────────────────────────────────────────────
 
 var notifierGroup = app.MapGroup("/api/notifier");
@@ -414,6 +449,94 @@ settingsGroup.MapPut("/system/timezone", async (
 
     await repo.UpdateTimezoneAsync(body.Timezone, body.UpdatedBy, ct);
     return Results.Ok(new { timezone = body.Timezone });
+});
+
+// ── Trading Control proxy endpoints ──────────────────────────────────────
+
+var controlGroup = app.MapGroup("/api/control");
+
+controlGroup.MapPost("/close-all", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var body = await req.ReadFromJsonAsync<object>(ct);
+        var response = await client.PostAsJsonAsync("/api/trading/control/close-all", body, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+controlGroup.MapPost("/close-all/schedule", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var body = await req.ReadFromJsonAsync<object>(ct);
+        var response = await client.PostAsJsonAsync("/api/trading/control/close-all/schedule", body, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+controlGroup.MapPost("/close-all/cancel", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var body = await req.ReadFromJsonAsync<object>(ct);
+        var response = await client.PostAsJsonAsync("/api/trading/control/close-all/cancel", body, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+controlGroup.MapGet("/close-all/status", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var response = await client.GetAsync("/api/trading/control/close-all/status", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+controlGroup.MapGet("/close-all/history", async (
+    IHttpClientFactory factory,
+    [Microsoft.AspNetCore.Mvc.FromQuery] int? limit,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var url = limit.HasValue
+            ? $"/api/trading/control/close-all/history?limit={limit.Value}"
+            : "/api/trading/control/close-all/history";
+        var response = await client.GetAsync(url, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Gateway.API", utc = DateTime.UtcNow }));

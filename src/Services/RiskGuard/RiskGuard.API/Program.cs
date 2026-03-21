@@ -1,3 +1,4 @@
+using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
@@ -24,13 +25,15 @@ builder.Services.AddSingleton<OrderStatsRepository>();
 builder.Services.AddSingleton<SystemEventPublisher>();
 builder.Services.AddSingleton<IRedisPersistenceService, RedisPersistenceService>();
 builder.Services.AddSingleton<ValidationHistory>();
+builder.Services.AddSingleton<IRiskEvaluationRepository, RiskEvaluationRepository>();
 
 // Session services
 builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
 builder.Services.AddSingleton<SessionClock>();
 builder.Services.AddSingleton<SessionTradingPolicy>();
 
-// Rules — evaluated in this order: session guards first, then fast/cheap checks, DB-backed checks last
+// Rules — evaluated in this order: recovery gate first, then session guards, then fast/cheap checks, DB-backed checks last
+builder.Services.AddSingleton<IRiskRule, RecoveryWindowRule>();
 builder.Services.AddSingleton<IRiskRule, NoCrossSessionCarryRule>();
 builder.Services.AddSingleton<IRiskRule, SessionWindowRule>();
 builder.Services.AddSingleton<IRiskRule, SymbolAllowListRule>();
@@ -136,7 +139,62 @@ app.MapGet("/api/risk/persistence-status", async Task<IResult> (IRedisPersistenc
     });
 });
 
+// ── Evaluation history query endpoints ────────────────────────────────────
+
+app.MapGet("/api/risk-evaluations", async (
+    [AsParameters] EvaluationQueryParams q,
+    IRiskEvaluationRepository repo,
+    CancellationToken ct) =>
+{
+    try
+    {
+        var (items, total) = await repo.GetPagedAsync(
+            q.Symbol, q.Outcome, q.From, q.To, q.SessionId,
+            q.Page ?? 1, q.PageSize ?? 20, ct);
+
+        return Results.Ok(new
+        {
+            items,
+            totalCount = total,
+            page = q.Page ?? 1,
+            pageSize = q.PageSize ?? 20
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Failed to query evaluations: {ex.Message}", statusCode: 500);
+    }
+});
+
+app.MapGet("/api/risk-evaluations/{evaluationId:guid}", async (
+    Guid evaluationId,
+    IRiskEvaluationRepository repo,
+    CancellationToken ct) =>
+{
+    try
+    {
+        var dto = await repo.GetByIdAsync(evaluationId, ct);
+        return dto is null
+            ? Results.NotFound(new { error = $"Evaluation {evaluationId} not found" })
+            : Results.Ok(dto);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Failed to fetch evaluation: {ex.Message}", statusCode: 500);
+    }
+});
+
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "RiskGuard.API" }));
 app.MapGet("/", () => "RiskGuard gRPC service is running.");
 
 app.Run();
+
+/// <summary>Query parameters for the evaluation history endpoint.</summary>
+record EvaluationQueryParams(
+    string? Symbol,
+    string? Outcome,
+    DateTime? From,
+    DateTime? To,
+    string? SessionId,
+    int? Page,
+    int? PageSize);

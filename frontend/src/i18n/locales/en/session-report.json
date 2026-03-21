@@ -1,0 +1,55 @@
+{
+  "title": "4-Hour Session Report",
+  "subtitle": "Trading performance broken down by 6 daily sessions (UTC)",
+  "date": "Date",
+  "today": "Today",
+  "lastUpdated": "Last updated",
+  "clickHint": "Click a session row to see symbol breakdown below.",
+  "chartHint": "Realized PnL per session. Trade count shown below each bar.",
+  "mode": {
+    "all": "All modes",
+    "paper": "Paper trading",
+    "live": "Live trading"
+  },
+  "kpi": {
+    "totalTrades": "Total Trades",
+    "activeSessions": "Active Sessions",
+    "totalPnL": "Total Realized PnL",
+    "bestSession": "Best Session",
+    "worstSession": "Worst Session"
+  },
+  "sections": {
+    "sessionTable": "Session Financial Summary",
+    "equityChart": "PnL by Session",
+    "symbolBreakdown": "Symbol Breakdown"
+  },
+  "col": {
+    "session": "Session",
+    "window": "Time Window (UTC)",
+    "trades": "Trades",
+    "buys": "Buys",
+    "sells": "Sells",
+    "rejected": "Rejected",
+    "winLoss": "W/L",
+    "symbols": "Symbols",
+    "realizedPnL": "Realized PnL",
+    "flat": "Flat at Close",
+    "symbol": "Symbol",
+    "buyCount": "Buys",
+    "sellCount": "Sells",
+    "buyQty": "Buy Qty",
+    "sellQty": "Sell Qty",
+    "avgBuy": "Avg Buy",
+    "avgSell": "Avg Sell"
+  },
+  "flat": {
+    "yes": "Yes",
+    "no": "Open"
+  },
+  "empty": {
+    "noData": "No session data for this date.",
+    "noSymbols": "No symbols traded in this session.",
+    "selectSession": "Click a session row in the table above to see its symbol breakdown.",
+    "error": "Failed to load data."
+  }
+}

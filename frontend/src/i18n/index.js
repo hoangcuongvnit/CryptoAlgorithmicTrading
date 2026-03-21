@@ -10,7 +10,9 @@ import viSafety from './locales/vi/safety.json'
 import viEvents from './locales/vi/events.json'
 import viGuidance from './locales/vi/guidance.json'
 import viReport from './locales/vi/report.json'
+import viSessionReport from './locales/vi/session-report.json'
 import viSettings from './locales/vi/settings.json'
+import viShutdown from './locales/vi/shutdown.json'
 
 import enNavigation from './locales/en/navigation.json'
 import enCommon from './locales/en/common.json'
@@ -20,7 +22,9 @@ import enSafety from './locales/en/safety.json'
 import enEvents from './locales/en/events.json'
 import enGuidance from './locales/en/guidance.json'
 import enReport from './locales/en/report.json'
+import enSessionReport from './locales/en/session-report.json'
 import enSettings from './locales/en/settings.json'
+import enShutdown from './locales/en/shutdown.json'
 
 i18n
   .use(LanguageDetector)
@@ -36,7 +40,9 @@ i18n
         events: viEvents,
         guidance: viGuidance,
         report: viReport,
+        sessionReport: viSessionReport,
         settings: viSettings,
+        shutdown: viShutdown,
       },
       en: {
         navigation: enNavigation,
@@ -47,7 +53,9 @@ i18n
         events: enEvents,
         guidance: enGuidance,
         report: enReport,
+        sessionReport: enSessionReport,
         settings: enSettings,
+        shutdown: enShutdown,
       },
     },
     lng: 'vi',

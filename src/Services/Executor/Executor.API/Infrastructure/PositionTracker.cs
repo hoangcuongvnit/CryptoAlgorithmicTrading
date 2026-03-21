@@ -78,6 +78,17 @@ public sealed class PositionTracker
             _positions[symbol] = pos with { CurrentPrice = price };
     }
 
+    /// <summary>
+    /// Directly injects a recovered open position (used by startup reconciliation).
+    /// Replaces any existing in-memory entry for the same symbol.
+    /// </summary>
+    public void RecoverPosition(string symbol, decimal quantity, decimal avgEntryPrice, string? sessionId = null)
+    {
+        if (quantity <= 0) return;
+        var pos = new OpenPosition(symbol, quantity, avgEntryPrice, avgEntryPrice, DateTime.UtcNow, sessionId);
+        _positions[symbol] = pos;
+    }
+
     public bool HasOpenPositions() => !_positions.IsEmpty;
 
     public IReadOnlyList<OpenPosition> GetRawPositions() => _positions.Values.ToList();

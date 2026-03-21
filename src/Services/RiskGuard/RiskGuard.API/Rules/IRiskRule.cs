@@ -8,6 +8,9 @@ public interface IRiskRule
 {
     string Name { get; }
 
+    /// <summary>Semantic version of this rule implementation. Defaults to "1.0".</summary>
+    string Version => "1.0";
+
     /// <summary>
     /// Evaluate the rule.
     /// Returns <see cref="RuleResult.Pass()"/> to allow the order through,
@@ -35,7 +38,39 @@ public sealed record RuleResult
     public string Reason { get; init; } = string.Empty;
     public decimal? AdjustedQuantity { get; init; }
 
+    /// <summary>Short machine-readable code for the rejection or adjustment (optional).</summary>
+    public string? ReasonCode { get; init; }
+
+    /// <summary>The configured threshold that was violated (optional, for UI display).</summary>
+    public string? ThresholdValue { get; init; }
+
+    /// <summary>The actual value that triggered this result (optional, for UI display).</summary>
+    public string? ActualValue { get; init; }
+
     public static RuleResult Pass() => new();
-    public static RuleResult Reject(string reason) => new() { IsRejected = true, Reason = reason };
-    public static RuleResult AdjustQuantity(decimal qty) => new() { AdjustedQuantity = qty };
+
+    public static RuleResult Reject(
+        string reason,
+        string? reasonCode = null,
+        string? thresholdValue = null,
+        string? actualValue = null)
+        => new()
+        {
+            IsRejected = true,
+            Reason = reason,
+            ReasonCode = reasonCode,
+            ThresholdValue = thresholdValue,
+            ActualValue = actualValue
+        };
+
+    public static RuleResult AdjustQuantity(
+        decimal qty,
+        string? reasonCode = null,
+        string? actualValue = null)
+        => new()
+        {
+            AdjustedQuantity = qty,
+            ReasonCode = reasonCode,
+            ActualValue = actualValue
+        };
 }

@@ -1,0 +1,55 @@
+{
+  "title": "Báo Cáo Phiên 4 Giờ",
+  "subtitle": "Hiệu suất giao dịch theo 6 phiên mỗi ngày (UTC)",
+  "date": "Ngày",
+  "today": "Hôm nay",
+  "lastUpdated": "Cập nhật lúc",
+  "clickHint": "Nhấn vào một hàng phiên để xem chi tiết theo cặp tiền.",
+  "chartHint": "PnL thực hiện theo từng phiên. Số lệnh hiển thị dưới mỗi cột.",
+  "mode": {
+    "all": "Tất cả chế độ",
+    "paper": "Giao dịch thử",
+    "live": "Giao dịch thật"
+  },
+  "kpi": {
+    "totalTrades": "Tổng lệnh",
+    "activeSessions": "Phiên hoạt động",
+    "totalPnL": "PnL thực hiện",
+    "bestSession": "Phiên tốt nhất",
+    "worstSession": "Phiên tệ nhất"
+  },
+  "sections": {
+    "sessionTable": "Tóm tắt tài chính theo phiên",
+    "equityChart": "PnL theo phiên",
+    "symbolBreakdown": "Chi tiết theo cặp tiền"
+  },
+  "col": {
+    "session": "Phiên",
+    "window": "Khung giờ (UTC)",
+    "trades": "Lệnh",
+    "buys": "Mua",
+    "sells": "Bán",
+    "rejected": "Từ chối",
+    "winLoss": "Thắng/Thua",
+    "symbols": "Cặp tiền",
+    "realizedPnL": "PnL thực hiện",
+    "flat": "Đóng phẳng",
+    "symbol": "Cặp tiền",
+    "buyCount": "Mua",
+    "sellCount": "Bán",
+    "buyQty": "KL mua",
+    "sellQty": "KL bán",
+    "avgBuy": "Giá mua TB",
+    "avgSell": "Giá bán TB"
+  },
+  "flat": {
+    "yes": "Có",
+    "no": "Còn mở"
+  },
+  "empty": {
+    "noData": "Không có dữ liệu phiên trong ngày này.",
+    "noSymbols": "Không có giao dịch nào trong phiên này.",
+    "selectSession": "Nhấn vào một hàng phiên ở bảng trên để xem chi tiết theo cặp tiền.",
+    "error": "Không thể tải dữ liệu."
+  }
+}

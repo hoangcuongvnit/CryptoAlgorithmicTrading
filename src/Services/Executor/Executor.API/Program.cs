@@ -64,7 +64,16 @@ builder.Services.AddSingleton<SessionClock>();
 builder.Services.AddSingleton<SessionTradingPolicy>();
 builder.Services.AddSingleton<PositionLifecycleManager>();
 builder.Services.AddSingleton<OrderExecutionService>();
+
+// Recovery services — RecoveryStateService must be registered before hosted services that depend on it
+builder.Services.AddSingleton<RecoveryStateService>();
+builder.Services.AddHostedService<StartupReconciliationService>();
 builder.Services.AddHostedService<LiquidationOrchestrator>();
+
+// Shutdown/close-all services
+builder.Services.AddSingleton<ShutdownOperationService>();
+builder.Services.AddSingleton<CloseAllExecutorService>();
+builder.Services.AddHostedService<CloseAllSchedulerService>();
 
 var app = builder.Build();
 
@@ -155,6 +164,59 @@ app.MapGet("/api/trading/report/hourly", async (
     return Results.Ok(buckets);
 });
 
+// ── 4-Hour Session Report endpoints ──────────────────────────────────────
+
+app.MapGet("/api/trading/report/sessions/daily", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? date,
+    [FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
+    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
+    var sessions = await repo.GetSessionDailyReportAsync(reportDate, isPaper, ct);
+    return Results.Ok(sessions);
+});
+
+app.MapGet("/api/trading/report/sessions/range", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? from,
+    [FromQuery] string? to,
+    [FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date.AddDays(-6);
+    var toDate = DateTime.TryParse(to, out var pTo) ? pTo : DateTime.UtcNow.Date;
+    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
+    var sessions = await repo.GetSessionRangeReportAsync(fromDate, toDate, isPaper, ct);
+    return Results.Ok(sessions);
+});
+
+app.MapGet("/api/trading/report/sessions/{sessionId}/symbols", async (
+    [FromServices] OrderRepository repo,
+    string sessionId,
+    [FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
+    var symbols = await repo.GetSessionSymbolsAsync(sessionId, isPaper, ct);
+    return Results.Ok(symbols);
+});
+
+app.MapGet("/api/trading/report/sessions/equity-curve", async (
+    [FromServices] OrderRepository repo,
+    [FromQuery] string? from,
+    [FromQuery] string? to,
+    [FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date.AddDays(-6);
+    var toDate = DateTime.TryParse(to, out var pTo) ? pTo : DateTime.UtcNow.Date;
+    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
+    var curve = await repo.GetSessionEquityCurveAsync(fromDate, toDate, isPaper, ct);
+    return Results.Ok(curve);
+});
+
 // ── Session endpoints ─────────────────────────────────────────────────────
 
 app.MapGet("/api/trading/session", ([FromServices] SessionClock clock) =>
@@ -186,4 +248,143 @@ app.MapGet("/api/trading/session/positions", (
     });
 });
 
+// ── Trading Control (close-all / shutdown) endpoints ─────────────────────
+
+app.MapPost("/api/trading/control/close-all", async (
+    [FromServices] ShutdownOperationService shutdownOp,
+    [FromServices] CloseAllExecutorService executor,
+    [FromServices] PositionTracker tracker,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<CloseAllRequest>(ct);
+    if (body is null)
+        return Results.BadRequest(new { error = "Request body is required." });
+
+    if (!string.Equals(body.ConfirmationToken, "CLOSE ALL", StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new { error = "Invalid confirmation token. Type 'CLOSE ALL' to confirm." });
+
+    if (string.IsNullOrWhiteSpace(body.IdempotencyKey))
+        return Results.BadRequest(new { error = "idempotencyKey is required." });
+
+    var (success, error, operationId) = shutdownOp.RequestCloseAll(
+        body.Reason ?? "manual",
+        body.RequestedBy ?? "operator",
+        body.IdempotencyKey);
+
+    if (!success)
+        return Results.Conflict(new { error });
+
+    var positionCount = tracker.GetOpenPositions().Count;
+
+    // Fire and forget — the executor reports progress via ShutdownOperationService
+    _ = Task.Run(() => executor.ExecuteCloseAllAsync(operationId, CancellationToken.None));
+
+    return Results.Accepted("/api/trading/control/close-all/status", new
+    {
+        operationId,
+        status = "Executing",
+        openPositions = positionCount,
+        message = "Close-all started. Poll /api/trading/control/close-all/status for updates."
+    });
+});
+
+app.MapPost("/api/trading/control/close-all/schedule", async (
+    [FromServices] ShutdownOperationService shutdownOp,
+    [FromServices] PositionTracker tracker,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<ScheduleCloseAllRequest>(ct);
+    if (body is null)
+        return Results.BadRequest(new { error = "Request body is required." });
+
+    if (!string.Equals(body.ConfirmationToken, "CLOSE ALL", StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new { error = "Invalid confirmation token. Type 'CLOSE ALL' to confirm." });
+
+    if (string.IsNullOrWhiteSpace(body.IdempotencyKey))
+        return Results.BadRequest(new { error = "idempotencyKey is required." });
+
+    var (success, error, operationId) = shutdownOp.ScheduleCloseAll(
+        body.ExecuteAtUtc,
+        body.Reason ?? "scheduled_shutdown",
+        body.RequestedBy ?? "operator",
+        body.IdempotencyKey);
+
+    if (!success)
+        return Results.Conflict(new { error });
+
+    var positionCount = tracker.GetOpenPositions().Count;
+    return Results.Accepted("/api/trading/control/close-all/status", new
+    {
+        operationId,
+        status = "Scheduled",
+        executeAtUtc = body.ExecuteAtUtc,
+        openPositions = positionCount,
+        message = $"Close-all scheduled for {body.ExecuteAtUtc:u}. System will enter exit-only mode at execution time."
+    });
+});
+
+app.MapPost("/api/trading/control/close-all/cancel", async (
+    [FromServices] ShutdownOperationService shutdownOp,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<CancelCloseAllRequest>(ct);
+    if (body is null || !Guid.TryParse(body.OperationId, out var operationId))
+        return Results.BadRequest(new { error = "operationId (UUID) is required." });
+
+    var (success, error) = shutdownOp.TryCancel(operationId);
+    return success
+        ? Results.Ok(new { operationId, status = "Canceled" })
+        : Results.Conflict(new { error });
+});
+
+app.MapGet("/api/trading/control/close-all/status", ([FromServices] ShutdownOperationService shutdownOp,
+    [FromServices] PositionTracker tracker) =>
+{
+    var op = shutdownOp.Current;
+    return Results.Ok(new
+    {
+        operationId = op.OperationId == Guid.Empty ? (Guid?)null : op.OperationId,
+        status = op.Status,
+        operationType = op.OperationType,
+        requestedBy = op.RequestedBy,
+        reason = op.Reason,
+        requestedAtUtc = op.RequestedAtUtc == default ? (DateTime?)null : op.RequestedAtUtc,
+        scheduledForUtc = op.ScheduledForUtc,
+        startedAtUtc = op.StartedAtUtc,
+        completedAtUtc = op.CompletedAtUtc,
+        shutdownReady = op.ShutdownReady,
+        positionsClosedCount = op.PositionsClosedCount,
+        openPositionsRemaining = tracker.GetOpenPositions().Count,
+        exitOnlyMode = shutdownOp.IsExitOnlyMode,
+        lastError = op.LastError
+    });
+});
+
+app.MapGet("/api/trading/control/close-all/history", async (
+    [FromServices] ShutdownOperationService shutdownOp,
+    [FromQuery] int? limit,
+    CancellationToken ct) =>
+{
+    var history = await shutdownOp.GetHistoryAsync(limit ?? 20, ct);
+    return Results.Ok(history);
+});
+
 app.Run();
+
+record CloseAllRequest(
+    string? Reason,
+    string? RequestedBy,
+    string ConfirmationToken,
+    string IdempotencyKey);
+
+record ScheduleCloseAllRequest(
+    DateTime ExecuteAtUtc,
+    string? Reason,
+    string? RequestedBy,
+    string ConfirmationToken,
+    string IdempotencyKey);
+
+record CancelCloseAllRequest(string OperationId);

@@ -309,6 +309,34 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  housekeeper:
+    build:
+      context: ..
+      dockerfile: src/Services/HouseKeeper/HouseKeeper.Worker/Dockerfile
+    container_name: trading_housekeeper
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
+      - HouseKeeper__Enabled=${HOUSEKEEPER_ENABLED:-true}
+      - HouseKeeper__DryRun=${HOUSEKEEPER_DRY_RUN:-true}
+      - HouseKeeper__ScheduleUtc=${HOUSEKEEPER_SCHEDULE_UTC:-03:15}
+      - HouseKeeper__Retention__OrdersDays=${HOUSEKEEPER_RETENTION_ORDERS_DAYS:-365}
+      - HouseKeeper__Retention__FilledGapsDays=${HOUSEKEEPER_RETENTION_GAPS_DAYS:-60}
+      - HouseKeeper__Retention__PriceTicksMonths=${HOUSEKEEPER_RETENTION_TICKS_MONTHS:-12}
+      - HouseKeeper__BatchSize=${HOUSEKEEPER_BATCH_SIZE:-5000}
+      - HouseKeeper__MaxRunSeconds=${HOUSEKEEPER_MAX_RUN_SECONDS:-600}
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   trading_network:
     driver: bridge

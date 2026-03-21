@@ -1,0 +1,86 @@
+{
+  "title": "Điều Khiển Tắt Giao Dịch",
+  "subtitle": "Đóng tất cả vị thế an toàn trước khi khởi động lại server",
+  "status": {
+    "title": "Trạng Thái Hiện Tại",
+    "idle": "Sẵn sàng",
+    "requested": "Đã yêu cầu",
+    "scheduled": "Đã lên lịch",
+    "executing": "Đang thực hiện…",
+    "completed": "Hoàn thành",
+    "completedWithErrors": "Hoàn thành có lỗi",
+    "canceled": "Đã hủy",
+    "openPositions": "Vị thế đang mở",
+    "shutdownReady": "Sẵn sàng tắt",
+    "exitOnlyMode": "Chế độ chỉ đóng lệnh",
+    "noActiveOp": "Không có thao tác nào đang chạy",
+    "positionsClosed": "Vị thế đã đóng",
+    "scheduledFor": "Thời gian thực hiện",
+    "startedAt": "Bắt đầu lúc",
+    "completedAt": "Hoàn thành lúc",
+    "lastError": "Lỗi cuối"
+  },
+  "actions": {
+    "closeAllNow": "Đóng Tất Cả Ngay",
+    "closeAllDesc": "Đóng ngay tất cả vị thế và kích hoạt chế độ chỉ đóng lệnh",
+    "scheduleTitle": "Lên Lịch Đóng Tất Cả",
+    "scheduleDesc": "Đóng tất cả vị thế vào thời điểm định trước — tiện lợi trước khi khởi động lại",
+    "cancelSchedule": "Hủy Lịch",
+    "confirmScheduleBtn": "Đặt Lịch"
+  },
+  "quick": {
+    "label": "Chọn nhanh",
+    "5m": "+5 phút",
+    "10m": "+10 phút",
+    "15m": "+15 phút",
+    "30m": "+30 phút",
+    "1h": "+1 giờ"
+  },
+  "picker": {
+    "label": "Ngày & giờ cụ thể (giờ địa phương)",
+    "scheduledFor": "Lịch thực hiện"
+  },
+  "dialog": {
+    "closeAllTitle": "Xác Nhận: Đóng Tất Cả Vị Thế",
+    "scheduleTitle": "Xác Nhận: Lên Lịch Đóng Tất Cả",
+    "willClose_one": "Sẽ đóng {{count}} vị thế đang mở",
+    "willClose_other": "Sẽ đóng {{count}} vị thế đang mở",
+    "noPositions": "Hiện không có vị thế nào — thao tác vẫn sẽ chạy",
+    "warnExitOnly": "Lệnh mở mới sẽ bị chặn ngay lập tức",
+    "warnExitOnlyScheduled": "Lệnh mở mới sẽ bị chặn khi thực hiện",
+    "warnMarket": "Vị thế có thể bị đóng theo giá thị trường",
+    "scheduledForLine": "Thời gian: {{time}}",
+    "typeToConfirm": "Nhập CLOSE ALL để xác nhận",
+    "placeholder": "CLOSE ALL",
+    "cancel": "Hủy",
+    "confirmClose": "Đóng Tất Cả Vị Thế",
+    "confirmSchedule": "Xác Nhận Lịch"
+  },
+  "completedBanner": {
+    "title": "Tất Cả Vị Thế Đã Đóng",
+    "body": "Đã đóng {{count}} vị thế. Có thể tắt hoặc khởi động lại server an toàn.",
+    "shutdownReady": "Sẵn sàng tắt"
+  },
+  "history": {
+    "title": "Lịch Sử Thao Tác",
+    "refresh": "Làm mới",
+    "noHistory": "Chưa có thao tác nào được ghi lại",
+    "col": {
+      "type": "Loại",
+      "status": "Trạng thái",
+      "by": "Người dùng",
+      "requested": "Thời gian yêu cầu",
+      "scheduled": "Lịch thực hiện",
+      "closed": "Đã đóng",
+      "reason": "Lý do"
+    },
+    "types": {
+      "close_all_now": "Tức thì",
+      "close_all_scheduled": "Lên lịch"
+    }
+  },
+  "error": {
+    "fetchFailed": "Không tải được trạng thái",
+    "submitFailed": "Thao tác thất bại"
+  }
+}

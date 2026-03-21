@@ -1,0 +1,86 @@
+{
+  "title": "Trading Shutdown Control",
+  "subtitle": "Safely close all open positions before restarting the server",
+  "status": {
+    "title": "Current Status",
+    "idle": "Idle",
+    "requested": "Requested",
+    "scheduled": "Scheduled",
+    "executing": "Executing…",
+    "completed": "Completed",
+    "completedWithErrors": "Completed with Errors",
+    "canceled": "Canceled",
+    "openPositions": "Open Positions",
+    "shutdownReady": "Shutdown Ready",
+    "exitOnlyMode": "Exit-Only Mode Active",
+    "noActiveOp": "No active operation",
+    "positionsClosed": "Positions Closed",
+    "scheduledFor": "Scheduled For",
+    "startedAt": "Started At",
+    "completedAt": "Completed At",
+    "lastError": "Last Error"
+  },
+  "actions": {
+    "closeAllNow": "Close All Now",
+    "closeAllDesc": "Immediately close every open position and enter exit-only mode",
+    "scheduleTitle": "Schedule Close All",
+    "scheduleDesc": "Close all positions at a future time — useful before a planned restart",
+    "cancelSchedule": "Cancel Schedule",
+    "confirmScheduleBtn": "Set Schedule"
+  },
+  "quick": {
+    "label": "Quick options",
+    "5m": "+5 min",
+    "10m": "+10 min",
+    "15m": "+15 min",
+    "30m": "+30 min",
+    "1h": "+1 hour"
+  },
+  "picker": {
+    "label": "Exact date & time (your local time)",
+    "scheduledFor": "Scheduled for"
+  },
+  "dialog": {
+    "closeAllTitle": "Confirm: Close All Positions",
+    "scheduleTitle": "Confirm: Schedule Close All",
+    "willClose_one": "This will close {{count}} open position",
+    "willClose_other": "This will close {{count}} open positions",
+    "noPositions": "No open positions currently — operation will still run",
+    "warnExitOnly": "New entries will be blocked immediately",
+    "warnExitOnlyScheduled": "New entries will be blocked at execution time",
+    "warnMarket": "Positions may be closed at market price",
+    "scheduledForLine": "Scheduled for: {{time}}",
+    "typeToConfirm": "Type CLOSE ALL to confirm",
+    "placeholder": "CLOSE ALL",
+    "cancel": "Cancel",
+    "confirmClose": "Close All Positions",
+    "confirmSchedule": "Confirm Schedule"
+  },
+  "completedBanner": {
+    "title": "All Positions Closed",
+    "body": "{{count}} position(s) closed. It is now safe to shut down or restart the server.",
+    "shutdownReady": "Shutdown Ready"
+  },
+  "history": {
+    "title": "Operation History",
+    "refresh": "Refresh",
+    "noHistory": "No operations recorded yet",
+    "col": {
+      "type": "Type",
+      "status": "Status",
+      "by": "By",
+      "requested": "Requested At",
+      "scheduled": "Scheduled For",
+      "closed": "Closed",
+      "reason": "Reason"
+    },
+    "types": {
+      "close_all_now": "Immediate",
+      "close_all_scheduled": "Scheduled"
+    }
+  },
+  "error": {
+    "fetchFailed": "Failed to load status",
+    "submitFailed": "Operation failed"
+  }
+}

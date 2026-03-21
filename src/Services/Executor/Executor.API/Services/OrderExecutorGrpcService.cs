@@ -21,6 +21,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     private readonly SessionClock _sessionClock;
     private readonly SessionTradingPolicy _sessionPolicy;
     private readonly SessionSettings _sessionSettings;
+    private readonly RecoveryStateService _recoveryState;
+    private readonly ShutdownOperationService _shutdownOp;
     private readonly ILogger<OrderExecutorGrpcService> _logger;
 
     public OrderExecutorGrpcService(
@@ -34,6 +36,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         SessionClock sessionClock,
         SessionTradingPolicy sessionPolicy,
         IOptions<SessionSettings> sessionSettings,
+        RecoveryStateService recoveryState,
+        ShutdownOperationService shutdownOp,
         ILogger<OrderExecutorGrpcService> logger)
     {
         _tradingSettings = tradingSettings.Value;
@@ -46,6 +50,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         _sessionClock = sessionClock;
         _sessionPolicy = sessionPolicy;
         _sessionSettings = sessionSettings.Value;
+        _recoveryState = recoveryState;
+        _shutdownOp = shutdownOp;
         _logger = logger;
     }
 
@@ -66,6 +72,28 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         {
             _metrics.RecordOrderRejected(orderRequest.Symbol, "Global kill switch");
             orderResult = BuildFailureResult(orderRequest.Symbol, "Global kill switch is enabled.", _tradingSettings.PaperTradingMode);
+            return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+        }
+
+        // Shutdown/exit-only gate — block new-position orders during close-all operation
+        if (_shutdownOp.IsExitOnlyMode && !request.IsReduceOnly)
+        {
+            _metrics.RecordOrderRejected(orderRequest.Symbol, "Shutdown exit-only mode");
+            orderResult = BuildFailureResult(
+                orderRequest.Symbol,
+                "System is in exit-only mode. New position orders are blocked during the close-all operation.",
+                _tradingSettings.PaperTradingMode);
+            return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+        }
+
+        // Recovery gate — block new-position orders until reconciliation is complete
+        if (_recoveryState.IsBlockingNewOrders && !request.IsReduceOnly)
+        {
+            _metrics.RecordOrderRejected(orderRequest.Symbol, "Recovery mode");
+            orderResult = BuildFailureResult(
+                orderRequest.Symbol,
+                $"System is in {_recoveryState.CurrentState} mode. New position orders blocked until recovery completes.",
+                _tradingSettings.PaperTradingMode);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 

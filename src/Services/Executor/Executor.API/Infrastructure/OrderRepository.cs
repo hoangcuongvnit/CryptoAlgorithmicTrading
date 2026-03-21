@@ -213,6 +213,44 @@ public sealed class OrderRepository
 
     public sealed record HourlyTradeBucket(int Hour, int BuyCount, int SellCount);
 
+    // ── 4-Hour Session Report DTOs ───────────────────────────────────────────
+
+    public sealed record SessionReportRow(
+        string SessionId,
+        int SessionNumber,
+        DateTime SessionStartUtc,
+        DateTime SessionEndUtc,
+        int TotalOrders,
+        int BuyCount,
+        int SellCount,
+        int RejectedCount,
+        int WinTrades,
+        int LossTrades,
+        decimal RealizedPnL,
+        int DistinctSymbols,
+        string SymbolsCsv,
+        bool IsFlatAtClose);
+
+    public sealed record SessionSymbolRow(
+        string SessionId,
+        string Symbol,
+        int BuyCount,
+        int SellCount,
+        decimal BuyQty,
+        decimal SellQty,
+        decimal? AvgBuyPrice,
+        decimal? AvgSellPrice,
+        decimal RealizedPnL,
+        int WinTrades,
+        int LossTrades);
+
+    public sealed record SessionEquityPoint(
+        string SessionId,
+        int SessionNumber,
+        DateTime SessionStartUtc,
+        decimal SessionPnL,
+        decimal CumulativePnL);
+
     // ── Daily Report Queries ─────────────────────────────────────────────────
 
     public async Task<DailyReportSummary> GetDailyReportAsync(DateTime date, CancellationToken cancellationToken)
@@ -408,5 +446,373 @@ public sealed class OrderRepository
             _logger.LogError(ex, "Failed to fetch hourly buckets for {Date}", date.Date);
             return [];
         }
+    }
+
+    // ── 4-Hour Session Report Queries ────────────────────────────────────────
+
+    /// <summary>Returns all 6 session rows for the given date, with zeros for empty sessions.</summary>
+    public async Task<IReadOnlyList<SessionReportRow>> GetSessionDailyReportAsync(
+        DateTime date,
+        bool? isPaper,
+        CancellationToken cancellationToken)
+    {
+        var startUtc = date.Date.ToUniversalTime();
+        var endUtc = startUtc.AddDays(1);
+        var dateStr = startUtc.ToString("yyyyMMdd");
+
+        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
+
+        var sql = $"""
+            WITH date_sessions AS (
+                SELECT
+                    @DateStr || '-S' || gs::text                                          AS expected_session_id,
+                    gs                                                                     AS session_num,
+                    (@Start::timestamptz + ((gs - 1) * INTERVAL '4 hours'))               AS session_start,
+                    (@Start::timestamptz + (gs       * INTERVAL '4 hours'))               AS session_end
+                FROM generate_series(1, 6) gs
+            ),
+            order_stats AS (
+                SELECT
+                    (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int                         AS session_num,
+                    COUNT(*) FILTER (WHERE success = true)                                 AS total_orders,
+                    COUNT(*) FILTER (WHERE side = 'Buy'  AND success = true)               AS buy_count,
+                    COUNT(*) FILTER (WHERE side = 'Sell' AND success = true)               AS sell_count,
+                    COUNT(*) FILTER (WHERE success = false)                                AS rejected_count,
+                    COUNT(*) FILTER (WHERE status = 'OPEN')                                AS open_count,
+                    COUNT(*) FILTER (WHERE realized_pnl > 0)                               AS win_trades,
+                    COUNT(*) FILTER (WHERE realized_pnl < 0)                               AS loss_trades,
+                    COALESCE(SUM(realized_pnl), 0)                                         AS realized_pnl,
+                    COUNT(DISTINCT symbol) FILTER (WHERE success = true)                   AS distinct_symbols,
+                    STRING_AGG(DISTINCT symbol, ', ') FILTER (WHERE success = true)        AS symbols_csv
+                FROM public.orders
+                WHERE time >= @Start AND time < @End{modeFilter}
+                GROUP BY (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int
+            )
+            SELECT
+                ds.expected_session_id                    AS session_id,
+                ds.session_num,
+                ds.session_start                          AS session_start_utc,
+                ds.session_end                            AS session_end_utc,
+                COALESCE(os.total_orders,     0)          AS total_orders,
+                COALESCE(os.buy_count,        0)          AS buy_count,
+                COALESCE(os.sell_count,       0)          AS sell_count,
+                COALESCE(os.rejected_count,   0)          AS rejected_count,
+                COALESCE(os.win_trades,       0)          AS win_trades,
+                COALESCE(os.loss_trades,      0)          AS loss_trades,
+                COALESCE(os.realized_pnl,     0)          AS realized_pnl,
+                COALESCE(os.distinct_symbols, 0)          AS distinct_symbols,
+                COALESCE(os.symbols_csv,      '')         AS symbols_csv,
+                (COALESCE(os.open_count, 0) = 0)          AS is_flat_at_close
+            FROM date_sessions ds
+            LEFT JOIN order_stats os ON ds.session_num = os.session_num
+            ORDER BY ds.session_num;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<dynamic>(new CommandDefinition(
+                sql,
+                new { DateStr = dateStr, Start = startUtc, End = endUtc, IsPaper = isPaper },
+                cancellationToken: cancellationToken));
+
+            return rows.Select(r => new SessionReportRow(
+                SessionId: (string)r.session_id,
+                SessionNumber: (int)r.session_num,
+                SessionStartUtc: (DateTime)r.session_start_utc,
+                SessionEndUtc: (DateTime)r.session_end_utc,
+                TotalOrders: (int)(long)r.total_orders,
+                BuyCount: (int)(long)r.buy_count,
+                SellCount: (int)(long)r.sell_count,
+                RejectedCount: (int)(long)r.rejected_count,
+                WinTrades: (int)(long)r.win_trades,
+                LossTrades: (int)(long)r.loss_trades,
+                RealizedPnL: decimal.Round((decimal)r.realized_pnl, 4),
+                DistinctSymbols: (int)(long)r.distinct_symbols,
+                SymbolsCsv: (string)r.symbols_csv,
+                IsFlatAtClose: (bool)r.is_flat_at_close
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch session daily report for {Date}", date.Date);
+            return [];
+        }
+    }
+
+    /// <summary>Returns session rows across a date range (multiple days × 6 sessions each).</summary>
+    public async Task<IReadOnlyList<SessionReportRow>> GetSessionRangeReportAsync(
+        DateTime from,
+        DateTime to,
+        bool? isPaper,
+        CancellationToken cancellationToken)
+    {
+        var startUtc = from.Date.ToUniversalTime();
+        var endUtc = to.Date.ToUniversalTime().AddDays(1);
+        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
+
+        var sql = $"""
+            SELECT
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int  AS session_id,
+                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int                                        AS session_num,
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4))     * INTERVAL '4 hours'))
+                                                                                                      AS session_start_utc,
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4) + 1) * INTERVAL '4 hours'))
+                                                                                                      AS session_end_utc,
+                COUNT(*) FILTER (WHERE success = true)                                                AS total_orders,
+                COUNT(*) FILTER (WHERE side = 'Buy'  AND success = true)                              AS buy_count,
+                COUNT(*) FILTER (WHERE side = 'Sell' AND success = true)                              AS sell_count,
+                COUNT(*) FILTER (WHERE success = false)                                               AS rejected_count,
+                COUNT(*) FILTER (WHERE realized_pnl > 0)                                              AS win_trades,
+                COUNT(*) FILTER (WHERE realized_pnl < 0)                                              AS loss_trades,
+                COALESCE(SUM(realized_pnl), 0)                                                        AS realized_pnl,
+                COUNT(DISTINCT symbol) FILTER (WHERE success = true)                                  AS distinct_symbols,
+                STRING_AGG(DISTINCT symbol, ', ') FILTER (WHERE success = true)                       AS symbols_csv,
+                (COUNT(*) FILTER (WHERE status = 'OPEN') = 0)                                         AS is_flat_at_close
+            FROM public.orders
+            WHERE time >= @Start AND time < @End{modeFilter}
+            GROUP BY session_id, session_num, session_start_utc, session_end_utc
+            ORDER BY session_start_utc;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<dynamic>(new CommandDefinition(
+                sql,
+                new { Start = startUtc, End = endUtc, IsPaper = isPaper },
+                cancellationToken: cancellationToken));
+
+            return rows.Select(r => new SessionReportRow(
+                SessionId: (string)r.session_id,
+                SessionNumber: (int)r.session_num,
+                SessionStartUtc: (DateTime)r.session_start_utc,
+                SessionEndUtc: (DateTime)r.session_end_utc,
+                TotalOrders: (int)(long)r.total_orders,
+                BuyCount: (int)(long)r.buy_count,
+                SellCount: (int)(long)r.sell_count,
+                RejectedCount: (int)(long)r.rejected_count,
+                WinTrades: (int)(long)r.win_trades,
+                LossTrades: (int)(long)r.loss_trades,
+                RealizedPnL: decimal.Round((decimal)r.realized_pnl, 4),
+                DistinctSymbols: (int)(long)r.distinct_symbols,
+                SymbolsCsv: (string)r.symbols_csv,
+                IsFlatAtClose: (bool)r.is_flat_at_close
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch session range report from {From} to {To}", from.Date, to.Date);
+            return [];
+        }
+    }
+
+    /// <summary>Returns per-symbol breakdown for a specific session (e.g. "20240321-S3").</summary>
+    public async Task<IReadOnlyList<SessionSymbolRow>> GetSessionSymbolsAsync(
+        string sessionId,
+        bool? isPaper,
+        CancellationToken cancellationToken)
+    {
+        // Parse sessionId: "20240321-S3" → date=2024-03-21, sessionNum=3
+        if (!TryParseSessionId(sessionId, out var sessionStart, out var sessionEnd))
+        {
+            _logger.LogWarning("Invalid sessionId format: {SessionId}", sessionId);
+            return [];
+        }
+
+        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
+
+        var sql = $"""
+            SELECT
+                @SessionId                                                                AS session_id,
+                symbol,
+                COUNT(*) FILTER (WHERE side = 'Buy'  AND success = true)                  AS buy_count,
+                COUNT(*) FILTER (WHERE side = 'Sell' AND success = true)                  AS sell_count,
+                COALESCE(SUM(filled_qty) FILTER (WHERE side = 'Buy'),  0)                 AS buy_qty,
+                COALESCE(SUM(filled_qty) FILTER (WHERE side = 'Sell'), 0)                 AS sell_qty,
+                AVG(filled_price) FILTER (WHERE side = 'Buy'  AND success = true)         AS avg_buy_price,
+                AVG(filled_price) FILTER (WHERE side = 'Sell' AND success = true)         AS avg_sell_price,
+                COALESCE(SUM(realized_pnl), 0)                                            AS realized_pnl,
+                COUNT(*) FILTER (WHERE realized_pnl > 0)                                  AS win_trades,
+                COUNT(*) FILTER (WHERE realized_pnl < 0)                                  AS loss_trades
+            FROM public.orders
+            WHERE time >= @Start AND time < @End{modeFilter}
+            GROUP BY symbol
+            ORDER BY ABS(SUM(COALESCE(realized_pnl, 0))) DESC;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<dynamic>(new CommandDefinition(
+                sql,
+                new { SessionId = sessionId, Start = sessionStart, End = sessionEnd, IsPaper = isPaper },
+                cancellationToken: cancellationToken));
+
+            return rows.Select(r => new SessionSymbolRow(
+                SessionId: (string)r.session_id,
+                Symbol: (string)r.symbol,
+                BuyCount: (int)(long)r.buy_count,
+                SellCount: (int)(long)r.sell_count,
+                BuyQty: (decimal)r.buy_qty,
+                SellQty: (decimal)r.sell_qty,
+                AvgBuyPrice: r.avg_buy_price is null ? (decimal?)null : decimal.Round((decimal)r.avg_buy_price, 4),
+                AvgSellPrice: r.avg_sell_price is null ? (decimal?)null : decimal.Round((decimal)r.avg_sell_price, 4),
+                RealizedPnL: decimal.Round((decimal)r.realized_pnl, 4),
+                WinTrades: (int)(long)r.win_trades,
+                LossTrades: (int)(long)r.loss_trades
+            )).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch session symbol breakdown for {SessionId}", sessionId);
+            return [];
+        }
+    }
+
+    /// <summary>Returns per-session PnL with cumulative sum for an equity curve chart.</summary>
+    public async Task<IReadOnlyList<SessionEquityPoint>> GetSessionEquityCurveAsync(
+        DateTime from,
+        DateTime to,
+        bool? isPaper,
+        CancellationToken cancellationToken)
+    {
+        var startUtc = from.Date.ToUniversalTime();
+        var endUtc = to.Date.ToUniversalTime().AddDays(1);
+        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
+
+        var sql = $"""
+            SELECT
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int  AS session_id,
+                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int                                        AS session_num,
+                MIN(time)                                                                             AS session_start_utc,
+                COALESCE(SUM(realized_pnl), 0)                                                       AS session_pnl
+            FROM public.orders
+            WHERE time >= @Start AND time < @End
+              AND success = true{modeFilter}
+            GROUP BY session_id, session_num
+            ORDER BY session_start_utc;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = (await connection.QueryAsync<dynamic>(new CommandDefinition(
+                sql,
+                new { Start = startUtc, End = endUtc, IsPaper = isPaper },
+                cancellationToken: cancellationToken))).ToList();
+
+            decimal cumulative = 0m;
+            return rows.Select(r =>
+            {
+                decimal pnl = decimal.Round((decimal)r.session_pnl, 4);
+                cumulative += pnl;
+                return new SessionEquityPoint(
+                    SessionId: (string)r.session_id,
+                    SessionNumber: (int)r.session_num,
+                    SessionStartUtc: (DateTime)r.session_start_utc,
+                    SessionPnL: pnl,
+                    CumulativePnL: decimal.Round(cumulative, 4));
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch session equity curve from {From} to {To}", from.Date, to.Date);
+            return [];
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses a sessionId like "20240321-S3" into UTC start/end boundaries.
+    /// Sessions are 4-hour blocks: S1=00:00-04:00, S2=04:00-08:00, ..., S6=20:00-24:00.
+    /// </summary>
+    private static bool TryParseSessionId(string sessionId, out DateTime start, out DateTime end)
+    {
+        start = default;
+        end = default;
+
+        // Format: yyyyMMdd-SN
+        if (sessionId is not { Length: >= 10 })
+            return false;
+
+        var parts = sessionId.Split('-');
+        if (parts.Length != 2 || parts[1].Length < 2 || parts[1][0] != 'S')
+            return false;
+
+        if (!DateTime.TryParseExact(parts[0], "yyyyMMdd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var date))
+            return false;
+
+        if (!int.TryParse(parts[1].AsSpan(1), out var sessionNum) || sessionNum < 1 || sessionNum > 6)
+            return false;
+
+        var dayUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        start = dayUtc.AddHours((sessionNum - 1) * 4);
+        end = dayUtc.AddHours(sessionNum * 4);
+        return true;
+    }
+
+    // ── Recovery support ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the net open position for every symbol that has unbalanced buy/sell fills
+    /// since <paramref name="sinceUtc"/>. Used by StartupReconciliationService to rebuild
+    /// the in-memory PositionTracker after a crash.
+    /// </summary>
+    public async Task<IReadOnlyList<RecoveredPosition>> GetOpenPositionNetAsync(
+        DateTime sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT
+                symbol                                                         AS Symbol,
+                SUM(CASE WHEN side = 'Buy'  THEN COALESCE(filled_qty, quantity) ELSE 0 END) AS BoughtQty,
+                SUM(CASE WHEN side = 'Sell' THEN COALESCE(filled_qty, quantity) ELSE 0 END) AS SoldQty,
+                SUM(CASE WHEN side = 'Buy'
+                         THEN COALESCE(filled_price, price, 0) * COALESCE(filled_qty, quantity)
+                         ELSE 0 END)
+                / NULLIF(
+                    SUM(CASE WHEN side = 'Buy' THEN COALESCE(filled_qty, quantity) ELSE 0 END),
+                    0)                                                         AS AvgBuyPrice,
+                MAX(CASE WHEN side = 'Buy' THEN session_id END)                AS SessionId
+            FROM public.orders
+            WHERE success = true
+              AND time >= @SinceUtc
+            GROUP BY symbol
+            HAVING
+                SUM(CASE WHEN side = 'Buy'  THEN COALESCE(filled_qty, quantity) ELSE 0 END) >
+                SUM(CASE WHEN side = 'Sell' THEN COALESCE(filled_qty, quantity) ELSE 0 END);
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<RecoveredPosition>(
+                new CommandDefinition(sql, new { SinceUtc = sinceUtc }, cancellationToken: cancellationToken));
+            return rows.AsList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query open position net for recovery");
+            return [];
+        }
+    }
+
+    public sealed record RecoveredPosition(
+        string Symbol,
+        decimal BoughtQty,
+        decimal SoldQty,
+        decimal? AvgBuyPrice,
+        string? SessionId)
+    {
+        public decimal NetQty => BoughtQty - SoldQty;
     }
 }

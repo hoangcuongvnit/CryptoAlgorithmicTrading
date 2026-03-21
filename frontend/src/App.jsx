@@ -7,7 +7,9 @@ import { SafetyPage } from './pages/SafetyPage.jsx'
 import { EventsPage } from './pages/EventsPage.jsx'
 import { GuidancePage } from './pages/GuidancePage.jsx'
 import { ReportPage } from './pages/ReportPage.jsx'
+import { SessionReportPage } from './pages/SessionReportPage.jsx'
 import { SettingsPage } from './pages/SettingsPage.jsx'
+import { ShutdownControlPage } from './pages/ShutdownControlPage.jsx'
 import { SettingsProvider } from './context/SettingsContext.jsx'
 
 function Layout() {
@@ -18,10 +20,12 @@ function Layout() {
   const NAV_ITEMS = [
     { path: '/',          label: t('overview'),        icon: '📊' },
     { path: '/trading',   label: t('tradingSignals'),  icon: '💹' },
-    { path: '/report',    label: t('dailyReport'),     icon: '📈' },
+    { path: '/report',         label: t('dailyReport'),     icon: '📈' },
+    { path: '/session-report', label: t('sessionReport'),   icon: '🕐' },
     { path: '/safety',    label: t('safetyRisk'),      icon: '🛡️' },
     { path: '/events',    label: t('eventHistory'),    icon: '📋' },
     { path: '/guidance',  label: t('guidance'),        icon: '🧭' },
+    { path: '/shutdown',  label: t('shutdownControl'),  icon: '🛑' },
     { path: '/settings',  label: t('systemSettings'),  icon: '⚙️' },
   ]
 
@@ -117,10 +121,12 @@ function Layout() {
           <Routes>
             <Route path="/"          element={<OverviewPage />} />
             <Route path="/trading"   element={<TradingPage />} />
-            <Route path="/report"    element={<ReportPage />} />
+            <Route path="/report"          element={<ReportPage />} />
+            <Route path="/session-report"  element={<SessionReportPage />} />
             <Route path="/safety"    element={<SafetyPage />} />
             <Route path="/events"    element={<EventsPage />} />
             <Route path="/guidance"  element={<GuidancePage onNavigate={p => navigate(p)} />} />
+            <Route path="/shutdown"  element={<ShutdownControlPage />} />
             <Route path="/settings"  element={<SettingsPage />} />
             <Route path="*"          element={<Navigate to="/" replace />} />
           </Routes>

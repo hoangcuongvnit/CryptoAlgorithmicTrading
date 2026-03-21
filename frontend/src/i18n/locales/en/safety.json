@@ -23,5 +23,54 @@
     "last": "(last {{count}})",
     "noHistory": "No validation history yet",
     "maxReached": "Showing latest {{max}} checks"
+  },
+  "evaluationHistory": {
+    "title": "Evaluation History",
+    "totalCount": "{{count}} evaluations",
+    "noResults": "No evaluations found",
+    "filters": {
+      "symbol": "Symbol",
+      "outcome": "Outcome",
+      "allOutcomes": "All Outcomes",
+      "from": "From",
+      "to": "To",
+      "clear": "Clear"
+    },
+    "table": {
+      "time": "Time",
+      "symbol": "Symbol",
+      "side": "Side",
+      "entryPrice": "Entry Price",
+      "outcome": "Outcome",
+      "reason": "Reason",
+      "latency": "Latency",
+      "viewDetails": "View Details"
+    },
+    "outcomes": {
+      "Safe": "Safe",
+      "Risk": "Risk",
+      "Rejected": "Rejected"
+    }
+  },
+  "evaluationDetail": {
+    "title": "Evaluation Detail",
+    "orderContext": "Order Context",
+    "decision": "Final Decision",
+    "rules": "Rule-by-Rule Evaluation",
+    "evaluationId": "Evaluation ID",
+    "correlationId": "Correlation ID",
+    "timestamp": "Timestamp",
+    "latency": "Latency",
+    "quantity": "Quantity",
+    "adjustedQty": "Adjusted Quantity",
+    "entryPrice": "Entry Price",
+    "session": "Session",
+    "ruleResults": {
+      "Pass": "Pass",
+      "Fail": "Fail",
+      "Adjusted": "Adjusted",
+      "Skipped": "Skipped"
+    },
+    "close": "Close"
   }
 }

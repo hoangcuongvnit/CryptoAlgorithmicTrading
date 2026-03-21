@@ -1,11 +1,15 @@
+using System.Diagnostics;
+using CryptoTrading.Shared.DTOs;
 using RiskGuard.API.Rules;
 
 namespace RiskGuard.API.Services;
 
 /// <summary>
 /// Runs each registered <see cref="IRiskRule"/> in order.
-/// The first rejection short-circuits the chain.
+/// The first rejection short-circuits the chain; skipped rules are recorded as "Skipped".
 /// Quantity adjustments from one rule are propagated to all subsequent rules.
+/// Every evaluation produces a full <see cref="RiskEvaluationResult"/> with per-rule details,
+/// EvaluationId, outcome, and latency for persistence and audit.
 /// </summary>
 public sealed class RiskValidationEngine
 {
@@ -35,42 +39,119 @@ public sealed class RiskValidationEngine
         string? sessionPhase = null,
         bool isReduceOnly = false)
     {
+        var totalSw = Stopwatch.StartNew();
         var effectiveQty = quantity;
+        var ruleDetails = new List<RuleEvaluationDetail>(_rules.Count);
 
-        foreach (var rule in _rules)
+        for (var i = 0; i < _rules.Count; i++)
         {
+            var rule = _rules[i];
             var context = new RiskContext(symbol, side, effectiveQty, entryPrice, stopLoss, takeProfit,
                 sessionId, sessionPhase, isReduceOnly);
+
+            var ruleStart = Stopwatch.GetTimestamp();
             var result = await rule.EvaluateAsync(context, ct);
+            var ruleDurationMs = (long)((Stopwatch.GetTimestamp() - ruleStart) * 1000.0 / Stopwatch.Frequency);
 
             if (result.IsRejected)
             {
-                _logger.LogDebug(
-                    "[{Rule}] rejected {Symbol} {Side}: {Reason}",
+                ruleDetails.Add(new RuleEvaluationDetail(
+                    rule.Name, rule.Version, "Fail",
+                    result.ReasonCode, result.Reason,
+                    result.ThresholdValue, result.ActualValue,
+                    ruleDurationMs, i));
+
+                // Mark remaining rules as Skipped
+                for (var j = i + 1; j < _rules.Count; j++)
+                    ruleDetails.Add(new RuleEvaluationDetail(
+                        _rules[j].Name, _rules[j].Version, "Skipped",
+                        null, null, null, null, 0, j));
+
+                totalSw.Stop();
+                _logger.LogDebug("[{Rule}] rejected {Symbol} {Side}: {Reason}",
                     rule.Name, symbol, side, result.Reason);
                 _history.Record(symbol, side, approved: false, rejectionReason: result.Reason);
-                return RiskEvaluationResult.Reject(result.Reason);
+                return RiskEvaluationResult.Reject(result.Reason, ruleDetails, totalSw.ElapsedMilliseconds);
             }
 
             if (result.AdjustedQuantity.HasValue)
             {
-                _logger.LogDebug(
-                    "[{Rule}] adjusted qty for {Symbol}: {Old} → {New}",
+                _logger.LogDebug("[{Rule}] adjusted qty for {Symbol}: {Old} → {New}",
                     rule.Name, symbol, effectiveQty, result.AdjustedQuantity.Value);
+                var prevQty = effectiveQty;
                 effectiveQty = result.AdjustedQuantity.Value;
+                ruleDetails.Add(new RuleEvaluationDetail(
+                    rule.Name, rule.Version, "Adjusted",
+                    result.ReasonCode,
+                    $"Quantity adjusted from {prevQty} to {effectiveQty}",
+                    result.ThresholdValue, result.ActualValue ?? effectiveQty.ToString("G"),
+                    ruleDurationMs, i));
+            }
+            else
+            {
+                ruleDetails.Add(new RuleEvaluationDetail(
+                    rule.Name, rule.Version, "Pass",
+                    null, null, null, null, ruleDurationMs, i));
             }
         }
 
+        totalSw.Stop();
         _history.Record(symbol, side, approved: true, rejectionReason: string.Empty);
-        return RiskEvaluationResult.Approve(effectiveQty);
+        return RiskEvaluationResult.Approve(effectiveQty, effectiveQty != quantity, ruleDetails, totalSw.ElapsedMilliseconds);
     }
 }
 
-public sealed record RiskEvaluationResult(bool IsApproved, string RejectionReason, decimal AdjustedQuantity)
-{
-    public static RiskEvaluationResult Approve(decimal adjustedQuantity)
-        => new(true, string.Empty, adjustedQuantity);
+/// <summary>Per-rule evaluation detail captured during engine execution.</summary>
+public sealed record RuleEvaluationDetail(
+    string RuleName,
+    string RuleVersion,
+    string Result,           // "Pass" | "Fail" | "Adjusted" | "Skipped"
+    string? ReasonCode,
+    string? ReasonMessage,
+    string? ThresholdValue,
+    string? ActualValue,
+    long DurationMs,
+    int SequenceOrder);
 
-    public static RiskEvaluationResult Reject(string reason)
-        => new(false, reason, 0m);
+public sealed record RiskEvaluationResult
+{
+    public bool IsApproved { get; init; }
+    public string RejectionReason { get; init; } = string.Empty;
+    public decimal AdjustedQuantity { get; init; }
+    public Guid EvaluationId { get; init; }
+    public RiskEvaluationOutcome Outcome { get; init; }
+    public DateTime EvaluatedAtUtc { get; init; }
+    public long EvaluationLatencyMs { get; init; }
+    public IReadOnlyList<RuleEvaluationDetail> RuleResults { get; init; } = [];
+
+    public static RiskEvaluationResult Approve(
+        decimal adjustedQuantity,
+        bool wasAdjusted,
+        IReadOnlyList<RuleEvaluationDetail> ruleResults,
+        long latencyMs)
+        => new()
+        {
+            IsApproved = true,
+            AdjustedQuantity = adjustedQuantity,
+            Outcome = wasAdjusted ? RiskEvaluationOutcome.Risk : RiskEvaluationOutcome.Safe,
+            EvaluationId = Guid.NewGuid(),
+            EvaluatedAtUtc = DateTime.UtcNow,
+            EvaluationLatencyMs = latencyMs,
+            RuleResults = ruleResults
+        };
+
+    public static RiskEvaluationResult Reject(
+        string reason,
+        IReadOnlyList<RuleEvaluationDetail> ruleResults,
+        long latencyMs)
+        => new()
+        {
+            IsApproved = false,
+            RejectionReason = reason,
+            Outcome = RiskEvaluationOutcome.Rejected,
+            EvaluationId = Guid.NewGuid(),
+            EvaluatedAtUtc = DateTime.UtcNow,
+            EvaluationLatencyMs = latencyMs,
+            RuleResults = ruleResults
+        };
 }

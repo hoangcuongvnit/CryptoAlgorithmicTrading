@@ -23,5 +23,54 @@
     "last": "({{count}} gần nhất)",
     "noHistory": "Chưa có lịch sử kiểm tra",
     "maxReached": "Hiển thị {{max}} lần kiểm tra mới nhất"
+  },
+  "evaluationHistory": {
+    "title": "Lịch sử đánh giá",
+    "totalCount": "{{count}} đánh giá",
+    "noResults": "Không có dữ liệu",
+    "filters": {
+      "symbol": "Cặp",
+      "outcome": "Kết quả",
+      "allOutcomes": "Tất cả",
+      "from": "Từ",
+      "to": "Đến",
+      "clear": "Xóa"
+    },
+    "table": {
+      "time": "Thời gian",
+      "symbol": "Cặp",
+      "side": "Chiều",
+      "entryPrice": "Giá vào",
+      "outcome": "Kết quả",
+      "reason": "Lý do",
+      "latency": "Độ trễ",
+      "viewDetails": "Xem chi tiết"
+    },
+    "outcomes": {
+      "Safe": "An toàn",
+      "Risk": "Rủi ro",
+      "Rejected": "Từ chối"
+    }
+  },
+  "evaluationDetail": {
+    "title": "Chi tiết đánh giá",
+    "orderContext": "Thông tin lệnh",
+    "decision": "Quyết định cuối",
+    "rules": "Kết quả từng quy tắc",
+    "evaluationId": "ID đánh giá",
+    "correlationId": "ID tương quan",
+    "timestamp": "Thời điểm",
+    "latency": "Độ trễ",
+    "quantity": "Số lượng",
+    "adjustedQty": "Số lượng điều chỉnh",
+    "entryPrice": "Giá vào",
+    "session": "Phiên",
+    "ruleResults": {
+      "Pass": "Qua",
+      "Fail": "Thất bại",
+      "Adjusted": "Điều chỉnh",
+      "Skipped": "Bỏ qua"
+    },
+    "close": "Đóng"
   }
 }

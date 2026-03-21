@@ -109,6 +109,62 @@ export function useDailyHourly(date) {
   return usePolling(fn, 30000)
 }
 
+export function useSessionDailyReport(date, mode) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams()
+    if (date) params.set('date', date)
+    if (mode) params.set('mode', mode)
+    return fetchJson(`/api/trading/report/sessions/daily?${params}`)
+  }, [date, mode])
+  return usePolling(fn, 30000)
+}
+
+export function useSessionRangeReport(from, to, mode) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to)   params.set('to', to)
+    if (mode) params.set('mode', mode)
+    return fetchJson(`/api/trading/report/sessions/range?${params}`)
+  }, [from, to, mode])
+  return usePolling(fn, 30000)
+}
+
+export function useSessionSymbols(sessionId, mode) {
+  const fn = useCallback(() => {
+    if (!sessionId) return Promise.resolve([])
+    const params = mode ? `?mode=${mode}` : ''
+    return fetchJson(`/api/trading/report/sessions/${encodeURIComponent(sessionId)}/symbols${params}`)
+  }, [sessionId, mode])
+  return usePolling(fn, 30000)
+}
+
+export function useSessionEquityCurve(from, to, mode) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to)   params.set('to', to)
+    if (mode) params.set('mode', mode)
+    return fetchJson(`/api/trading/report/sessions/equity-curve?${params}`)
+  }, [from, to, mode])
+  return usePolling(fn, 30000)
+}
+
+export function useRiskEvaluations({ symbol, outcome, from, to, sessionId, page, pageSize } = {}) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams()
+    if (symbol)    params.set('symbol', symbol)
+    if (outcome)   params.set('outcome', outcome)
+    if (from)      params.set('from', from)
+    if (to)        params.set('to', to)
+    if (sessionId) params.set('sessionId', sessionId)
+    params.set('page', String(page ?? 1))
+    params.set('pageSize', String(pageSize ?? 20))
+    return fetchJson(`/api/risk-evaluations?${params}`)
+  }, [symbol, outcome, from, to, sessionId, page, pageSize])
+  return usePolling(fn, 15000)
+}
+
 export function useSystemSettings() {
   const fn = useCallback(() => fetchJson('/api/settings/system'), [])
   return usePolling(fn, 60000)
@@ -126,3 +182,50 @@ export function usePriceComparison(symbols, minutesBack = 60) {
   }, [symbolsKey, minutesBack])
   return usePolling(fn, 30000)
 }
+
+// ── Shutdown / Close-All ─────────────────────────────────────────────────
+
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw Object.assign(new Error(data?.error ?? `HTTP ${res.status}`), { data })
+  return data
+}
+
+export function useCloseAllStatus() {
+  const fn = useCallback(() => fetchJson('/api/control/close-all/status'), [])
+  return usePolling(fn, 5000)
+}
+
+export function useCloseAllHistory(limit = 10) {
+  const fn = useCallback(() => fetchJson(`/api/control/close-all/history?limit=${limit}`), [limit])
+  return usePolling(fn, 30000)
+}
+
+export async function apiCloseAllNow({ reason, requestedBy, idempotencyKey }) {
+  return postJson('/api/control/close-all', {
+    reason,
+    requestedBy,
+    confirmationToken: 'CLOSE ALL',
+    idempotencyKey,
+  })
+}
+
+export async function apiScheduleCloseAll({ executeAtUtc, reason, requestedBy, idempotencyKey }) {
+  return postJson('/api/control/close-all/schedule', {
+    executeAtUtc,
+    reason,
+    requestedBy,
+    confirmationToken: 'CLOSE ALL',
+    idempotencyKey,
+  })
+}
+
+export async function apiCancelCloseAll(operationId) {
+  return postJson('/api/control/close-all/cancel', { operationId })
+}
+
