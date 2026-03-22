@@ -38,6 +38,13 @@
       "saved": "Kiểm tra kết nối và Gửi tin nhắn thử sử dụng thông tin đã lưu.",
       "input": "Kiểm tra kết nối sẽ dùng token đang nhập ở trên."
     },
+    "healthCheck": {
+      "button": "Kiểm tra Telegram",
+      "checking": "Đang kiểm tra...",
+      "success": "Kết nối Telegram hoạt động tốt",
+      "failed": "Kiểm tra Telegram thất bại",
+      "notConfigured": "Cấu hình Telegram trước"
+    },
     "errors": {
       "tokenRequired": "Bot token là bắt buộc.",
       "chatIdRequired": "Chat ID phải là số hợp lệ.",

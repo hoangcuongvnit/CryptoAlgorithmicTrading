@@ -34,6 +34,8 @@ public sealed class ShutdownOperationService
     private readonly object _lock = new();
     private OperationInfo _current = new() { Status = "Idle" };
     private string _tradingMode = "TradingEnabled";
+    private string? _exitOnlySource; // "manual" | "session_end" | null
+    private bool _sessionExitOnlyActive; // true when auto-set by session monitor
     private const string TradingModeRedisKey = "executor:trading:mode";
     private readonly IConnectionMultiplexer _redis;
     private readonly string _connectionString;
@@ -50,9 +52,24 @@ public sealed class ShutdownOperationService
 
     public string TradingMode => _tradingMode;
 
+    /// <summary>Source of current exit-only: "manual", "session_end", or null when trading is enabled.</summary>
+    public string? ExitOnlySource => _exitOnlySource;
+
+    /// <summary>True when session monitor has set exit-only due to final 30-minute window.</summary>
+    public bool IsSessionExitOnlyActive => _sessionExitOnlyActive;
+
     public bool ResumeAllowed
     {
-        get { lock (_lock) { return _tradingMode == "ExitOnly" && !ActiveStatuses.Contains(_current.Status); } }
+        get
+        {
+            lock (_lock)
+            {
+                if (_tradingMode != "ExitOnly") return false;
+                if (ActiveStatuses.Contains(_current.Status)) return false;
+                if (_sessionExitOnlyActive) return false; // Cannot manually resume during session exit-only
+                return true;
+            }
+        }
     }
 
     public IReadOnlyList<string> GetResumeBlockReasons()
@@ -62,8 +79,13 @@ public sealed class ShutdownOperationService
             var reasons = new List<string>();
             if (_tradingMode != "ExitOnly")
                 reasons.Add("Trading is already enabled.");
-            else if (ActiveStatuses.Contains(_current.Status))
-                reasons.Add($"Active operation {_current.OperationId} is currently {_current.Status}. Wait for completion or cancel first.");
+            else
+            {
+                if (ActiveStatuses.Contains(_current.Status))
+                    reasons.Add($"Active operation {_current.OperationId} is currently {_current.Status}. Wait for completion or cancel first.");
+                if (_sessionExitOnlyActive)
+                    reasons.Add("Session is in the final 30-minute window. Exit-only mode will be released automatically when the window ends.");
+            }
             return reasons;
         }
     }
@@ -145,6 +167,7 @@ public sealed class ShutdownOperationService
                 operationId, requestedBy, reason);
 
             _tradingMode = "ExitOnly";
+            _exitOnlySource = "manual";
             _ = PersistTradingModeToRedisAsync("ExitOnly");
             _ = PersistToRedisAsync(_current);
             _ = InsertToDbAsync(_current);
@@ -184,6 +207,7 @@ public sealed class ShutdownOperationService
                 operationId, executeAtUtc, requestedBy);
 
             _tradingMode = "ExitOnly";
+            _exitOnlySource = "manual";
             _ = PersistTradingModeToRedisAsync("ExitOnly");
             _ = PersistToRedisAsync(_current);
             _ = InsertToDbAsync(_current);
@@ -220,15 +244,60 @@ public sealed class ShutdownOperationService
             if (ActiveStatuses.Contains(_current.Status))
                 return (false, $"Cannot resume: active operation {_current.OperationId} is currently {_current.Status}. Cancel or wait for completion first.");
 
+            if (_sessionExitOnlyActive)
+                return (false, "Cannot resume: session is in the final 30-minute window. Exit-only mode will be released automatically when the window ends.");
+
             if (_tradingMode == "TradingEnabled")
                 return (true, null); // Already enabled — idempotent
 
             _tradingMode = "TradingEnabled";
+            _exitOnlySource = null;
             _logger.LogInformation(
                 "Trading resumed: requestedBy={RequestedBy} reason={Reason}",
                 requestedBy, reason);
             _ = PersistTradingModeToRedisAsync("TradingEnabled");
             return (true, null);
+        }
+    }
+
+    /// <summary>Called by SessionExitOnlyMonitorService to enter session-based exit-only mode.</summary>
+    public void EnterSessionExitOnly()
+    {
+        lock (_lock)
+        {
+            if (_sessionExitOnlyActive) return; // Already in session exit-only
+
+            _sessionExitOnlyActive = true;
+
+            // Only change trading mode if not already in exit-only from a manual operation
+            if (_tradingMode != "ExitOnly")
+            {
+                _tradingMode = "ExitOnly";
+                _exitOnlySource = "session_end";
+                _logger.LogInformation("Session exit-only mode activated (final 30-minute window)");
+                _ = PersistTradingModeToRedisAsync("ExitOnly");
+            }
+        }
+    }
+
+    /// <summary>Called by SessionExitOnlyMonitorService to release session-based exit-only mode.</summary>
+    public void ReleaseSessionExitOnly()
+    {
+        lock (_lock)
+        {
+            if (!_sessionExitOnlyActive) return;
+
+            _sessionExitOnlyActive = false;
+            _logger.LogInformation("Session exit-only window ended");
+
+            // Only re-enable trading if no manual operation is keeping exit-only active
+            if (_exitOnlySource == "session_end" && !ActiveStatuses.Contains(_current.Status))
+            {
+                _tradingMode = "TradingEnabled";
+                _exitOnlySource = null;
+                _logger.LogInformation("Trading automatically resumed after session exit-only window ended");
+                _ = PersistTradingModeToRedisAsync("TradingEnabled");
+            }
         }
     }
 

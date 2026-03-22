@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Gateway.API.Dashboard;
 using Gateway.API.Settings;
 using Microsoft.AspNetCore.Mvc;
@@ -815,9 +816,22 @@ settingsGroup.MapPost("/notifications/telegram/test-message", async (
     var body = await request.ReadFromJsonAsync<TelegramTestMessageRequest>(ct);
     var message = body?.Message ?? "Test message from Admin UI";
 
+    // Resolve saved credentials and reload Notifier to ensure it has the latest config
+    var botToken = await repo.GetDecryptedBotTokenAsync(ct);
+    var chatId = await repo.GetChatIdAsync(ct);
+
+    if (botToken is null || !chatId.HasValue)
+        return Results.BadRequest(new { success = false, error = "No saved Telegram configuration" });
+
+    var settings = await repo.GetTelegramSettingsAsync(ct);
+
     var notifierClient = factory.CreateClient("notifier");
     try
     {
+        // Ensure Notifier has up-to-date credentials before sending
+        await notifierClient.PostAsJsonAsync("/api/notifier/reload-config",
+            new { botToken, chatId = chatId.Value, enabled = settings.Enabled }, ct);
+
         var response = await notifierClient.PostAsJsonAsync("/api/notifier/test-message",
             new { message }, ct);
         var responseBody = await response.Content.ReadAsStringAsync(ct);
@@ -831,6 +845,97 @@ settingsGroup.MapPost("/notifications/telegram/test-message", async (
     {
         await repo.UpdateTelegramTestResultAsync(false, ex.Message, ct);
         return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
+// POST /api/settings/notifications/telegram/health-check
+settingsGroup.MapPost("/notifications/telegram/health-check", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    CancellationToken ct) =>
+{
+    var botToken = await repo.GetDecryptedBotTokenAsync(ct);
+    var chatId = await repo.GetChatIdAsync(ct);
+
+    if (botToken is null || !chatId.HasValue)
+        return Results.Ok(new
+        {
+            success = false,
+            status = "unhealthy",
+            errorCode = "TELEGRAM_CONFIG_MISSING",
+            message = "Saved Telegram credentials were not found",
+        });
+
+    var client = factory.CreateClient("notifier");
+    try
+    {
+        var response = await client.PostAsJsonAsync("/api/notifier/validate",
+            new { botToken, chatId = chatId.Value }, ct);
+        var data = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+
+        var valid = data.TryGetProperty("valid", out var v) && v.GetBoolean();
+        var botUsername = data.TryGetProperty("botUsername", out var bu) ? bu.GetString() : null;
+        var chatReachable = data.TryGetProperty("chatReachable", out var cr) && cr.GetBoolean();
+        var message = data.TryGetProperty("message", out var m) ? m.GetString() : null;
+
+        if (!valid)
+        {
+            var errorCode = message?.Contains("token", StringComparison.OrdinalIgnoreCase) == true
+                ? "TELEGRAM_AUTH_FAILED"
+                : "TELEGRAM_UNKNOWN_ERROR";
+            return Results.Ok(new
+            {
+                success = false,
+                status = "unhealthy",
+                errorCode,
+                message = message ?? "Telegram validation failed",
+            });
+        }
+
+        if (!chatReachable)
+        {
+            return Results.Ok(new
+            {
+                success = false,
+                status = "unhealthy",
+                errorCode = "TELEGRAM_CHAT_UNREACHABLE",
+                message = message ?? "Bot is valid but chat is not reachable",
+                botUsername,
+            });
+        }
+
+        await repo.UpdateTelegramTestResultAsync(true, null, ct);
+
+        return Results.Ok(new
+        {
+            success = true,
+            status = "healthy",
+            botUsername,
+            checkedAtUtc = DateTime.UtcNow,
+            details = "Telegram connection is operational",
+        });
+    }
+    catch (HttpRequestException ex)
+    {
+        await repo.UpdateTelegramTestResultAsync(false, ex.Message, ct);
+        return Results.Ok(new
+        {
+            success = false,
+            status = "unhealthy",
+            errorCode = "TELEGRAM_NETWORK_ERROR",
+            message = $"Notifier unreachable: {ex.Message}",
+        });
+    }
+    catch (Exception ex)
+    {
+        await repo.UpdateTelegramTestResultAsync(false, ex.Message, ct);
+        return Results.Ok(new
+        {
+            success = false,
+            status = "unhealthy",
+            errorCode = "TELEGRAM_UNKNOWN_ERROR",
+            message = $"Health check failed: {ex.Message}",
+        });
     }
 });
 

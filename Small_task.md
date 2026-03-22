@@ -1,120 +1,143 @@
-# Bug Investigation: Recent Orders Always Failed
+# Small Task: Add always-available Telegram health check from saved DB credentials
 
-## Investigation Time
-- Date: 2026-03-22
-- Environment: Docker Compose (infrastructure/docker-compose.yml)
+## 1. Goal
 
-## Executive Summary
-- No trading service containers were down or crashing.
-- The failed orders were blocked by the system safety state: exit-only mode during/after close-all flow.
-- This is an operational state coordination bug, not an infrastructure outage (Docker/Redis/Postgres were healthy).
+Add a new backend API and a new UI button so an operator can verify Telegram integration at any time using credentials already saved in the database (without re-entering bot token and chat ID in the form).
 
-## Verified Evidence
-1. Container Health
-- Command used: docker compose -f infrastructure/docker-compose.yml ps --all
-- Result: core services were Up; no critical trading service was Exited.
+## 2. Problem Statement
 
-2. Order-Level Failure Proof
-- API checked: GET http://localhost:5094/api/trading/orders
-- Repeated failed orders showed:
-  - status = FAILED
-  - success = false
-  - errorMessage = "System is in exit-only mode. New position orders are blocked during the close-all operation."
-- Failure window concentrated around 2026-03-22T02:51:05Z to 2026-03-22T02:54:05Z.
+Current flows are tied to form state and may fail with `400 Bad Request` when token/chat ID are not provided in the request body.
 
-3. Daily Aggregate Confirmation
-- API checked: GET http://localhost:5094/api/trading/report/daily
-- Observed values:
-  - totalTrades = 449
-  - failedOrders = 20
+Operational need:
 
-4. Close-All Timeline Correlation
-- API checked: GET http://localhost:5094/api/trading/control/close-all/history
-- Found operation:
-  - operationType = close_all_now
-  - status = Completed
-  - requestedAtUtc = 2026-03-22T02:50:42.109056Z
-  - completedAtUtc = 2026-03-22T02:50:42.150785Z
-- The failed order window happened immediately after this operation.
+- The system must support a quick, reliable check based only on stored configuration.
+- This check should be available even when the user is not editing Telegram settings.
 
-5. Current State at Investigation Time
-- API checked: GET http://localhost:5094/api/trading/control/close-all/status
-- Current values:
-  - status = Idle
-  - tradingMode = TradingEnabled
-  - exitOnlyMode = false
+## 3. Scope
 
-## Root Cause Analysis
-- During the close-all/exit-only period, Strategy continued to submit new entry requests.
-- Executor correctly rejected these requests for safety.
-- The system lacks a strict upstream gate to stop entry-order generation while trading mode is not enabled.
+In scope:
 
-## Impact Assessment
-- Severity: Medium.
-- User impact: burst of FAILED orders and confusion that looks like system instability.
-- System impact: no crash, but reduced trading quality and noisy failure data.
+- New API endpoint for health check using saved credentials.
+- New UI button to trigger this check anytime.
+- User feedback (success/failure message + optional metadata).
 
-## Clear Fix Plan
+Out of scope:
 
-### Goal
-Prevent Strategy from sending new entry orders whenever the platform is in exit-only, shutdown, or recovery-lock states.
+- Replacing existing manual validation endpoint.
+- Changing credential storage format.
+- Telegram onboarding flow.
 
-### Phase 1: Immediate Guardrails (1 day)
-1. Add trading-mode pre-check in Strategy before sending orders to RiskGuard/Executor.
-2. If mode is not TradingEnabled, skip order submission and log a structured reason.
-3. Keep close/reduce-only flows allowed if business rules require them.
+## 4. Functional Requirements
 
-Expected outcome:
-- No new FAILED entry orders caused by exit-only blocking.
+1. The system shall expose a new endpoint, for example:
+	 - `POST /api/settings/notifications/telegram/health-check`
+2. The endpoint shall read bot token and chat ID from DB/config storage.
+3. The endpoint shall not require token/chat ID in request body.
+4. The endpoint shall perform a live Telegram check (recommended sequence: `getMe`, then optional lightweight message send).
+5. The endpoint shall return structured response with status and diagnostics.
+6. UI shall include a new button, e.g. `Check Telegram Health`.
+7. Clicking this button shall call the new endpoint and show clear toast/status feedback.
+8. Button must be available whenever Telegram is configured (or always visible but disabled with explanation if not configured).
 
-### Phase 2: Cross-Service Contract Hardening (1-2 days)
-1. Introduce a shared trading-state contract in Shared library (TradingEnabled, ExitOnly, Recovery, KillSwitch).
-2. Expose one lightweight read endpoint or Redis state key as single source of truth.
-3. Ensure Strategy, RiskGuard, and Executor use the same state names and behavior.
+## 5. Non-Functional Requirements
 
-Expected outcome:
-- Consistent behavior across services and no ambiguous state transitions.
+1. Response time target for health check: under 5 seconds in normal network conditions.
+2. API must never return raw token/chat ID in response.
+3. Error messages must be operator-friendly and safe (no secrets in logs or UI).
+4. UI must prevent duplicate click storms (disable button while request is running).
 
-### Phase 3: Observability and Alerting (1 day)
-1. Add explicit counter metric: orders_rejected_exit_only_total.
-2. Add structured logs on rejection with fields: symbol, side, mode, operationId, reason.
-3. Add alert rule when rejection rate crosses threshold (for example, > 5 in 1 minute).
+## 6. Proposed API Contract
 
-Expected outcome:
-- Faster diagnosis and less dependence on noisy telemetry streams.
+### Request
 
-### Phase 4: UI/Operator Safety (optional, 0.5-1 day)
-1. Show persistent ExitOnly status banner in dashboard.
-2. Show last close-all operation id/time and current mode.
-3. Disable manual entry actions in UI while not TradingEnabled.
+- Method: `POST`
+- URL: `/api/settings/notifications/telegram/health-check`
+- Body: empty (or optional `{ "message": "..." }` if test message is supported)
 
-Expected outcome:
-- Operators immediately understand why entries are blocked.
+### Success Response (example)
 
-## Test Plan
-1. Unit tests
-- Strategy does not publish/send entry orders when mode is ExitOnly.
-- Strategy resumes normal order flow when mode returns to TradingEnabled.
+```json
+{
+	"success": true,
+	"status": "healthy",
+	"botUsername": "my_bot",
+	"checkedAtUtc": "2026-03-22T08:40:00Z",
+	"details": "Telegram connection is operational"
+}
+```
 
-2. Integration tests
-- Trigger close-all and publish fresh signals.
-- Verify zero entry calls reach Executor during ExitOnly.
-- Verify no FAILED rows are created with exit-only message in that window.
+### Failure Response (example)
 
-3. Regression checks
-- Normal trading still works in TradingEnabled mode.
-- Close/reduce-only paths still execute correctly if enabled.
+```json
+{
+	"success": false,
+	"status": "unhealthy",
+	"errorCode": "TELEGRAM_CONFIG_MISSING",
+	"message": "Saved Telegram credentials were not found"
+}
+```
 
-## Rollout Plan
-1. Deploy to staging.
-2. Run a controlled scenario: open positions -> close-all -> publish signals.
-3. Validate metrics/logs and order table behavior.
-4. Deploy to production in low-volume window.
-5. Monitor rejection counters and daily failedOrders for 24 hours.
+Recommended error codes:
 
-## Acceptance Criteria
-1. Zero new entry-order failures caused by exit-only state.
-2. Strategy creates no entry requests while trading mode is not TradingEnabled.
-3. Rejection metrics and logs clearly identify operational blocking reasons.
-4. Operators can confirm mode/state immediately from API or dashboard.
+- `TELEGRAM_CONFIG_MISSING`
+- `TELEGRAM_AUTH_FAILED`
+- `TELEGRAM_CHAT_UNREACHABLE`
+- `TELEGRAM_NETWORK_ERROR`
+- `TELEGRAM_UNKNOWN_ERROR`
 
+## 7. UI Changes
+
+Add a new action button in Telegram settings panel (next to existing actions):
+
+- Label: `Check Telegram Health`
+- Behavior:
+	- On click -> call `/telegram/health-check`
+	- Show loading state: `Checking...`
+	- On success -> show green toast + optionally refresh status badge timestamp
+	- On failure -> show red toast with API message
+
+Suggested enable/disable rule:
+
+- Enabled when `cfg?.isConfigured === true`
+- Disabled otherwise with helper text: `Configure Telegram first`
+
+## 8. Backend Processing Logic
+
+1. Load Telegram settings record from DB.
+2. Validate that encrypted token and chat ID exist.
+3. Decrypt token (if encrypted at rest).
+4. Call Telegram `getMe` to verify token validity.
+5. Optionally send a lightweight health message to configured chat.
+6. Persist latest check result (`lastHealthStatus`, `lastHealthAtUtc`, `lastHealthError`).
+7. Return structured API response.
+
+## 9. Security and Logging
+
+1. Mask secrets in all logs.
+2. Do not include full token/chat ID in exceptions sent to UI.
+3. Add audit log entry for each manual health check action with `updatedBy`/operator identity if available.
+
+## 10. Acceptance Criteria
+
+1. Operator can click `Check Telegram Health` without entering token/chat ID.
+2. System checks Telegram using credentials from DB.
+3. Success path returns healthy response and UI displays success toast.
+4. Missing config path returns clear business error (not generic 400 parser error).
+5. Invalid token path returns clear authentication failure message.
+6. Button is protected against repeated clicks while request is in progress.
+7. No secret leakage in API response or logs.
+
+## 11. Test Scenarios
+
+1. Config exists + valid token/chat -> health check success.
+2. Config missing -> `TELEGRAM_CONFIG_MISSING`.
+3. Token revoked/invalid -> `TELEGRAM_AUTH_FAILED`.
+4. Chat ID invalid/not accessible -> `TELEGRAM_CHAT_UNREACHABLE`.
+5. Telegram API timeout/network issue -> `TELEGRAM_NETWORK_ERROR`.
+6. UI double click during loading -> only one request is processed.
+
+## 12. Implementation Notes
+
+- Keep existing endpoints (`validate`, `validate-saved`, `test-message`) for backward compatibility.
+- New `health-check` endpoint should become the default operator action for quick runtime verification.
+- Reuse shared error mapping in frontend so backend messages are displayed consistently.

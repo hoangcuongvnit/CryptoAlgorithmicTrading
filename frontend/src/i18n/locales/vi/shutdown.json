@@ -1,6 +1,18 @@
 {
   "title": "Điều Khiển Tắt Giao Dịch",
   "subtitle": "Đóng tất cả vị thế an toàn trước khi khởi động lại server",
+  "tradingState": {
+    "exitOnly": "Chế Độ Chỉ Đóng Lệnh (Chặn Lệnh Mới)",
+    "enabled": "Giao Dịch Đang Hoạt Động",
+    "enabledDesc": "Cho phép mở vị thế mới. Hệ thống hoạt động bình thường.",
+    "reasonSession": "Kích hoạt do phiên giao dịch đang trong 30 phút cuối (bảo vệ cuối phiên).",
+    "reasonManual": "Kích hoạt do thao tác đóng tất cả hoặc tắt hệ thống thủ công.",
+    "sessionEndsIn": "Phiên kết thúc trong",
+    "resumeAfter": "Giao dịch sẽ tự động khôi phục sau {{time}}",
+    "checkResumeBtn": "Kiểm Tra & Khôi Phục Giao Dịch",
+    "checkResumeTip": "Nhấn để kiểm tra điều kiện và khôi phục giao dịch bình thường",
+    "whyBlocked": "Lý do chưa thể khôi phục:"
+  },
   "status": {
     "title": "Trạng Thái Hiện Tại",
     "idle": "Sẵn sàng",

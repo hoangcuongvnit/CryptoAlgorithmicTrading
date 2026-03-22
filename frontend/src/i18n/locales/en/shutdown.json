@@ -1,6 +1,18 @@
 {
   "title": "Trading Shutdown Control",
   "subtitle": "Safely close all open positions before restarting the server",
+  "tradingState": {
+    "exitOnly": "Exit-Only Mode (New Entries Blocked)",
+    "enabled": "Trading Enabled",
+    "enabledDesc": "New position entries are allowed. System is operating normally.",
+    "reasonSession": "Active because the session is in its final 30-minute window (session-end protection).",
+    "reasonManual": "Active due to a manual close-all or shutdown operation.",
+    "sessionEndsIn": "Session ends in",
+    "resumeAfter": "Trading will resume automatically after {{time}}",
+    "checkResumeBtn": "Check Status & Resume Trading",
+    "checkResumeTip": "Click to verify conditions and resume normal trading",
+    "whyBlocked": "Why resume is blocked:"
+  },
   "status": {
     "title": "Current Status",
     "idle": "Idle",

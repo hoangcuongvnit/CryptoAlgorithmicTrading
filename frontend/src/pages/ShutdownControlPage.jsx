@@ -343,6 +343,10 @@ export function ShutdownControlPage() {
   const tradingMode = status?.tradingMode ?? 'TradingEnabled'
   const resumeAllowed = status?.resumeAllowed ?? false
   const resumeBlockReasons = status?.resumeBlockReasons ?? []
+  const exitOnlySource = status?.exitOnlySource ?? null
+  const inFinal30 = status?.inFinal30Minutes ?? false
+  const sessionEndUtc = status?.sessionEndUtc ?? null
+  const minutesToSessionEnd = status?.minutesToSessionEnd ?? null
 
   // Auto-refresh status when executing
   useEffect(() => {
@@ -433,6 +437,85 @@ export function ShutdownControlPage() {
         )}
       </div>
 
+      {/* Trading State Banner */}
+      {status?.exitOnlyMode ? (
+        <div className="rounded-2xl border-2 border-orange-300 bg-orange-50 p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🔒</span>
+                <h2 className="text-lg font-bold text-orange-800">{t('tradingState.exitOnly')}</h2>
+              </div>
+              {/* Reason */}
+              <p className="text-sm text-orange-700">
+                {exitOnlySource === 'session_end'
+                  ? t('tradingState.reasonSession')
+                  : t('tradingState.reasonManual')}
+              </p>
+              {/* Session timing when in final 30 min */}
+              {inFinal30 && sessionEndUtc && (
+                <div className="flex items-center gap-2 text-sm text-orange-700">
+                  <span>{t('tradingState.sessionEndsIn')}:</span>
+                  <Countdown targetUtc={sessionEndUtc} />
+                </div>
+              )}
+              {/* Next eligible resume window */}
+              {inFinal30 && sessionEndUtc && (
+                <p className="text-xs text-orange-600">
+                  {t('tradingState.resumeAfter', { time: fmtLocal(sessionEndUtc) })}
+                </p>
+              )}
+            </div>
+            {/* Check Status & Resume button */}
+            <button
+              onClick={() => {
+                refreshStatus()
+                if (resumeAllowed) {
+                  setShowResumeDialog(true)
+                  setResumeError(null)
+                }
+              }}
+              disabled={!resumeAllowed}
+              className={`shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-sm ${
+                resumeAllowed
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
+              title={resumeAllowed ? t('tradingState.checkResumeTip') : resumeBlockReasons.join('; ')}
+            >
+              {t('tradingState.checkResumeBtn')}
+            </button>
+          </div>
+          {/* Block reasons when resume is not allowed */}
+          {!resumeAllowed && resumeBlockReasons.length > 0 && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-orange-100 border border-orange-200">
+              <p className="text-xs font-semibold text-orange-800 mb-1">{t('tradingState.whyBlocked')}</p>
+              <ul className="space-y-0.5">
+                {resumeBlockReasons.map((r, i) => (
+                  <li key={i} className="text-xs text-orange-700">• {r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-2xl border-2 border-green-200 bg-green-50 p-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">✅</span>
+            <div>
+              <h2 className="text-lg font-bold text-green-800">{t('tradingState.enabled')}</h2>
+              <p className="text-sm text-green-600">{t('tradingState.enabledDesc')}</p>
+            </div>
+            {inFinal30 && minutesToSessionEnd != null && (
+              <div className="ml-auto text-right">
+                <p className="text-xs text-gray-500">{t('tradingState.sessionEndsIn')}</p>
+                <Countdown targetUtc={sessionEndUtc} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Status card */}
       <div
         className="rounded-2xl border p-5 shadow-sm"
@@ -444,16 +527,6 @@ export function ShutdownControlPage() {
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-sm font-semibold text-gray-500">{t('status.title')}</span>
               <StatusBadge status={opStatus} t={t} />
-              {status?.exitOnlyMode && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-orange-100 border border-orange-200 text-orange-700 text-xs font-semibold">
-                  🔒 {t('status.exitOnlyMode')}
-                </span>
-              )}
-              {!status?.exitOnlyMode && tradingMode === 'TradingEnabled' && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-700 text-xs font-semibold">
-                  ✅ {t('status.tradingEnabled')}
-                </span>
-              )}
               {status?.shutdownReady && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 border border-green-200 text-green-700 text-xs font-semibold">
                   ✅ {t('status.shutdownReady')}
@@ -535,8 +608,8 @@ export function ShutdownControlPage() {
         </div>
       )}
 
-      {/* Resume Trading — shown when in exit-only mode and resume is allowed */}
-      {resumeAllowed && (
+      {/* Resume Trading — shown when in exit-only mode and resume is allowed (legacy layout kept for non-session exit-only) */}
+      {resumeAllowed && exitOnlySource !== 'session_end' && !inFinal30 && (
         <div className="rounded-2xl border border-green-200 bg-green-50 p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
           <div className="flex-1">
             <p className="font-bold text-green-800">{t('resume.title')}</p>
@@ -548,23 +621,6 @@ export function ShutdownControlPage() {
           >
             ▶️ {t('resume.btn')}
           </button>
-        </div>
-      )}
-
-      {/* Exit-only warning when resume is not yet allowed */}
-      {status?.exitOnlyMode && !resumeAllowed && (
-        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 flex items-start gap-3">
-          <span className="text-lg shrink-0">🔒</span>
-          <div>
-            <p className="font-semibold text-orange-800 text-sm">{t('resume.blockedTitle')}</p>
-            {resumeBlockReasons.length > 0 && (
-              <ul className="mt-1 space-y-0.5">
-                {resumeBlockReasons.map((r, i) => (
-                  <li key={i} className="text-xs text-orange-700">{r}</li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
       )}
 

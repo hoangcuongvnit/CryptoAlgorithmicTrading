@@ -66,6 +66,7 @@ function TelegramPanel({ t }) {
   const [validating, setValidating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [healthChecking, setHealthChecking] = useState(false)
 
   useEffect(() => {
     fetch('/api/settings/notifications/telegram')
@@ -105,7 +106,8 @@ function TelegramPanel({ t }) {
           body: JSON.stringify({ botToken: botToken.trim(), chatId: rawChatId }),
         })
       }
-      const data = await res.json()
+      let data
+      try { data = await res.json() } catch { data = {} }
       if (data.valid) {
         showToast('success', `${t('telegram.validateSuccess')} (@${data.botUsername})`)
       } else {
@@ -162,18 +164,39 @@ function TelegramPanel({ t }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: t('telegram.testMessageText') }),
       })
-      const data = await res.json()
+      let data
+      try { data = await res.json() } catch { data = {} }
       if (data.success) {
         showToast('success', t('telegram.testMessageSuccess'))
         const updated = await fetch('/api/settings/notifications/telegram').then(r => r.json())
         setCfg(updated)
       } else {
-        showToast('error', data.error || t('telegram.testMessageFailed'))
+        showToast('error', data.error || data.message || t('telegram.testMessageFailed'))
       }
     } catch {
       showToast('error', t('telegram.errors.networkError'))
     } finally {
       setTesting(false)
+    }
+  }
+
+  async function handleHealthCheck() {
+    setHealthChecking(true)
+    try {
+      const res = await fetch('/api/settings/notifications/telegram/health-check', { method: 'POST' })
+      let data
+      try { data = await res.json() } catch { data = {} }
+      if (data.success) {
+        showToast('success', `${t('telegram.healthCheck.success')}${data.botUsername ? ` (@${data.botUsername})` : ''}`)
+        const updated = await fetch('/api/settings/notifications/telegram').then(r => r.json())
+        setCfg(updated)
+      } else {
+        showToast('error', data.message || t('telegram.healthCheck.failed'))
+      }
+    } catch {
+      showToast('error', t('telegram.errors.networkError'))
+    } finally {
+      setHealthChecking(false)
     }
   }
 
@@ -286,6 +309,14 @@ function TelegramPanel({ t }) {
             {testing ? t('telegram.sending') : t('telegram.sendTestMessage')}
           </button>
         )}
+        <button
+          onClick={handleHealthCheck}
+          disabled={healthChecking || !cfg?.isConfigured}
+          className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          title={!cfg?.isConfigured ? t('telegram.healthCheck.notConfigured') : ''}
+        >
+          {healthChecking ? t('telegram.healthCheck.checking') : t('telegram.healthCheck.button')}
+        </button>
       </div>
       {cfg?.isConfigured && (
         <p className="text-xs text-gray-400">

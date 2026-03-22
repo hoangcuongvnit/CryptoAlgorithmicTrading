@@ -38,6 +38,13 @@
       "saved": "Test Connection and Send Test Message use saved credentials.",
       "input": "Test Connection will use the token entered above."
     },
+    "healthCheck": {
+      "button": "Check Telegram Health",
+      "checking": "Checking...",
+      "success": "Telegram connection is healthy",
+      "failed": "Telegram health check failed",
+      "notConfigured": "Configure Telegram first"
+    },
     "errors": {
       "tokenRequired": "Bot token is required.",
       "chatIdRequired": "A valid numeric Chat ID is required.",

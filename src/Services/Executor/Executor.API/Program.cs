@@ -84,6 +84,7 @@ builder.Services.AddHostedService<PartialTpMonitorService>();
 builder.Services.AddSingleton<ShutdownOperationService>();
 builder.Services.AddSingleton<CloseAllExecutorService>();
 builder.Services.AddHostedService<CloseAllSchedulerService>();
+builder.Services.AddHostedService<SessionExitOnlyMonitorService>();
 
 var app = builder.Build();
 
@@ -448,9 +449,14 @@ app.MapPost("/api/trading/control/close-all/cancel", async (
 });
 
 app.MapGet("/api/trading/control/close-all/status", ([FromServices] ShutdownOperationService shutdownOp,
-    [FromServices] PositionTracker tracker) =>
+    [FromServices] PositionTracker tracker,
+    [FromServices] SessionClock sessionClock) =>
 {
     var op = shutdownOp.Current;
+    var session = sessionClock.GetCurrentSession();
+    var inFinal30 = session.CurrentPhase is CryptoTrading.Shared.DTOs.SessionPhase.LiquidationOnly
+        or CryptoTrading.Shared.DTOs.SessionPhase.ForcedFlatten;
+
     return Results.Ok(new
     {
         operationId = op.OperationId == Guid.Empty ? (Guid?)null : op.OperationId,
@@ -467,9 +473,15 @@ app.MapGet("/api/trading/control/close-all/status", ([FromServices] ShutdownOper
         openPositionsRemaining = tracker.GetOpenPositions().Count,
         exitOnlyMode = shutdownOp.IsExitOnlyMode,
         tradingMode = shutdownOp.TradingMode,
+        exitOnlySource = shutdownOp.ExitOnlySource,
         resumeAllowed = shutdownOp.ResumeAllowed,
         resumeBlockReasons = shutdownOp.GetResumeBlockReasons(),
-        lastError = op.LastError
+        lastError = op.LastError,
+        // Session timing fields
+        sessionId = session.SessionId,
+        sessionEndUtc = session.SessionEndUtc,
+        inFinal30Minutes = inFinal30,
+        minutesToSessionEnd = Math.Max(0, session.TimeToEnd.TotalMinutes)
     });
 });
 
@@ -499,11 +511,17 @@ app.MapPost("/api/trading/control/resume", async (
         body.RequestedBy ?? "operator");
 
     if (!success)
-        return Results.Conflict(new { error });
+        return Results.Conflict(new
+        {
+            success = false,
+            error,
+            tradingMode = shutdownOp.TradingMode,
+            resumeBlockReasons = shutdownOp.GetResumeBlockReasons()
+        });
 
     return Results.Ok(new
     {
-        status = "Completed",
+        success = true,
         tradingMode = "TradingEnabled",
         resumedAtUtc = DateTime.UtcNow,
         message = "Trading has been resumed. New entries are now allowed."
