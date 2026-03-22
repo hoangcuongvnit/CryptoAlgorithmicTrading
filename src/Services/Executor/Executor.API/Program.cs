@@ -53,6 +53,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 });
 
 builder.Services.AddSingleton<IBinanceRestClient>(_ => new BinanceRestClient());
+builder.Services.AddHttpClient("BybitConsensus", c => c.Timeout = TimeSpan.FromMilliseconds(500));
 
 builder.Services.AddSingleton<PriceReferenceRepository>();
 builder.Services.AddSingleton<OrderRepository>();
@@ -60,6 +61,8 @@ builder.Services.AddSingleton<BudgetRepository>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
 builder.Services.AddSingleton<PaperOrderSimulator>();
 builder.Services.AddSingleton<BinanceOrderClient>();
+builder.Services.AddSingleton<SpreadFilterService>();
+builder.Services.AddSingleton<PriceConsensusService>();
 builder.Services.AddSingleton<PositionTracker>();
 builder.Services.AddSingleton(metrics);
 builder.Services.AddSingleton(sessionMetrics);
@@ -75,6 +78,7 @@ builder.Services.AddSingleton<OrderExecutionService>();
 builder.Services.AddSingleton<RecoveryStateService>();
 builder.Services.AddHostedService<StartupReconciliationService>();
 builder.Services.AddHostedService<LiquidationOrchestrator>();
+builder.Services.AddHostedService<PartialTpMonitorService>();
 
 // Shutdown/close-all services
 builder.Services.AddSingleton<ShutdownOperationService>();

@@ -15,6 +15,8 @@ public sealed class OrderExecutionService
     private readonly TradingSettings _tradingSettings;
     private readonly PaperOrderSimulator _paperOrderSimulator;
     private readonly BinanceOrderClient _binanceOrderClient;
+    private readonly SpreadFilterService _spreadFilter;
+    private readonly PriceConsensusService _consensus;
     private readonly OrderRepository _orderRepository;
     private readonly AuditStreamPublisher _auditStreamPublisher;
     private readonly PositionTracker _positionTracker;
@@ -27,6 +29,8 @@ public sealed class OrderExecutionService
         IOptions<TradingSettings> tradingSettings,
         PaperOrderSimulator paperOrderSimulator,
         BinanceOrderClient binanceOrderClient,
+        SpreadFilterService spreadFilter,
+        PriceConsensusService consensus,
         OrderRepository orderRepository,
         AuditStreamPublisher auditStreamPublisher,
         PositionTracker positionTracker,
@@ -38,6 +42,8 @@ public sealed class OrderExecutionService
         _tradingSettings = tradingSettings.Value;
         _paperOrderSimulator = paperOrderSimulator;
         _binanceOrderClient = binanceOrderClient;
+        _spreadFilter = spreadFilter;
+        _consensus = consensus;
         _orderRepository = orderRepository;
         _auditStreamPublisher = auditStreamPublisher;
         _positionTracker = positionTracker;
@@ -57,6 +63,46 @@ public sealed class OrderExecutionService
         {
             SessionId = request.SessionId ?? session?.SessionId
         };
+
+        // Phase 3.2: Consensus pricing gate (live mode only)
+        if (!_tradingSettings.PaperTradingMode)
+        {
+            var (consensusPassed, _, consensusReason) = await _consensus.ValidateAsync(orderRequest.Symbol, ct);
+            if (!consensusPassed)
+            {
+                return new OrderResult
+                {
+                    OrderId = Guid.NewGuid().ToString("N"),
+                    Symbol = orderRequest.Symbol,
+                    Side = orderRequest.Side,
+                    Success = false,
+                    ErrorMessage = consensusReason ?? "Price consensus check failed",
+                    Timestamp = DateTime.UtcNow,
+                    IsPaperTrade = false,
+                    SessionId = orderRequest.SessionId
+                };
+            }
+        }
+
+        // Phase 1.3: Spread pre-flight gate (live mode only)
+        if (!_tradingSettings.PaperTradingMode)
+        {
+            var (spreadPassed, spreadReason) = await _spreadFilter.CheckSpreadAsync(orderRequest.Symbol, ct);
+            if (!spreadPassed)
+            {
+                return new OrderResult
+                {
+                    OrderId = Guid.NewGuid().ToString("N"),
+                    Symbol = orderRequest.Symbol,
+                    Side = orderRequest.Side,
+                    Success = false,
+                    ErrorMessage = spreadReason ?? "Spread limit exceeded",
+                    Timestamp = DateTime.UtcNow,
+                    IsPaperTrade = false,
+                    SessionId = orderRequest.SessionId
+                };
+            }
+        }
 
         _metrics.RecordOrderPlaced(orderRequest.Symbol, orderRequest.Side.ToString(), orderRequest.Quantity);
 
@@ -99,6 +145,26 @@ public sealed class OrderExecutionService
         {
             _metrics.RecordOrderFilled(orderRequest.Symbol, orderResult.FilledQty, orderResult.FilledPrice, orderResult.IsPaperTrade);
             _positionTracker.OnOrderFilled(orderRequest, orderResult);
+
+            // Phase 1.3: Slippage tracking (live orders with a reference price)
+            if (!_tradingSettings.PaperTradingMode
+                && orderRequest.Price > 0
+                && orderResult.FilledPrice > 0)
+            {
+                var slippage = Math.Abs(orderResult.FilledPrice - orderRequest.Price) / orderRequest.Price;
+                if (slippage > _tradingSettings.SpreadFilter.SlippageTolerance)
+                {
+                    _logger.LogWarning(
+                        "Slippage {Slippage:P3} exceeds tolerance {Tolerance:P3} — {Symbol} {Side} order {OrderId} (requested={Requested}, filled={Filled})",
+                        slippage,
+                        _tradingSettings.SpreadFilter.SlippageTolerance,
+                        orderRequest.Symbol,
+                        orderRequest.Side,
+                        orderResult.OrderId,
+                        orderRequest.Price,
+                        orderResult.FilledPrice);
+                }
+            }
         }
 
         try

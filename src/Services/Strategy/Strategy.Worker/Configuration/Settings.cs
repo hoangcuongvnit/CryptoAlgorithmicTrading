@@ -15,6 +15,12 @@ public sealed class TradingSettings
 {
     public decimal DefaultOrderQuantity { get; set; } = 0.001m;
     public SignalThreshold MinimumSignalStrength { get; set; } = SignalThreshold.Moderate;
+
+    // Phase 2.1: Adaptive stop-loss using ATR
+    public bool AdaptiveStopLossEnabled { get; set; } = false;
+    public decimal AtrSlMultiplier { get; set; } = 1.5m;
+
+    // Phase 2.2: Partial take-profit is managed by the Executor monitor (no mapper change needed)
 }
 
 public enum SignalThreshold

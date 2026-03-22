@@ -114,6 +114,98 @@
       "meaning": "Each individual order is capped at this notional value, regardless of position size percentage.",
       "currentValue": "Checked on each order",
       "impact": "Orders above this value are blocked even if the position size % is within limits."
+    },
+    "kelly": {
+      "label": "Kelly Criterion",
+      "meaning": "Sizes each position using a fraction of the mathematically optimal Kelly bet, based on historical win rate and average win/loss over the configured lookback window.",
+      "configEnabled": "Quarter-Kelly at {{pct}}% fraction",
+      "configDisabled": "Disabled (fixed % sizing)",
+      "currentEnabled": "Win-rate lookback: {{days}} days",
+      "currentDisabled": "Using fixed position size cap",
+      "impact": "When disabled, position sizing falls back to the static max position size percentage."
+    },
+    "regime": {
+      "label": "Market Regime Filter",
+      "meaning": "Reduces position size automatically when the market is in a high-volatility regime, as detected by ATR expansion and Bollinger Band width.",
+      "configSuffix": "% cap in HighVol regime",
+      "currentValue": "Regime read from Redis",
+      "impact": "In high-volatility conditions, position size is capped at the configured multiplier to reduce risk."
+    }
+  },
+
+  "advancedRules": {
+    "title": "Advanced Signal Quality & Safety Rules",
+    "subtitle": "Multi-phase filters applied by Analyzer, Strategy, RiskGuard, and Executor before any order is placed.",
+    "phaseLabel": "Phase {{num}}",
+    "configHint": "Rules marked 🟡 are opt-in via appsettings.json and disabled by default. Enable them gradually after validating on paper trading.",
+    "legend": {
+      "active": "Always active",
+      "config": "Opt-in via config",
+      "disabled": "Not yet enabled"
+    },
+    "phases": {
+      "p1": {
+        "title": "Entry Quality Gates",
+        "goal": "Reject signals that lack trend strength, volume confirmation, or have excessive spread.",
+        "timeline": "Applied in Analyzer"
+      },
+      "p2": {
+        "title": "Execution & Position Sizing",
+        "goal": "Improve trade exits with ATR-based stops, partial take-profit, Kelly sizing, and short-side safety.",
+        "timeline": "Applied in Strategy + RiskGuard"
+      },
+      "p3": {
+        "title": "Market Context & Consensus",
+        "goal": "Reduce size in adverse regimes and validate price across multiple exchanges before executing.",
+        "timeline": "Applied in RiskGuard + Executor"
+      },
+      "p4": {
+        "title": "Volatility Regime Detection",
+        "goal": "Detect Bollinger Band squeeze breakouts to time entries into high-conviction momentum moves.",
+        "timeline": "Applied in Analyzer"
+      }
+    },
+    "rules": {
+      "adx": {
+        "label": "ADX Trend Filter",
+        "note": "Signal is dropped if ADX < 20, indicating a weak or ranging market with no clear trend direction."
+      },
+      "volume": {
+        "label": "Volume Confirmation",
+        "note": "Requires volume to be at least 1.2× the 20-period average. Prevents entries on low-conviction moves."
+      },
+      "spread": {
+        "label": "Spread & Slippage Gate",
+        "note": "Blocks execution if the bid-ask spread exceeds the symbol limit (0.2% BTC/ETH, 0.5% alts)."
+      },
+      "atrSl": {
+        "label": "ATR-Based Stop Loss",
+        "note": "Sets stop loss at 1.5× ATR(14) from entry instead of a fixed percentage, adapting to current volatility."
+      },
+      "partialTp": {
+        "label": "Partial Take-Profit",
+        "note": "Closes 50% of position at Stage 1 profit (+1.5%) and trails the remainder to Stage 2 (+3.0%)."
+      },
+      "kelly": {
+        "label": "Quarter-Kelly Sizing",
+        "note": "Sizes each trade using 25% of the Kelly-optimal fraction, derived from the last 30 days of win rate and payoff."
+      },
+      "shortSafety": {
+        "label": "Short-Side Safety",
+        "note": "Blocks SHORT signals if RSI > 60 or funding rate > 2%, avoiding counter-trend shorts in bullish conditions."
+      },
+      "regime": {
+        "label": "Regime-Based Size Reduction",
+        "note": "Caps position size at 35% of normal when the market is in a HighVolatility regime."
+      },
+      "consensus": {
+        "label": "Multi-Exchange Price Consensus",
+        "note": "Compares Binance vs Bybit prices before execution. Rejects if they diverge by more than 0.1%."
+      },
+      "bbSqueeze": {
+        "label": "BB Squeeze Breakout",
+        "note": "Only enters when current Bollinger Band width is below 80% of the 100-candle baseline, signaling a squeeze."
+      }
     }
   },
 

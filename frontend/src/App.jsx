@@ -21,10 +21,10 @@ function Layout() {
   const NAV_ITEMS = [
     { path: '/',          label: t('overview'),        icon: '📊' },
     { path: '/trading',   label: t('tradingSignals'),  icon: '💹' },
-    { path: '/report',         label: t('dailyReport'),     icon: '📈' },
-    { path: '/session-report', label: t('sessionReport'),   icon: '🕐' },
     { path: '/safety',    label: t('safetyRisk'),      icon: '🛡️' },
     { path: '/events',    label: t('eventHistory'),    icon: '📋' },
+    { path: '/report',         label: t('dailyReport'),     icon: '📈' },
+    { path: '/session-report', label: t('sessionReport'),   icon: '🕐' },
     { path: '/guidance',  label: t('guidance'),        icon: '🧭' },
     { path: '/budget',    label: t('budget'),            icon: '💰' },
     { path: '/shutdown',  label: t('shutdownControl'),  icon: '🛑' },

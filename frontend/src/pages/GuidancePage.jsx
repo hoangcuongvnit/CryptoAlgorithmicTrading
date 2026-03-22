@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useActivities, useRiskStats, useRiskConfig } from '../hooks/useDashboard.js'
 import { SystemFlowTimeline } from '../components/SystemFlowTimeline.jsx'
 import { RuleStatusGrid } from '../components/RuleStatusGrid.jsx'
+import { AdvancedRulesSection } from '../components/AdvancedRulesSection.jsx'
 import { SystemHealthPanel } from '../components/SystemHealthPanel.jsx'
 import { QuickStartChecklist } from '../components/QuickStartChecklist.jsx'
 import { ActivityLog } from '../components/ActivityLog.jsx'
@@ -38,7 +39,10 @@ export function GuidancePage({ onNavigate }) {
       {/* Section B: Rules & Safety */}
       <RuleStatusGrid config={riskConfig} riskStats={riskStats} />
 
-      {/* Section B2: Session-Locked Campaign Rules */}
+      {/* Section B2: Advanced Signal Quality & Safety Rules (Phases 1–4) */}
+      <AdvancedRulesSection />
+
+      {/* Section B3: Session-Locked Campaign Rules */}
       <div className="rounded-xl p-5" style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15,23,42,0.08)' }}>
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>

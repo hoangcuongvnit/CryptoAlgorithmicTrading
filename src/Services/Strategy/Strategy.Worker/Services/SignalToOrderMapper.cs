@@ -38,13 +38,29 @@ public sealed class SignalToOrderMapper
             return false;
         }
 
-        var stopLoss = side == OrderSide.Buy
-            ? entry * 0.985m
-            : entry * 1.015m;
+        decimal stopLoss, takeProfit;
 
-        var takeProfit = side == OrderSide.Buy
-            ? entry * 1.03m
-            : entry * 0.97m;
+        if (_settings.AdaptiveStopLossEnabled && signal.Atr14 > 0)
+        {
+            // Phase 2.1: SL = entry ± AtrMultiplier × ATR14; TP fixed at 2× risk
+            var slDistance = _settings.AtrSlMultiplier * signal.Atr14 / entry;
+            stopLoss = side == OrderSide.Buy
+                ? entry * (1m - slDistance)
+                : entry * (1m + slDistance);
+            takeProfit = side == OrderSide.Buy
+                ? entry + 2m * (entry - stopLoss)
+                : entry - 2m * (stopLoss - entry);
+        }
+        else
+        {
+            // Fallback: fixed 1.5% SL / 3% TP
+            stopLoss = side == OrderSide.Buy ? entry * 0.985m : entry * 1.015m;
+            takeProfit = side == OrderSide.Buy ? entry * 1.03m : entry * 0.97m;
+        }
+
+        // Guard against extreme ATR producing non-positive SL or TP
+        if (stopLoss <= 0 || takeProfit <= 0)
+            return false;
 
         orderRequest = new OrderRequest
         {

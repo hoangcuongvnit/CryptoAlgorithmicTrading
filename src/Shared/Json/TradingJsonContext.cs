@@ -10,6 +10,7 @@ namespace CryptoTrading.Shared.Json;
     WriteIndented = false)]
 [JsonSerializable(typeof(PriceTick))]
 [JsonSerializable(typeof(TradeSignal))]
+[JsonSerializable(typeof(MarketRegime))]
 [JsonSerializable(typeof(OrderRequest))]
 [JsonSerializable(typeof(OrderResult))]
 [JsonSerializable(typeof(SystemEvent))]

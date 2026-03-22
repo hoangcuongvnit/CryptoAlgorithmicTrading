@@ -123,6 +123,28 @@ export function RuleStatusGrid({ config, riskStats }) {
       status: 'pass',
       impact: t('rules.maxOrderValue.impact'),
     },
+    {
+      icon: '🎲',
+      label: t('rules.kelly.label'),
+      meaning: t('rules.kelly.meaning'),
+      configuredValue: config.kellyCriterionEnabled
+        ? t('rules.kelly.configEnabled', { pct: Math.round((config.kellyFraction ?? 0.25) * 100) })
+        : t('rules.kelly.configDisabled'),
+      currentValue: config.kellyCriterionEnabled
+        ? t('rules.kelly.currentEnabled', { days: config.kellyLookbackDays ?? 30 })
+        : t('rules.kelly.currentDisabled'),
+      status: config.kellyCriterionEnabled ? 'pass' : 'warning',
+      impact: t('rules.kelly.impact'),
+    },
+    {
+      icon: '🌊',
+      label: t('rules.regime.label'),
+      meaning: t('rules.regime.meaning'),
+      configuredValue: `${Math.round((config.highVolPositionSizeMultiplier ?? 0.35) * 100)}${t('rules.regime.configSuffix')}`,
+      currentValue: t('rules.regime.currentValue'),
+      status: 'pass',
+      impact: t('rules.regime.impact'),
+    },
   ]
 
   return (

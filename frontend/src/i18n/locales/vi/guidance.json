@@ -114,6 +114,98 @@
       "meaning": "Mỗi lệnh riêng lẻ bị giới hạn ở giá trị danh nghĩa này, bất kể tỷ lệ quy mô vị thế.",
       "currentValue": "Kiểm tra mỗi lệnh",
       "impact": "Lệnh vượt giá trị này bị chặn dù tỷ lệ quy mô vị thế trong giới hạn."
+    },
+    "kelly": {
+      "label": "Tiêu chí Kelly",
+      "meaning": "Xác định quy mô mỗi vị thế bằng một phần của mức cược Kelly tối ưu, dựa trên tỷ lệ thắng lịch sử và tỷ lệ lãi/lỗ trung bình trong cửa sổ nhìn lại đã cấu hình.",
+      "configEnabled": "Quarter-Kelly tại {{pct}}% phần",
+      "configDisabled": "Tắt (quy mô cố định %)",
+      "currentEnabled": "Nhìn lại tỷ lệ thắng: {{days}} ngày",
+      "currentDisabled": "Dùng giới hạn quy mô vị thế cố định",
+      "impact": "Khi tắt, quy mô vị thế dùng tỷ lệ phần trăm quy mô tối đa tĩnh."
+    },
+    "regime": {
+      "label": "Bộ lọc chế độ thị trường",
+      "meaning": "Tự động giảm quy mô vị thế khi thị trường ở chế độ biến động cao, được phát hiện qua mở rộng ATR và độ rộng Bollinger Band.",
+      "configSuffix": "% giới hạn trong chế độ HighVol",
+      "currentValue": "Chế độ đọc từ Redis",
+      "impact": "Trong điều kiện biến động cao, quy mô vị thế bị giới hạn ở hệ số đã cấu hình để giảm rủi ro."
+    }
+  },
+
+  "advancedRules": {
+    "title": "Quy tắc lọc tín hiệu & an toàn nâng cao",
+    "subtitle": "Các bộ lọc đa pha được áp dụng bởi Analyzer, Strategy, RiskGuard và Executor trước khi đặt lệnh.",
+    "phaseLabel": "Pha {{num}}",
+    "configHint": "Các quy tắc đánh dấu 🟡 là tùy chọn qua appsettings.json và mặc định tắt. Bật dần từng quy tắc sau khi đã xác nhận trên chế độ giao dịch ảo.",
+    "legend": {
+      "active": "Luôn hoạt động",
+      "config": "Tùy chọn qua cấu hình",
+      "disabled": "Chưa bật"
+    },
+    "phases": {
+      "p1": {
+        "title": "Cổng kiểm tra chất lượng vào lệnh",
+        "goal": "Loại bỏ tín hiệu thiếu độ mạnh xu hướng, xác nhận khối lượng, hoặc có spread quá cao.",
+        "timeline": "Áp dụng trong Analyzer"
+      },
+      "p2": {
+        "title": "Thực thi & Quy mô vị thế",
+        "goal": "Cải thiện thoát lệnh với stoploss ATR, chốt lời từng phần, định cỡ Kelly và an toàn lệnh bán.",
+        "timeline": "Áp dụng trong Strategy + RiskGuard"
+      },
+      "p3": {
+        "title": "Bối cảnh thị trường & Đồng thuận",
+        "goal": "Giảm quy mô trong chế độ bất lợi và xác nhận giá trên nhiều sàn trước khi thực thi.",
+        "timeline": "Áp dụng trong RiskGuard + Executor"
+      },
+      "p4": {
+        "title": "Phát hiện chế độ biến động",
+        "goal": "Phát hiện đột phá BB squeeze để vào lệnh đúng lúc vào các đợt momentum có độ tin cậy cao.",
+        "timeline": "Áp dụng trong Analyzer"
+      }
+    },
+    "rules": {
+      "adx": {
+        "label": "Bộ lọc xu hướng ADX",
+        "note": "Tín hiệu bị loại nếu ADX < 20, cho thấy thị trường yếu hoặc đang đi ngang không có xu hướng rõ ràng."
+      },
+      "volume": {
+        "label": "Xác nhận khối lượng",
+        "note": "Yêu cầu khối lượng ít nhất 1,2× trung bình 20 chu kỳ. Ngăn vào lệnh ở những chuyển động thiếu sức mạnh."
+      },
+      "spread": {
+        "label": "Cổng spread & trượt giá",
+        "note": "Chặn thực thi nếu spread bid-ask vượt giới hạn theo ký hiệu (0,2% BTC/ETH, 0,5% altcoin)."
+      },
+      "atrSl": {
+        "label": "Stoploss theo ATR",
+        "note": "Đặt stoploss tại 1,5× ATR(14) từ điểm vào thay vì tỷ lệ cố định, thích ứng với biến động hiện tại."
+      },
+      "partialTp": {
+        "label": "Chốt lời từng phần",
+        "note": "Đóng 50% vị thế ở mức lãi Giai đoạn 1 (+1,5%) và kéo dài phần còn lại đến Giai đoạn 2 (+3,0%)."
+      },
+      "kelly": {
+        "label": "Định cỡ Quarter-Kelly",
+        "note": "Định cỡ mỗi giao dịch bằng 25% phần tối ưu Kelly, được tính từ tỷ lệ thắng và lãi/lỗ của 30 ngày qua."
+      },
+      "shortSafety": {
+        "label": "An toàn lệnh bán (SHORT)",
+        "note": "Chặn tín hiệu SHORT nếu RSI > 60 hoặc tỷ lệ tài trợ > 2%, tránh bán ngược xu hướng trong điều kiện tăng giá."
+      },
+      "regime": {
+        "label": "Giảm quy mô theo chế độ thị trường",
+        "note": "Giới hạn quy mô vị thế ở 35% mức bình thường khi thị trường ở chế độ HighVolatility."
+      },
+      "consensus": {
+        "label": "Đồng thuận giá đa sàn",
+        "note": "So sánh giá Binance và Bybit trước khi thực thi. Từ chối nếu chênh lệch hơn 0,1%."
+      },
+      "bbSqueeze": {
+        "label": "Đột phá BB Squeeze",
+        "note": "Chỉ vào lệnh khi độ rộng Bollinger Band hiện tại dưới 80% đường cơ sở 100 nến, báo hiệu squeeze."
+      }
     }
   },
 
