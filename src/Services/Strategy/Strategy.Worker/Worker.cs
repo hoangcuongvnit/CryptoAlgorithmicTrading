@@ -73,6 +73,34 @@ public sealed class Worker : BackgroundService
         await base.StopAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Returns true (and logs) when the platform trading mode is not TradingEnabled.
+    /// Fails open on Redis errors so a Redis outage never silently kills order flow.
+    /// </summary>
+    private async Task<bool> IsTradingBlockedAsync(string symbol, CancellationToken ct)
+    {
+        const string TradingModeKey = "executor:trading:mode";
+        try
+        {
+            var db = _redis.GetDatabase();
+            var mode = (string?)await db.StringGetAsync(TradingModeKey).WaitAsync(ct);
+
+            if (string.IsNullOrEmpty(mode) || mode == "TradingEnabled")
+                return false;
+
+            _logger.LogInformation(
+                "Signal for {Symbol} skipped: trading mode is {Mode}. Entry orders blocked until trading is resumed.",
+                symbol, mode);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "IsTradingBlockedAsync: Redis unavailable — failing open to avoid blocking order flow");
+            return false;
+        }
+    }
+
     private async Task OnSignalAsync(RedisValue payload, CancellationToken cancellationToken)
     {
         TradeSignal? signal;
@@ -115,6 +143,12 @@ public sealed class Worker : BackgroundService
                 return;
             }
         }
+
+        // Trading-mode gate: skip entry orders while system is not in TradingEnabled state.
+        // Executor would reject them anyway; checking here prevents noisy FAILED order records.
+        var tradingModeBlocked = await IsTradingBlockedAsync(signal.Symbol, cancellationToken);
+        if (tradingModeBlocked)
+            return;
 
         if (!_mapper.TryMap(signal, out var order, session) || order is null)
         {

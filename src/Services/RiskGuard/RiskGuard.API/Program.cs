@@ -32,7 +32,8 @@ builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Tr
 builder.Services.AddSingleton<SessionClock>();
 builder.Services.AddSingleton<SessionTradingPolicy>();
 
-// Rules — evaluated in this order: recovery gate first, then session guards, then fast/cheap checks, DB-backed checks last
+// Rules — evaluated in this order: system-state gates first, then session guards, then fast/cheap checks, DB-backed checks last
+builder.Services.AddSingleton<IRiskRule, ExitOnlyRule>();
 builder.Services.AddSingleton<IRiskRule, RecoveryWindowRule>();
 builder.Services.AddSingleton<IRiskRule, NoCrossSessionCarryRule>();
 builder.Services.AddSingleton<IRiskRule, SessionWindowRule>();

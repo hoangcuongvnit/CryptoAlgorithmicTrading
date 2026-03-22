@@ -109,11 +109,22 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
         p.Add("offset", (Math.Max(page, 1) - 1) * pageSize);
 
         var countSql = $"SELECT COUNT(*) FROM public.risk_evaluations {where}";
-        var dataSql = $"""
-            SELECT evaluation_id, order_request_id, session_id, symbol, side,
-                   requested_quantity, requested_price, market_price_at_evaluation,
-                   outcome, final_reason_code, final_reason_message, adjusted_quantity,
-                   evaluated_at_utc, evaluation_latency_ms, correlation_id
+         var dataSql = $"""
+             SELECT evaluation_id AS "EvaluationId",
+                 order_request_id AS "OrderRequestId",
+                 session_id AS "SessionId",
+                 symbol AS "Symbol",
+                 side AS "Side",
+                 requested_quantity AS "RequestedQuantity",
+                 requested_price AS "RequestedPrice",
+                 market_price_at_evaluation AS "MarketPriceAtEvaluation",
+                 outcome AS "Outcome",
+                 final_reason_code AS "FinalReasonCode",
+                 final_reason_message AS "FinalReasonMessage",
+                 adjusted_quantity AS "AdjustedQuantity",
+                 evaluated_at_utc AS "EvaluatedAtUtc",
+                 evaluation_latency_ms AS "EvaluationLatencyMs",
+                 correlation_id AS "CorrelationId"
             FROM public.risk_evaluations
             {where}
             ORDER BY evaluated_at_utc DESC
@@ -129,9 +140,17 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
             return ([], total);
 
         var evalIds = rows.Select(r => r.EvaluationId).ToArray();
-        const string rulesSql = """
-            SELECT evaluation_id, rule_name, rule_version, result, reason_code, reason_message,
-                   threshold_value, actual_value, duration_ms, sequence_order
+         const string rulesSql = """
+             SELECT evaluation_id AS "EvaluationId",
+                 rule_name AS "RuleName",
+                 rule_version AS "RuleVersion",
+                 result AS "Result",
+                 reason_code AS "ReasonCode",
+                 reason_message AS "ReasonMessage",
+                 threshold_value AS "ThresholdValue",
+                 actual_value AS "ActualValue",
+                 duration_ms AS "DurationMs",
+                 sequence_order AS "SequenceOrder"
             FROM public.risk_evaluation_rule_results
             WHERE evaluation_id = ANY(@ids)
             ORDER BY evaluation_id, sequence_order
@@ -150,18 +169,37 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
 
     public async Task<RiskEvaluationDto?> GetByIdAsync(Guid evaluationId, CancellationToken ct = default)
     {
-        const string evalSql = """
-            SELECT evaluation_id, order_request_id, session_id, symbol, side,
-                   requested_quantity, requested_price, market_price_at_evaluation,
-                   outcome, final_reason_code, final_reason_message, adjusted_quantity,
-                   evaluated_at_utc, evaluation_latency_ms, correlation_id
+         const string evalSql = """
+             SELECT evaluation_id AS "EvaluationId",
+                 order_request_id AS "OrderRequestId",
+                 session_id AS "SessionId",
+                 symbol AS "Symbol",
+                 side AS "Side",
+                 requested_quantity AS "RequestedQuantity",
+                 requested_price AS "RequestedPrice",
+                 market_price_at_evaluation AS "MarketPriceAtEvaluation",
+                 outcome AS "Outcome",
+                 final_reason_code AS "FinalReasonCode",
+                 final_reason_message AS "FinalReasonMessage",
+                 adjusted_quantity AS "AdjustedQuantity",
+                 evaluated_at_utc AS "EvaluatedAtUtc",
+                 evaluation_latency_ms AS "EvaluationLatencyMs",
+                 correlation_id AS "CorrelationId"
             FROM public.risk_evaluations
             WHERE evaluation_id = @evaluationId
             """;
 
-        const string rulesSql = """
-            SELECT evaluation_id, rule_name, rule_version, result, reason_code, reason_message,
-                   threshold_value, actual_value, duration_ms, sequence_order
+         const string rulesSql = """
+             SELECT evaluation_id AS "EvaluationId",
+                 rule_name AS "RuleName",
+                 rule_version AS "RuleVersion",
+                 result AS "Result",
+                 reason_code AS "ReasonCode",
+                 reason_message AS "ReasonMessage",
+                 threshold_value AS "ThresholdValue",
+                 actual_value AS "ActualValue",
+                 duration_ms AS "DurationMs",
+                 sequence_order AS "SequenceOrder"
             FROM public.risk_evaluation_rule_results
             WHERE evaluation_id = @evaluationId
             ORDER BY sequence_order
