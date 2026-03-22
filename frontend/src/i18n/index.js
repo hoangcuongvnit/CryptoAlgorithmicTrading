@@ -2,6 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 
+import viBudget from './locales/vi/budget.json'
 import viNavigation from './locales/vi/navigation.json'
 import viCommon from './locales/vi/common.json'
 import viOverview from './locales/vi/overview.json'
@@ -14,6 +15,7 @@ import viSessionReport from './locales/vi/session-report.json'
 import viSettings from './locales/vi/settings.json'
 import viShutdown from './locales/vi/shutdown.json'
 
+import enBudget from './locales/en/budget.json'
 import enNavigation from './locales/en/navigation.json'
 import enCommon from './locales/en/common.json'
 import enOverview from './locales/en/overview.json'
@@ -32,6 +34,7 @@ i18n
   .init({
     resources: {
       vi: {
+        budget: viBudget,
         navigation: viNavigation,
         common: viCommon,
         overview: viOverview,
@@ -45,6 +48,7 @@ i18n
         shutdown: viShutdown,
       },
       en: {
+        budget: enBudget,
         navigation: enNavigation,
         common: enCommon,
         overview: enOverview,

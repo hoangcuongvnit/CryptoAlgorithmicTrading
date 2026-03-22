@@ -7,6 +7,7 @@ import {
   useDailyTimeAnalytics,
   useDailyHourly,
   useOpenPositions,
+  useCapitalFlow,
 } from '../hooks/useDashboard.js'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { formatTime } from '../utils/dateFormat.js'
@@ -236,6 +237,91 @@ function DurationHistogram({ trades }) {
           <span className="text-xs text-center" style={{ color: '#94a3b8', fontSize: 9 }}>{c.label}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Capital Flow Timeline ─────────────────────────────────────────────────────
+
+const CF_COLORS = {
+  INITIAL:        '#94a3b8',
+  SESSION_PNL:    '#3b82f6',
+  DEPOSIT:        '#22c55e',
+  WITHDRAW:       '#f59e0b',
+  RESET:          '#ef4444',
+  SNAPSHOT_OPEN:  '#8b5cf6',
+  SNAPSHOT_CLOSE: '#6366f1',
+}
+
+function CapitalFlowTimeline({ dateStr, t }) {
+  const { data: events, loading, error } = useCapitalFlow({ from: dateStr, to: dateStr })
+
+  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+  const fmtUsd  = v => v != null ? `$${Number(v).toFixed(2)}` : '—'
+  const fmtChg  = v => {
+    const n = Number(v)
+    if (!n) return null
+    return { text: `${n > 0 ? '+' : ''}$${Math.abs(n).toFixed(2)}`, positive: n > 0 }
+  }
+
+  if (loading) return (
+    <div className="flex justify-center py-8 text-sm" style={{ color: '#94a3b8' }}>
+      <span className="animate-pulse">Loading...</span>
+    </div>
+  )
+  if (error || !events?.length) return (
+    <div className="flex justify-center py-8 text-sm" style={{ color: '#94a3b8' }}>{t('capitalFlow.noData')}</div>
+  )
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left border-b border-[#dbe4ef]" style={{ color: '#64748b' }}>
+            <th className="pb-2 pr-3 font-medium">{t('capitalFlow.time')}</th>
+            <th className="pb-2 pr-3 font-medium">{t('capitalFlow.event')}</th>
+            <th className="pb-2 pr-3 font-medium text-right">{t('capitalFlow.change')}</th>
+            <th className="pb-2 pr-3 font-medium text-right">{t('capitalFlow.cash')}</th>
+            <th className="pb-2 pr-3 font-medium text-right">{t('capitalFlow.holdings')}</th>
+            <th className="pb-2 pr-3 font-medium text-right">{t('capitalFlow.equity')}</th>
+            <th className="pb-2 font-medium">{t('capitalFlow.description')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map((ev, i) => {
+            const chg = fmtChg(ev.adjustmentAmount)
+            const color = CF_COLORS[ev.eventType] ?? '#475569'
+            return (
+              <tr key={i} className="border-b border-[#f1f5f9] last:border-0 hover:bg-[#f8fafc]">
+                <td className="py-2 pr-3 text-xs font-mono" style={{ color: '#475569' }}>
+                  {fmtTime(ev.recordedAtUtc)}
+                </td>
+                <td className="py-2 pr-3">
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={{ background: color + '1a', color }}>
+                    {t(`capitalFlow.eventTypes.${ev.eventType}`, { defaultValue: ev.eventType })}
+                  </span>
+                </td>
+                <td className={`py-2 pr-3 text-right text-xs font-semibold font-mono ${chg ? (chg.positive ? 'text-green-600' : 'text-red-500') : 'text-gray-400'}`}>
+                  {chg ? chg.text : '—'}
+                </td>
+                <td className="py-2 pr-3 text-right text-xs font-mono" style={{ color: '#1e3a5f' }}>
+                  {fmtUsd(ev.cashBalance)}
+                </td>
+                <td className="py-2 pr-3 text-right text-xs font-mono" style={{ color: '#475569' }}>
+                  {fmtUsd(ev.holdingsValue)}
+                </td>
+                <td className="py-2 pr-3 text-right text-xs font-mono font-semibold" style={{ color: '#1e3a5f' }}>
+                  {fmtUsd(ev.totalEquity)}
+                </td>
+                <td className="py-2 text-xs" style={{ color: '#64748b', maxWidth: 200 }}>
+                  {ev.description ?? '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -634,6 +720,11 @@ export function ReportPage() {
             {timeLoading ? <LoadingRow /> : (
               <DurationHistogram trades={timeData?.trades} />
             )}
+          </Section>
+
+          {/* Capital Flow Timeline */}
+          <Section title={t('capitalFlow.title')}>
+            <CapitalFlowTimeline dateStr={selectedDate} t={t} />
           </Section>
 
           {/* Individual trade list */}

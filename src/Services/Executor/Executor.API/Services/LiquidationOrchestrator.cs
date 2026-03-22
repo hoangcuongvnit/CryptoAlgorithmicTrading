@@ -2,6 +2,7 @@ using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Json;
 using CryptoTrading.Shared.Session;
+using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -21,6 +22,9 @@ public sealed class LiquidationOrchestrator : BackgroundService
     private readonly OrderExecutionService _executionService;
     private readonly IConnectionMultiplexer _redis;
     private readonly SessionSettings _sessionSettings;
+    private readonly TradingSettings _tradingSettings;
+    private readonly OrderRepository _orderRepository;
+    private readonly BudgetRepository _budgetRepository;
     private readonly ILogger<LiquidationOrchestrator> _logger;
 
     private string? _lastSessionId;
@@ -34,6 +38,9 @@ public sealed class LiquidationOrchestrator : BackgroundService
         OrderExecutionService executionService,
         IConnectionMultiplexer redis,
         IOptions<SessionSettings> sessionSettings,
+        IOptions<TradingSettings> tradingSettings,
+        OrderRepository orderRepository,
+        BudgetRepository budgetRepository,
         ILogger<LiquidationOrchestrator> logger)
     {
         _sessionClock = sessionClock;
@@ -42,6 +49,9 @@ public sealed class LiquidationOrchestrator : BackgroundService
         _executionService = executionService;
         _redis = redis;
         _sessionSettings = sessionSettings.Value;
+        _tradingSettings = tradingSettings.Value;
+        _orderRepository = orderRepository;
+        _budgetRepository = budgetRepository;
         _logger = logger;
     }
 
@@ -86,6 +96,7 @@ public sealed class LiquidationOrchestrator : BackgroundService
             _lastSessionId = session.SessionId;
             _logger.LogInformation("Session started: {SessionId}", session.SessionId);
             await PublishSessionEventAsync(SystemEventType.SessionStarted, session);
+            await RecordSnapshotAsync(session.SessionId, session.SessionNumber, "OPEN", CancellationToken.None);
         }
 
         // Detect phase transition
@@ -151,6 +162,56 @@ public sealed class LiquidationOrchestrator : BackgroundService
 
             // Emergency market close for all remaining positions
             await EmergencyFlattenAsync(ct);
+        }
+
+        // Record session PnL to capital ledger and write closing snapshot
+        try
+        {
+            var pnl = await _orderRepository.GetSessionRealizedPnLAsync(sessionId, ct);
+            await _budgetRepository.RecordSessionPnLAsync(sessionId, pnl, ct);
+            _logger.LogInformation("Session {SessionId} PnL recorded to capital ledger: {PnL:F4}", sessionId, pnl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record session PnL for {SessionId} — ledger update skipped", sessionId);
+        }
+
+        // Parse session number from sessionId (format "YYYYMMDD-SN")
+        var endedSession = _sessionClock.GetCurrentSession();
+        if (int.TryParse(sessionId.Length >= 10 ? sessionId[9..] : "0", out var endedNum))
+            await RecordSnapshotAsync(sessionId, endedNum, "CLOSE", ct);
+    }
+
+    private async Task RecordSnapshotAsync(string sessionId, int sessionNumber, string snapshotType, CancellationToken ct)
+    {
+        try
+        {
+            var status = await _budgetRepository.GetBudgetStatusAsync(ct);
+            if (status is null) return;
+
+            var openPositions = _positionTracker.GetOpenPositions();
+            var mode = _tradingSettings.PaperTradingMode ? "paper" : "live";
+
+            // Holdings value: sum of open position market values (approximated as quantity × current price)
+            decimal holdingsValue = openPositions.Sum(pos =>
+            {
+                var qty   = (decimal)(pos.GetType().GetProperty("quantity")?.GetValue(pos)   ?? 0m);
+                var price = (decimal)(pos.GetType().GetProperty("currentPrice")?.GetValue(pos) ?? 0m);
+                return qty * price;
+            });
+
+            await _budgetRepository.RecordSessionSnapshotAsync(
+                sessionId, sessionNumber, snapshotType,
+                status.CurrentCashBalance, holdingsValue, openPositions.Count,
+                mode, ct);
+
+            _logger.LogInformation(
+                "Snapshot {Type} recorded for session {SessionId}: cash={Cash:F2}, holdings={Holdings:F2}",
+                snapshotType, sessionId, status.CurrentCashBalance, holdingsValue);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record {Type} snapshot for session {SessionId}", snapshotType, sessionId);
         }
     }
 

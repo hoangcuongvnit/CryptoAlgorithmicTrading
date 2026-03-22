@@ -572,7 +572,11 @@ public sealed class OrderRepository
                 (COUNT(*) FILTER (WHERE status = 'OPEN') = 0)                                         AS is_flat_at_close
             FROM public.orders
             WHERE time >= @Start AND time < @End{modeFilter}
-            GROUP BY session_id, session_num, session_start_utc, session_end_utc
+            GROUP BY
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int,
+                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int,
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4))     * INTERVAL '4 hours')),
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4) + 1) * INTERVAL '4 hours'))
             ORDER BY session_start_utc;
             """;
 
@@ -693,7 +697,9 @@ public sealed class OrderRepository
             FROM public.orders
             WHERE time >= @Start AND time < @End
               AND success = true{modeFilter}
-            GROUP BY session_id, session_num
+            GROUP BY
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int,
+                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int
             ORDER BY session_start_utc;
             """;
 
@@ -814,5 +820,30 @@ public sealed class OrderRepository
         string? SessionId)
     {
         public decimal NetQty => BoughtQty - SoldQty;
+    }
+
+    // ── Budget / Capital Tracking ─────────────────────────────────────────────
+
+    public async Task<decimal> GetSessionRealizedPnLAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT COALESCE(SUM(realized_pnl), 0)
+            FROM public.orders
+            WHERE session_id = @SessionId
+              AND status = 'CLOSED'
+              AND success = true;
+            """;
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            return await connection.QuerySingleAsync<decimal>(
+                new CommandDefinition(sql, new { SessionId = sessionId }, cancellationToken: cancellationToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get realized PnL for session {SessionId}", sessionId);
+            return 0m;
+        }
     }
 }

@@ -67,6 +67,27 @@
     "closeTime": "Close",
     "duration": "Duration"
   },
+  "capitalFlow": {
+    "title": "Cash Flow Timeline",
+    "noData": "No capital flow events for this day.",
+    "time": "Time",
+    "event": "Event",
+    "cash": "Cash",
+    "holdings": "Holdings Value",
+    "equity": "Total Equity",
+    "change": "Change",
+    "description": "Description",
+    "eventTypes": {
+      "INITIAL":        "Initial",
+      "SESSION_PNL":    "Session PnL",
+      "DEPOSIT":        "Deposit",
+      "WITHDRAW":       "Withdraw",
+      "RESET":          "Reset",
+      "SNAPSHOT_OPEN":  "Session Open",
+      "SNAPSHOT_CLOSE": "Session Close"
+    }
+  },
+
   "empty": {
     "noTrades": "No trades found for this date.",
     "noPositions": "No open positions."

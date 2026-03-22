@@ -67,6 +67,27 @@
     "closeTime": "Đóng lệnh",
     "duration": "Thời gian"
   },
+  "capitalFlow": {
+    "title": "Dòng tiền theo thời gian",
+    "noData": "Không có sự kiện dòng tiền nào trong ngày này.",
+    "time": "Thời gian",
+    "event": "Sự kiện",
+    "cash": "Tiền mặt",
+    "holdings": "Giá trị nắm giữ",
+    "equity": "Tổng tài sản",
+    "change": "Thay đổi",
+    "description": "Mô tả",
+    "eventTypes": {
+      "INITIAL":        "Khởi tạo",
+      "SESSION_PNL":    "Lãi/lỗ phiên",
+      "DEPOSIT":        "Nạp tiền",
+      "WITHDRAW":       "Rút tiền",
+      "RESET":          "Đặt lại",
+      "SNAPSHOT_OPEN":  "Mở phiên",
+      "SNAPSHOT_CLOSE": "Đóng phiên"
+    }
+  },
+
   "empty": {
     "noTrades": "Không có giao dịch nào trong ngày này.",
     "noPositions": "Không có vị thế đang mở."

@@ -56,6 +56,7 @@ builder.Services.AddSingleton<IBinanceRestClient>(_ => new BinanceRestClient());
 
 builder.Services.AddSingleton<PriceReferenceRepository>();
 builder.Services.AddSingleton<OrderRepository>();
+builder.Services.AddSingleton<BudgetRepository>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
 builder.Services.AddSingleton<PaperOrderSimulator>();
 builder.Services.AddSingleton<BinanceOrderClient>();
@@ -255,6 +256,103 @@ app.MapGet("/api/trading/session/positions", (
 
 // ── Trading Control (close-all / shutdown) endpoints ─────────────────────
 
+// ── Budget Management endpoints ───────────────────────────────────────────
+
+app.MapGet("/api/trading/budget/status", async (
+    [FromServices] BudgetRepository budget,
+    CancellationToken ct) =>
+{
+    var status = await budget.GetBudgetStatusAsync(ct);
+    return status is null
+        ? Results.NotFound(new { error = "No active paper trading account found. Run the capital ledger migration." })
+        : Results.Ok(status);
+});
+
+app.MapGet("/api/trading/budget/ledger", async (
+    [FromServices] BudgetRepository budget,
+    [FromQuery] string? from,
+    [FromQuery] string? to,
+    [FromQuery] int? limit,
+    [FromQuery] int? offset,
+    CancellationToken ct) =>
+{
+    var fromDate = DateTime.TryParse(from, out var pFrom) ? (DateTime?)pFrom : null;
+    var toDate   = DateTime.TryParse(to,   out var pTo)   ? (DateTime?)pTo.AddDays(1) : null;
+    var (transactions, total) = await budget.GetLedgerAsync(fromDate, toDate, limit ?? 100, offset ?? 0, ct);
+    return Results.Ok(new { transactions, totalCount = total });
+});
+
+app.MapPost("/api/trading/budget/deposit", async (
+    [FromServices] BudgetRepository budget,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<BudgetOperationRequest>(ct);
+    if (body is null || body.Amount <= 0)
+        return Results.BadRequest(new { error = "amount must be a positive number." });
+
+    var (success, error, txId, newBalance) = await budget.DepositAsync(body.Amount, body.Description, body.RequestedBy, ct);
+    return success
+        ? Results.Ok(new { success = true, transactionId = txId, newBalance, recordedAt = DateTime.UtcNow })
+        : Results.BadRequest(new { success = false, error });
+});
+
+app.MapPost("/api/trading/budget/withdraw", async (
+    [FromServices] BudgetRepository budget,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<BudgetOperationRequest>(ct);
+    if (body is null || body.Amount <= 0)
+        return Results.BadRequest(new { error = "amount must be a positive number." });
+
+    var (success, error, txId, newBalance) = await budget.WithdrawAsync(body.Amount, body.Description, body.RequestedBy, ct);
+    return success
+        ? Results.Ok(new { success = true, transactionId = txId, newBalance, recordedAt = DateTime.UtcNow })
+        : Results.BadRequest(new { success = false, error });
+});
+
+app.MapGet("/api/trading/budget/equity-curve", async (
+    [FromServices] BudgetRepository budget,
+    [FromQuery] string? from,
+    [FromQuery] string? to,
+    CancellationToken ct) =>
+{
+    var fromDate = DateTime.TryParse(from, out var pFrom) ? (DateTime?)pFrom : null;
+    var toDate   = DateTime.TryParse(to,   out var pTo)   ? (DateTime?)pTo.AddDays(1) : null;
+    var points = await budget.GetEquityCurveAsync(fromDate, toDate, ct);
+    return Results.Ok(points);
+});
+
+app.MapGet("/api/trading/report/capital-flow", async (
+    [FromServices] BudgetRepository budget,
+    [FromQuery] string? from,
+    [FromQuery] string? to,
+    [FromQuery] string? mode,
+    CancellationToken ct) =>
+{
+    var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date;
+    var toDate   = DateTime.TryParse(to,   out var pTo)   ? pTo   : DateTime.UtcNow.Date;
+    var tradingMode = mode is "live" ? "live" : "paper";
+    var events = await budget.GetCapitalFlowAsync(fromDate, toDate, tradingMode, ct);
+    return Results.Ok(events);
+});
+
+app.MapPost("/api/trading/budget/reset", async (
+    [FromServices] BudgetRepository budget,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = await request.ReadFromJsonAsync<BudgetResetRequest>(ct);
+    if (body is null || body.NewInitialCapital <= 0)
+        return Results.BadRequest(new { error = "newInitialCapital must be a positive number." });
+
+    var (success, error, newBalance, previousBalance) = await budget.ResetAsync(body.NewInitialCapital, body.Description, body.RequestedBy, ct);
+    return success
+        ? Results.Ok(new { success = true, newBalance, previousBalance, resetAt = DateTime.UtcNow })
+        : Results.BadRequest(new { success = false, error });
+});
+
 app.MapPost("/api/trading/control/close-all", async (
     [FromServices] ShutdownOperationService shutdownOp,
     [FromServices] CloseAllExecutorService executor,
@@ -409,6 +507,9 @@ app.MapPost("/api/trading/control/resume", async (
 });
 
 app.Run();
+
+record BudgetOperationRequest(decimal Amount, string? Description, string? RequestedBy);
+record BudgetResetRequest(decimal NewInitialCapital, string? Description, string? RequestedBy);
 
 record CloseAllRequest(
     string? Reason,

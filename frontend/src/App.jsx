@@ -9,6 +9,7 @@ import { GuidancePage } from './pages/GuidancePage.jsx'
 import { ReportPage } from './pages/ReportPage.jsx'
 import { SessionReportPage } from './pages/SessionReportPage.jsx'
 import { SettingsPage } from './pages/SettingsPage.jsx'
+import { BudgetPage } from './pages/BudgetPage.jsx'
 import { ShutdownControlPage } from './pages/ShutdownControlPage.jsx'
 import { SettingsProvider } from './context/SettingsContext.jsx'
 
@@ -25,6 +26,7 @@ function Layout() {
     { path: '/safety',    label: t('safetyRisk'),      icon: '🛡️' },
     { path: '/events',    label: t('eventHistory'),    icon: '📋' },
     { path: '/guidance',  label: t('guidance'),        icon: '🧭' },
+    { path: '/budget',    label: t('budget'),            icon: '💰' },
     { path: '/shutdown',  label: t('shutdownControl'),  icon: '🛑' },
     { path: '/settings',  label: t('systemSettings'),  icon: '⚙️' },
   ]
@@ -126,6 +128,7 @@ function Layout() {
             <Route path="/safety"    element={<SafetyPage />} />
             <Route path="/events"    element={<EventsPage />} />
             <Route path="/guidance"  element={<GuidancePage onNavigate={p => navigate(p)} />} />
+            <Route path="/budget"    element={<BudgetPage />} />
             <Route path="/shutdown"  element={<ShutdownControlPage />} />
             <Route path="/settings"  element={<SettingsPage />} />
             <Route path="*"          element={<Navigate to="/" replace />} />

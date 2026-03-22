@@ -183,6 +183,56 @@ export function usePriceComparison(symbols, minutesBack = 60) {
   return usePolling(fn, 30000)
 }
 
+// ── Budget / Capital Ledger ───────────────────────────────────────────────
+
+export function useBudgetStatus() {
+  const fn = useCallback(() => fetchJson('/api/trading/budget/status'), [])
+  return usePolling(fn, 30000)
+}
+
+export function useBudgetLedger({ from, to, limit = 50, offset = 0 } = {}) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+    if (from) params.set('from', from)
+    if (to)   params.set('to', to)
+    return fetchJson(`/api/trading/budget/ledger?${params}`)
+  }, [from, to, limit, offset])
+  return usePolling(fn, 30000)
+}
+
+export async function apiBudgetDeposit({ amount, description, requestedBy }) {
+  return postJson('/api/trading/budget/deposit', { amount, description, requestedBy })
+}
+
+export async function apiBudgetWithdraw({ amount, description, requestedBy }) {
+  return postJson('/api/trading/budget/withdraw', { amount, description, requestedBy })
+}
+
+export async function apiBudgetReset({ newInitialCapital, description, requestedBy }) {
+  return postJson('/api/trading/budget/reset', { newInitialCapital, description, requestedBy })
+}
+
+export function useBudgetEquityCurve({ from, to } = {}) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to)   params.set('to', to)
+    const qs = params.toString()
+    return fetchJson(`/api/trading/budget/equity-curve${qs ? '?' + qs : ''}`)
+  }, [from, to])
+  return usePolling(fn, 60000)
+}
+
+export function useCapitalFlow({ from, to, mode = 'paper' } = {}) {
+  const fn = useCallback(() => {
+    const params = new URLSearchParams({ mode })
+    if (from) params.set('from', from)
+    if (to)   params.set('to', to)
+    return fetchJson(`/api/trading/report/capital-flow?${params}`)
+  }, [from, to, mode])
+  return usePolling(fn, 30000)
+}
+
 // ── Shutdown / Close-All ─────────────────────────────────────────────────
 
 async function postJson(url, body) {
