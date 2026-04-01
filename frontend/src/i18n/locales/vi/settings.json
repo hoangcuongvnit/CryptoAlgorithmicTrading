@@ -78,5 +78,125 @@
     "utcStorage": "Toàn bộ dữ liệu giao dịch được lưu theo UTC — không có dữ liệu nào bị thay đổi.",
     "displayOnly": "Cài đặt này chỉ ảnh hưởng đến hiển thị; chuyển đổi múi giờ diễn ra ở lớp trình bày.",
     "immediate": "Thay đổi áp dụng ngay cho tất cả các trang mà không cần tải lại."
+  },
+  "exchange": {
+    "title": "Cấu hình Sàn giao dịch",
+    "subtitle": "Cấu hình API Binance để giao dịch thực.",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Nhập Binance API Key của bạn",
+    "apiSecret": "API Secret",
+    "apiSecretPlaceholder": "Nhập Binance API Secret của bạn",
+    "leaveBlankToKeep": "bỏ trống để giữ nguyên",
+    "useTestnet": "Dùng Testnet (Môi trường thử nghiệm)",
+    "testnetBadge": "Testnet",
+    "mainnetBadge": "Mainnet",
+    "testnetWarning": "Cảnh báo: Bạn đang chuyển sang Mainnet. Tất cả lệnh tiếp theo sẽ dùng tiền thật.",
+    "testConnection": "Kiểm tra kết nối",
+    "validating": "Đang kiểm tra...",
+    "validateSuccess": "Kết nối Binance thành công",
+    "validateFailed": "Kết nối thất bại",
+    "save": "Lưu cấu hình sàn",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu cấu hình sàn giao dịch.",
+    "saveFailed": "Lưu cấu hình thất bại.",
+    "restartWarning": "Lưu ý: Dịch vụ Ingestor và HistoricalCollector cần khởi động lại để thông tin mới có hiệu lực.",
+    "status": {
+      "configured": "Đã cấu hình",
+      "notConfigured": "Chưa cấu hình"
+    },
+    "errors": {
+      "keyRequired": "API Key là bắt buộc khi cấu hình lần đầu.",
+      "secretRequired": "API Secret là bắt buộc khi cấu hình lần đầu.",
+      "networkError": "Lỗi mạng. Vui lòng thử lại."
+    },
+    "setupGuide": {
+      "toggle": "Hướng dẫn — Cách lấy Binance API Key",
+      "title": "Từng bước: Tạo Binance API Key",
+      "step1": "Đăng nhập Binance, vào Tài khoản → Quản lý API.",
+      "step2": "Nhấn 'Tạo API', chọn 'Hệ thống tạo', đặt nhãn cho API.",
+      "step3": "Bật quyền: 'Cho phép đọc' và 'Giao dịch Spot & Margin' (không bật quyền khác).",
+      "step4": "Giới hạn truy cập theo IP của máy chủ để tăng bảo mật (khuyến nghị).",
+      "step5": "Sao chép API Key và Secret — Secret chỉ hiển thị một lần.",
+      "linkMain": "Mở Binance API Management",
+      "linkTestnet": "Mở Binance Testnet",
+      "warning": "Không chia sẻ API Secret. Thu hồi và tạo lại ngay nếu bị lộ."
+    }
+  },
+  "tradingMode": {
+    "title": "Chế độ giao dịch",
+    "subtitle": "Chuyển đổi giữa giao dịch giả lập (paper) và giao dịch thực.",
+    "paperMode": "Chế độ Paper Trading",
+    "paperModeDescription": "Lệnh được mô phỏng — không dùng tiền thật.",
+    "liveModeDescription": "Lệnh được thực thi trên Binance bằng tiền thật.",
+    "initialBalance": "Số dư ban đầu (USDT)",
+    "initialBalancePlaceholder": "ví dụ: 10000",
+    "currentMode": "Chế độ hiện tại",
+    "paper": "Paper",
+    "live": "Live",
+    "save": "Lưu chế độ giao dịch",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu chế độ giao dịch.",
+    "saveFailed": "Lưu thất bại.",
+    "confirmLive": {
+      "title": "Chuyển sang giao dịch THỰC?",
+      "message": "Bạn đang chuyển sang chế độ Live. Tất cả lệnh tiếp theo sẽ thực thi trên Binance bằng tiền thật. Không thể tự động hoàn tác.",
+      "confirm": "Đồng ý, chuyển sang Live",
+      "cancel": "Hủy"
+    },
+    "confirmPaper": {
+      "title": "Chuyển sang Paper Trading?",
+      "message": "Bạn đang chuyển sang chế độ Paper. Các vị thế thực đang mở sẽ KHÔNG bị đóng tự động.",
+      "confirm": "Đồng ý, chuyển sang Paper",
+      "cancel": "Hủy"
+    },
+    "errors": {
+      "balanceRequired": "Số dư ban đầu phải là số dương.",
+      "networkError": "Lỗi mạng. Vui lòng thử lại."
+    }
+  },
+  "risk": {
+    "title": "Quản lý rủi ro",
+    "subtitle": "Cấu hình tham số rủi ro cho đánh giá lệnh. Thay đổi có hiệu lực ngay lập tức.",
+    "maxDrawdownPercent": "Drawdown tối đa (%)",
+    "maxDrawdownHint": "Dừng giao dịch khi lỗ trong ngày vượt quá % này so với số dư tài khoản (0.1 – 100).",
+    "minRiskReward": "Tỷ lệ Risk/Reward tối thiểu",
+    "minRiskRewardHint": "Từ chối lệnh có tỷ lệ R:R thấp hơn ngưỡng này (0.5 – 10).",
+    "maxPositionSizePercent": "Kích thước vị thế tối đa (%)",
+    "maxPositionSizeHint": "Giá trị lệnh tối đa tính theo % số dư ảo (0.1 – 100).",
+    "cooldownSeconds": "Thời gian chờ (giây)",
+    "cooldownHint": "Số giây tối thiểu giữa hai lệnh liên tiếp trên cùng cặp tiền (0 – 3600).",
+    "save": "Lưu cài đặt rủi ro",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu và áp dụng cài đặt rủi ro vào RiskGuard.",
+    "saveFailed": "Lưu cài đặt rủi ro thất bại.",
+    "liveWarning": "Các tham số này kiểm soát đánh giá lệnh thực. Thay đổi được áp dụng ngay lập tức.",
+    "activeValues": "Đang áp dụng (RiskGuard)",
+    "savedValues": "Đã lưu trong DB",
+    "errors": {
+      "networkError": "Lỗi mạng. Vui lòng thử lại.",
+      "validationError": "Vui lòng kiểm tra lại các giá trị."
+    }
+  },
+  "housekeeper": {
+    "title": "HouseKeeper",
+    "subtitle": "Cấu hình tự động dọn dẹp và lưu giữ dữ liệu.",
+    "enabled": "Bật",
+    "dryRun": "Chạy thử (không xóa thực)",
+    "scheduleUtc": "Lịch chạy (UTC, HH:MM)",
+    "scheduleHint": "Thời điểm trong ngày (theo UTC) để chạy tác vụ dọn dẹp.",
+    "retentionOrdersDays": "Lưu giữ lệnh (ngày)",
+    "retentionGapsDays": "Lưu giữ dữ liệu gap (ngày)",
+    "retentionTicksMonths": "Lưu giữ dữ liệu giá (tháng)",
+    "batchSize": "Kích thước batch",
+    "maxRunSeconds": "Thời gian chạy tối đa (giây)",
+    "save": "Lưu cài đặt HouseKeeper",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu cài đặt HouseKeeper.",
+    "saveFailed": "Lưu cài đặt thất bại.",
+    "restartWarning": "Cần khởi động lại dịch vụ HouseKeeper để áp dụng thay đổi.",
+    "errors": {
+      "invalidSchedule": "Lịch chạy phải theo định dạng HH:MM (ví dụ: 03:15).",
+      "networkError": "Lỗi mạng. Vui lòng thử lại."
+    }
   }
 }

@@ -17,8 +17,9 @@ builder.Services.AddSingleton(sp =>
         ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required");
     var protectionProvider = sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
     var protector = protectionProvider.CreateProtector("TelegramBotToken");
+    var binanceProtector = protectionProvider.CreateProtector("BinanceCredentials");
     var logger = sp.GetRequiredService<ILogger<SystemSettingsRepository>>();
-    return new SystemSettingsRepository(cs, protector, logger);
+    return new SystemSettingsRepository(cs, protector, binanceProtector, logger);
 });
 
 builder.Services.AddHttpClient("riskguard", client =>
@@ -939,6 +940,265 @@ settingsGroup.MapPost("/notifications/telegram/health-check", async (
     }
 });
 
+// ── Exchange (Binance) settings endpoints ─────────────────────────────────
+
+// GET /api/settings/exchange/binance
+settingsGroup.MapGet("/exchange/binance", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetExchangeSettingsAsync(ct);
+    return Results.Ok(new
+    {
+        isConfigured = cfg.IsConfigured,
+        apiKeyMasked = cfg.ApiKeyMasked,
+        apiSecretMasked = cfg.ApiSecretMasked,
+        useTestnet = cfg.UseTestnet,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// PUT /api/settings/exchange/binance
+settingsGroup.MapPut("/exchange/binance", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    ExchangeSaveRequest? body;
+    try { body = await request.ReadFromJsonAsync<ExchangeSaveRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    await repo.SaveExchangeSettingsAsync(body.ApiKey, body.ApiSecret, body.UseTestnet, body.UpdatedBy, ct);
+
+    // Push to Executor if credentials provided
+    var apiKey = !string.IsNullOrWhiteSpace(body.ApiKey) ? body.ApiKey : await repo.GetDecryptedApiKeyAsync(ct);
+    var apiSecret = !string.IsNullOrWhiteSpace(body.ApiSecret) ? body.ApiSecret : await repo.GetDecryptedApiSecretAsync(ct);
+    if (apiKey is not null && apiSecret is not null)
+    {
+        try
+        {
+            var client = factory.CreateClient("executor");
+            await client.PostAsJsonAsync("/api/trading/reload-exchange-config",
+                new { apiKey, apiSecret, useTestnet = body.UseTestnet }, ct);
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogWarning(ex, "Failed to push exchange config to Executor");
+        }
+    }
+
+    return Results.Ok(new { saved = true });
+});
+
+// POST /api/settings/exchange/binance/validate
+settingsGroup.MapPost("/exchange/binance/validate", async (
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    ExchangeValidateRequest? body;
+    try { body = await request.ReadFromJsonAsync<ExchangeValidateRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null || string.IsNullOrWhiteSpace(body.ApiKey) || string.IsNullOrWhiteSpace(body.ApiSecret))
+        return Results.BadRequest("apiKey and apiSecret are required");
+
+    try
+    {
+        var client = factory.CreateClient("executor");
+        var response = await client.PostAsJsonAsync("/api/trading/validate-exchange",
+            new { body.ApiKey, body.ApiSecret, body.UseTestnet }, ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { valid = false, message = $"Executor unreachable: {ex.Message}" });
+    }
+});
+
+// POST /api/settings/exchange/binance/validate-saved
+settingsGroup.MapPost("/exchange/binance/validate-saved", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    CancellationToken ct) =>
+{
+    var apiKey = await repo.GetDecryptedApiKeyAsync(ct);
+    var apiSecret = await repo.GetDecryptedApiSecretAsync(ct);
+    var cfg = await repo.GetExchangeSettingsAsync(ct);
+
+    if (apiKey is null || apiSecret is null)
+        return Results.Ok(new { valid = false, message = "No saved credentials found" });
+
+    try
+    {
+        var client = factory.CreateClient("executor");
+        var response = await client.PostAsJsonAsync("/api/trading/validate-exchange",
+            new { apiKey, apiSecret, useTestnet = cfg.UseTestnet }, ct);
+        var content = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { valid = false, message = $"Executor unreachable: {ex.Message}" });
+    }
+});
+
+// ── Trading Mode settings endpoints ───────────────────────────────────────
+
+// GET /api/settings/trading/mode
+settingsGroup.MapGet("/trading/mode", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetTradingModeSettingsAsync(ct);
+    return Results.Ok(new
+    {
+        paperTradingMode = cfg.PaperTradingMode,
+        initialBalance = cfg.InitialBalance,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// PUT /api/settings/trading/mode
+settingsGroup.MapPut("/trading/mode", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    TradingModeSaveRequest? body;
+    try { body = await request.ReadFromJsonAsync<TradingModeSaveRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    await repo.SaveTradingModeSettingsAsync(body.PaperTradingMode, body.InitialBalance, body.UpdatedBy, ct);
+
+    // Push to Executor
+    try
+    {
+        var client = factory.CreateClient("executor");
+        await client.PostAsJsonAsync("/api/trading/reload-trading-config",
+            new { paperTradingMode = body.PaperTradingMode, initialBalance = body.InitialBalance }, ct);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to push trading mode to Executor");
+    }
+
+    // Push PaperTradingOnly to RiskGuard
+    try
+    {
+        var client = factory.CreateClient("riskguard");
+        await client.PostAsJsonAsync("/api/risk/reload-config",
+            new { paperTradingOnly = body.PaperTradingMode }, ct);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to push trading mode to RiskGuard");
+    }
+
+    return Results.Ok(new { saved = true });
+});
+
+// ── Risk Management settings endpoints ────────────────────────────────────
+
+// GET /api/settings/risk
+settingsGroup.MapGet("/risk", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetRiskSettingsAsync(ct);
+    return Results.Ok(new
+    {
+        maxDrawdownPercent = cfg.MaxDrawdownPercent,
+        minRiskReward = cfg.MinRiskReward,
+        maxPositionSizePercent = cfg.MaxPositionSizePercent,
+        cooldownSeconds = cfg.CooldownSeconds,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// PUT /api/settings/risk
+settingsGroup.MapPut("/risk", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    RiskSaveRequest? body;
+    try { body = await request.ReadFromJsonAsync<RiskSaveRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    if (body.MaxDrawdownPercent is < 0.1m or > 100m) return Results.BadRequest("maxDrawdownPercent must be between 0.1 and 100");
+    if (body.MinRiskReward is < 0.5m or > 10m) return Results.BadRequest("minRiskReward must be between 0.5 and 10");
+    if (body.MaxPositionSizePercent is < 0.1m or > 100m) return Results.BadRequest("maxPositionSizePercent must be between 0.1 and 100");
+    if (body.CooldownSeconds is < 0 or > 3600) return Results.BadRequest("cooldownSeconds must be between 0 and 3600");
+
+    await repo.SaveRiskSettingsAsync(
+        body.MaxDrawdownPercent, body.MinRiskReward,
+        body.MaxPositionSizePercent, body.CooldownSeconds,
+        body.UpdatedBy, ct);
+
+    // Push to RiskGuard
+    try
+    {
+        var client = factory.CreateClient("riskguard");
+        await client.PostAsJsonAsync("/api/risk/reload-config", new
+        {
+            maxDrawdownPercent = body.MaxDrawdownPercent,
+            minRiskReward = body.MinRiskReward,
+            maxPositionSizePercent = body.MaxPositionSizePercent,
+            cooldownSeconds = body.CooldownSeconds,
+        }, ct);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to push risk config to RiskGuard");
+    }
+
+    return Results.Ok(new { saved = true });
+});
+
+// ── HouseKeeper settings endpoints ────────────────────────────────────────
+
+// GET /api/settings/housekeeper
+settingsGroup.MapGet("/housekeeper", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetHouseKeeperSettingsAsync(ct);
+    return Results.Ok(new
+    {
+        enabled = cfg.Enabled,
+        dryRun = cfg.DryRun,
+        scheduleUtc = cfg.ScheduleUtc,
+        retentionOrdersDays = cfg.RetentionOrdersDays,
+        retentionGapsDays = cfg.RetentionGapsDays,
+        retentionTicksMonths = cfg.RetentionTicksMonths,
+        batchSize = cfg.BatchSize,
+        maxRunSeconds = cfg.MaxRunSeconds,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// PUT /api/settings/housekeeper
+settingsGroup.MapPut("/housekeeper", async (
+    SystemSettingsRepository repo,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    HouseKeeperSaveRequest? body;
+    try { body = await request.ReadFromJsonAsync<HouseKeeperSaveRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    await repo.SaveHouseKeeperSettingsAsync(
+        body.Enabled, body.DryRun, body.ScheduleUtc,
+        body.RetentionOrdersDays, body.RetentionGapsDays, body.RetentionTicksMonths,
+        body.BatchSize, body.MaxRunSeconds, body.UpdatedBy, ct);
+
+    return Results.Ok(new { saved = true, note = "HouseKeeper service restart required for changes to take effect" });
+});
+
 // ── Trading Control proxy endpoints ──────────────────────────────────────
 
 var controlGroup = app.MapGroup("/api/control");
@@ -1046,34 +1306,98 @@ controlGroup.MapPost("/trading/resume", async (IHttpClientFactory factory, HttpR
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "Gateway.API", utc = DateTime.UtcNow }));
 app.MapFallbackToFile("index.html");
 
-// Push saved Telegram credentials to Notifier on startup so Notifier doesn't need env vars
+// Push all saved settings to services on startup (DB is source of truth after first UI save)
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
     {
-        await Task.Delay(TimeSpan.FromSeconds(3)); // allow Notifier to finish starting
+        await Task.Delay(TimeSpan.FromSeconds(3)); // allow services to finish starting
         var logger = app.Services.GetRequiredService<ILogger<SystemSettingsRepository>>();
+        var repo = app.Services.GetRequiredService<SystemSettingsRepository>();
+        var factory = app.Services.GetRequiredService<IHttpClientFactory>();
+
+        // Sync Telegram → Notifier
         try
         {
-            var repo = app.Services.GetRequiredService<SystemSettingsRepository>();
             var botToken = await repo.GetDecryptedBotTokenAsync();
             var chatId = await repo.GetChatIdAsync();
-            var cfg = await repo.GetTelegramSettingsAsync();
-            if (botToken is null || !chatId.HasValue)
+            var telegramCfg = await repo.GetTelegramSettingsAsync();
+            if (botToken is not null && chatId.HasValue)
             {
-                logger.LogInformation("No saved Telegram credentials found — skipping startup sync to Notifier");
-                return;
+                var client = factory.CreateClient("notifier");
+                await client.PostAsJsonAsync("/api/notifier/reload-config",
+                    new { botToken, chatId = chatId.Value, enabled = telegramCfg.Enabled });
+                logger.LogInformation("Telegram config synced to Notifier on startup (enabled={Enabled})", telegramCfg.Enabled);
             }
-
-            var factory = app.Services.GetRequiredService<IHttpClientFactory>();
-            var client = factory.CreateClient("notifier");
-            await client.PostAsJsonAsync("/api/notifier/reload-config",
-                new { botToken, chatId = chatId.Value, enabled = cfg.Enabled });
-            logger.LogInformation("Telegram config synced to Notifier on startup (enabled={Enabled})", cfg.Enabled);
+            else
+            {
+                logger.LogInformation("No saved Telegram credentials — skipping startup sync to Notifier");
+            }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to sync Telegram config to Notifier on startup — Notifier will use its own config");
+            logger.LogWarning(ex, "Failed to sync Telegram config to Notifier on startup");
+        }
+
+        // Sync Exchange credentials → Executor
+        try
+        {
+            var apiKey = await repo.GetDecryptedApiKeyAsync();
+            var apiSecret = await repo.GetDecryptedApiSecretAsync();
+            var exchangeCfg = await repo.GetExchangeSettingsAsync();
+            if (apiKey is not null && apiSecret is not null)
+            {
+                var client = factory.CreateClient("executor");
+                await client.PostAsJsonAsync("/api/trading/reload-exchange-config",
+                    new { apiKey, apiSecret, useTestnet = exchangeCfg.UseTestnet });
+                logger.LogInformation("Exchange credentials synced to Executor on startup (testnet={UseTestnet})", exchangeCfg.UseTestnet);
+            }
+            else
+            {
+                logger.LogInformation("No saved Binance credentials — skipping startup sync to Executor");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to sync Exchange credentials to Executor on startup");
+        }
+
+        // Sync Trading Mode → Executor + RiskGuard
+        try
+        {
+            var tradingCfg = await repo.GetTradingModeSettingsAsync();
+            var executorClient = factory.CreateClient("executor");
+            await executorClient.PostAsJsonAsync("/api/trading/reload-trading-config",
+                new { paperTradingMode = tradingCfg.PaperTradingMode, initialBalance = tradingCfg.InitialBalance });
+
+            var riskClient = factory.CreateClient("riskguard");
+            await riskClient.PostAsJsonAsync("/api/risk/reload-config",
+                new { paperTradingOnly = tradingCfg.PaperTradingMode });
+
+            logger.LogInformation("Trading mode synced on startup (paper={PaperTradingMode})", tradingCfg.PaperTradingMode);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to sync Trading Mode on startup");
+        }
+
+        // Sync Risk settings → RiskGuard
+        try
+        {
+            var riskCfg = await repo.GetRiskSettingsAsync();
+            var client = factory.CreateClient("riskguard");
+            await client.PostAsJsonAsync("/api/risk/reload-config", new
+            {
+                maxDrawdownPercent = riskCfg.MaxDrawdownPercent,
+                minRiskReward = riskCfg.MinRiskReward,
+                maxPositionSizePercent = riskCfg.MaxPositionSizePercent,
+                cooldownSeconds = riskCfg.CooldownSeconds,
+            });
+            logger.LogInformation("Risk settings synced to RiskGuard on startup");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to sync Risk settings to RiskGuard on startup");
         }
     });
 });
@@ -1183,3 +1507,8 @@ record TimezoneUpdateRequest(string Timezone, string? UpdatedBy);
 record TelegramValidateRequest(string BotToken, long ChatId);
 record TelegramSaveRequest(bool Enabled, string? BotToken, long ChatId, string? UpdatedBy);
 record TelegramTestMessageRequest(string? Message);
+record ExchangeSaveRequest(string? ApiKey, string? ApiSecret, bool UseTestnet, string? UpdatedBy);
+record ExchangeValidateRequest(string ApiKey, string ApiSecret, bool UseTestnet);
+record TradingModeSaveRequest(bool PaperTradingMode, decimal InitialBalance, string? UpdatedBy);
+record RiskSaveRequest(decimal MaxDrawdownPercent, decimal MinRiskReward, decimal MaxPositionSizePercent, int CooldownSeconds, string? UpdatedBy);
+record HouseKeeperSaveRequest(bool Enabled, bool DryRun, string ScheduleUtc, int RetentionOrdersDays, int RetentionGapsDays, int RetentionTicksMonths, int BatchSize, int MaxRunSeconds, string? UpdatedBy);

@@ -78,5 +78,125 @@
     "utcStorage": "All trade data is stored in UTC internally — no data is changed.",
     "displayOnly": "This setting controls display only; it converts timestamps at the presentation layer.",
     "immediate": "Changes apply instantly to all pages without a reload."
+  },
+  "exchange": {
+    "title": "Exchange Configuration",
+    "subtitle": "Configure Binance API credentials for live trading.",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter your Binance API key",
+    "apiSecret": "API Secret",
+    "apiSecretPlaceholder": "Enter your Binance API secret",
+    "leaveBlankToKeep": "leave blank to keep existing",
+    "useTestnet": "Use Testnet (Sandbox)",
+    "testnetBadge": "Testnet",
+    "mainnetBadge": "Mainnet",
+    "testnetWarning": "Warning: You are switching to Mainnet. This will use real funds for all future orders.",
+    "testConnection": "Test Connection",
+    "validating": "Testing...",
+    "validateSuccess": "Binance connection successful",
+    "validateFailed": "Connection failed",
+    "save": "Save Exchange Config",
+    "saving": "Saving...",
+    "saveSuccess": "Exchange configuration saved.",
+    "saveFailed": "Failed to save exchange configuration.",
+    "restartWarning": "Note: Ingestor and HistoricalCollector services require restart for credential changes to take effect.",
+    "status": {
+      "configured": "Configured",
+      "notConfigured": "Not Configured"
+    },
+    "errors": {
+      "keyRequired": "API Key is required for first-time setup.",
+      "secretRequired": "API Secret is required for first-time setup.",
+      "networkError": "Network error. Please try again."
+    },
+    "setupGuide": {
+      "toggle": "Setup guide — How to get your Binance API Key",
+      "title": "Step-by-step: Create a Binance API Key",
+      "step1": "Log in to your Binance account and go to Account → API Management.",
+      "step2": "Click 'Create API', choose 'System generated', and give it a label.",
+      "step3": "Enable permissions: 'Enable Reading' and 'Enable Spot & Margin Trading' only.",
+      "step4": "Set IP Access Restriction to your server IP for security (recommended).",
+      "step5": "Copy the API Key and Secret shown — the Secret is only shown once.",
+      "linkMain": "Open Binance API Management",
+      "linkTestnet": "Open Binance Testnet",
+      "warning": "Never share your API Secret. Revoke and regenerate it immediately if it is ever exposed."
+    }
+  },
+  "tradingMode": {
+    "title": "Trading Mode",
+    "subtitle": "Switch between paper (simulated) and live trading.",
+    "paperMode": "Paper Trading Mode",
+    "paperModeDescription": "Orders are simulated — no real funds are used.",
+    "liveModeDescription": "Orders are executed on Binance with real funds.",
+    "initialBalance": "Initial Paper Balance (USDT)",
+    "initialBalancePlaceholder": "e.g. 10000",
+    "currentMode": "Current Mode",
+    "paper": "Paper",
+    "live": "Live",
+    "save": "Save Trading Mode",
+    "saving": "Saving...",
+    "saveSuccess": "Trading mode saved.",
+    "saveFailed": "Failed to save trading mode.",
+    "confirmLive": {
+      "title": "Switch to LIVE Trading?",
+      "message": "You are switching to LIVE mode. All future orders will execute on Binance using real funds. This cannot be undone automatically.",
+      "confirm": "Yes, switch to Live",
+      "cancel": "Cancel"
+    },
+    "confirmPaper": {
+      "title": "Switch to Paper Trading?",
+      "message": "You are switching to Paper mode. Open live positions will NOT be closed automatically.",
+      "confirm": "Yes, switch to Paper",
+      "cancel": "Cancel"
+    },
+    "errors": {
+      "balanceRequired": "Initial balance must be a positive number.",
+      "networkError": "Network error. Please try again."
+    }
+  },
+  "risk": {
+    "title": "Risk Management",
+    "subtitle": "Configure risk parameters for trade evaluation. Changes take effect immediately.",
+    "maxDrawdownPercent": "Max Drawdown %",
+    "maxDrawdownHint": "Halt trading when daily loss exceeds this percentage of account balance (0.1 – 100).",
+    "minRiskReward": "Min Risk/Reward Ratio",
+    "minRiskRewardHint": "Reject trades with risk/reward below this ratio (0.5 – 10).",
+    "maxPositionSizePercent": "Max Position Size %",
+    "maxPositionSizeHint": "Maximum order notional as a percentage of virtual balance (0.1 – 100).",
+    "cooldownSeconds": "Cooldown (seconds)",
+    "cooldownHint": "Minimum seconds between consecutive orders on the same symbol (0 – 3600).",
+    "save": "Save Risk Settings",
+    "saving": "Saving...",
+    "saveSuccess": "Risk settings saved and applied to RiskGuard.",
+    "saveFailed": "Failed to save risk settings.",
+    "liveWarning": "These parameters control live trade evaluation. Changes are applied immediately.",
+    "activeValues": "Active in RiskGuard",
+    "savedValues": "Saved in DB",
+    "errors": {
+      "networkError": "Network error. Please try again.",
+      "validationError": "Please check the input values."
+    }
+  },
+  "housekeeper": {
+    "title": "HouseKeeper",
+    "subtitle": "Configure automated data cleanup and retention.",
+    "enabled": "Enabled",
+    "dryRun": "Dry Run (no actual deletion)",
+    "scheduleUtc": "Schedule (UTC, HH:MM)",
+    "scheduleHint": "Time of day in UTC when the cleanup job runs.",
+    "retentionOrdersDays": "Orders Retention (days)",
+    "retentionGapsDays": "Gap Data Retention (days)",
+    "retentionTicksMonths": "Price Ticks Retention (months)",
+    "batchSize": "Batch Size",
+    "maxRunSeconds": "Max Run Duration (seconds)",
+    "save": "Save HouseKeeper Settings",
+    "saving": "Saving...",
+    "saveSuccess": "HouseKeeper settings saved.",
+    "saveFailed": "Failed to save HouseKeeper settings.",
+    "restartWarning": "HouseKeeper service restart required for changes to take effect.",
+    "errors": {
+      "invalidSchedule": "Schedule must be in HH:MM format (e.g. 03:15).",
+      "networkError": "Network error. Please try again."
+    }
   }
 }

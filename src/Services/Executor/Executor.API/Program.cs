@@ -5,6 +5,7 @@ using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Executor.API.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using StackExchange.Redis;
@@ -528,6 +529,71 @@ app.MapPost("/api/trading/control/resume", async (
     });
 });
 
+// ── Runtime config reload endpoints (called by Gateway on settings change) ─
+
+app.MapPost("/api/trading/reload-exchange-config", (
+    [FromServices] IBinanceRestClient binanceClient,
+    [FromServices] IOptions<BinanceSettings> binanceOpts,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var body = request.ReadFromJsonAsync<ExchangeReloadRequest>(ct).GetAwaiter().GetResult();
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    var settings = binanceOpts.Value;
+    settings.ApiKey = body.ApiKey;
+    settings.ApiSecret = body.ApiSecret;
+    settings.UseTestnet = body.UseTestnet;
+
+    binanceClient.SetApiCredentials(new CryptoExchange.Net.Authentication.ApiCredentials(body.ApiKey, body.ApiSecret));
+
+    return Results.Ok(new { reloaded = true, useTestnet = body.UseTestnet });
+});
+
+app.MapPost("/api/trading/validate-exchange", async (
+    [FromServices] IBinanceRestClient binanceClient,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    ValidateExchangeRequest? body;
+    try { body = await request.ReadFromJsonAsync<ValidateExchangeRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null || string.IsNullOrWhiteSpace(body.ApiKey) || string.IsNullOrWhiteSpace(body.ApiSecret))
+        return Results.BadRequest("apiKey and apiSecret are required");
+
+    try
+    {
+        // Temporarily set credentials and test account info
+        binanceClient.SetApiCredentials(new CryptoExchange.Net.Authentication.ApiCredentials(body.ApiKey, body.ApiSecret));
+        var result = await binanceClient.SpotApi.Account.GetAccountInfoAsync(ct: ct);
+        if (result.Success)
+        {
+            return Results.Ok(new { valid = true, message = "Binance connection successful" });
+        }
+        else
+        {
+            return Results.Ok(new { valid = false, message = result.Error?.Message ?? "Authentication failed" });
+        }
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { valid = false, message = ex.Message });
+    }
+});
+
+app.MapPost("/api/trading/reload-trading-config", (
+    [FromServices] IOptions<TradingSettings> tradingOpts,
+    HttpRequest request) =>
+{
+    var body = request.ReadFromJsonAsync<TradingModeReloadRequest>().GetAwaiter().GetResult();
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    var settings = tradingOpts.Value;
+    settings.PaperTradingMode = body.PaperTradingMode;
+
+    return Results.Ok(new { reloaded = true, paperTradingMode = body.PaperTradingMode });
+});
+
 app.Run();
 
 record BudgetOperationRequest(decimal Amount, string? Description, string? RequestedBy);
@@ -549,3 +615,6 @@ record ScheduleCloseAllRequest(
 record CancelCloseAllRequest(string OperationId);
 
 record ResumeTradingRequest(string? Reason, string? RequestedBy, string ConfirmationToken);
+record ExchangeReloadRequest(string ApiKey, string ApiSecret, bool UseTestnet);
+record ValidateExchangeRequest(string ApiKey, string ApiSecret, bool UseTestnet);
+record TradingModeReloadRequest(bool PaperTradingMode);

@@ -69,6 +69,21 @@ app.MapGet("/api/risk/config", (IOptions<RiskSettings> opts) =>
     });
 });
 
+app.MapPost("/api/risk/reload-config", (IOptions<RiskSettings> opts, HttpRequest request) =>
+{
+    var body = request.ReadFromJsonAsync<RiskReloadRequest>().GetAwaiter().GetResult();
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    var s = opts.Value;
+    if (body.MaxDrawdownPercent.HasValue) s.MaxDrawdownPercent = body.MaxDrawdownPercent.Value;
+    if (body.MinRiskReward.HasValue) s.MinRiskReward = body.MinRiskReward.Value;
+    if (body.MaxPositionSizePercent.HasValue) s.MaxPositionSizePercent = body.MaxPositionSizePercent.Value;
+    if (body.CooldownSeconds.HasValue) s.CooldownSeconds = body.CooldownSeconds.Value;
+    if (body.PaperTradingOnly.HasValue) s.PaperTradingOnly = body.PaperTradingOnly.Value;
+
+    return Results.Ok(new { reloaded = true });
+});
+
 app.MapGet("/api/risk/stats", async (
     IOptions<RiskSettings> opts,
     OrderStatsRepository statsRepo,
@@ -191,6 +206,13 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Risk
 app.MapGet("/", () => "RiskGuard gRPC service is running.");
 
 app.Run();
+
+record RiskReloadRequest(
+    decimal? MaxDrawdownPercent,
+    decimal? MinRiskReward,
+    decimal? MaxPositionSizePercent,
+    int? CooldownSeconds,
+    bool? PaperTradingOnly);
 
 /// <summary>Query parameters for the evaluation history endpoint.</summary>
 record EvaluationQueryParams(
