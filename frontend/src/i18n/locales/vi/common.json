@@ -1,6 +1,8 @@
 {
-  "paperMode": "📝 Chế độ ảo",
-  "liveTrading": "💰 Giao dịch thực",
+  "paperMode": "📝 Ảo",
+  "testnetMode": "🧪 TestNet",
+  "liveTrading": "💰 Thực",
+  "tradingModeLabel": "Chế độ GD",
   "updatedAt": "Cập nhật {{time}}",
   "todayPnl": "Lãi/lỗ hôm nay",
   "simulated": "Mô phỏng",

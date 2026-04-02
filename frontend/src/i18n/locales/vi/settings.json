@@ -98,6 +98,21 @@
     "testnetApiKeyPlaceholder": "Nhập Binance Testnet API Key",
     "testnetApiSecretPlaceholder": "Nhập Binance Testnet API Secret",
     "enterKeyToTest": "Nhập credentials ở trên để test",
+    "saveAndSwitch": "Lưu & Chuyển môi trường",
+    "pendingSwitchTestnet": "Chờ xác nhận: sẽ chuyển sang Testnet khi Lưu.",
+    "pendingSwitchMainnet": "Chờ xác nhận: sẽ chuyển sang Mainnet khi Lưu.",
+    "confirmSwitchToMainnet": {
+      "title": "Chuyển môi trường sang Mainnet?",
+      "message": "Tất cả lệnh giao dịch tiếp theo sẽ được thực thi trên Binance bằng TIỀN THẬT. Hãy đảm bảo đã cấu hình và kiểm tra API Key Mainnet trước khi tiếp tục.",
+      "confirm": "Xác nhận chuyển sang Mainnet",
+      "cancel": "Hủy"
+    },
+    "confirmSwitchToTestnet": {
+      "title": "Chuyển môi trường sang Testnet?",
+      "message": "Lệnh sẽ được gửi đến Binance Testnet (testnet.binance.vision). Không dùng tiền thật.",
+      "confirm": "Xác nhận chuyển sang Testnet",
+      "cancel": "Hủy"
+    },
     "testnetWarning": "Cảnh báo: Bạn đang chuyển sang Mainnet. Tất cả lệnh tiếp theo sẽ dùng tiền thật.",
     "testConnection": "Kiểm tra kết nối",
     "validating": "Đang kiểm tra...",

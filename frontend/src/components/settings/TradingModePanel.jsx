@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSettings } from '../../context/SettingsContext.jsx'
 
 function ConfirmDialog({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel, dangerous }) {
   return (
@@ -32,6 +33,7 @@ function ConfirmDialog({ title, message, confirmLabel, cancelLabel, onConfirm, o
 
 export function TradingModePanel() {
   const { t } = useTranslation('settings')
+  const { refreshTradingMode } = useSettings()
   const [cfg, setCfg] = useState(null)
   const [paperMode, setPaperMode] = useState(true)
   const [initialBalance, setInitialBalance] = useState('10000')
@@ -86,6 +88,7 @@ export function TradingModePanel() {
         showToast('success', t('tradingMode.saveSuccess'))
         const updated = await fetch('/api/settings/trading/mode').then(r => r.json())
         setCfg(updated)
+        await refreshTradingMode()
       } else {
         const text = await res.text()
         showToast('error', text || t('tradingMode.saveFailed'))

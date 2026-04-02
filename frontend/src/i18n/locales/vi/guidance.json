@@ -21,6 +21,13 @@
     "subtitle": "Dữ liệu thị trường vào từ bên trái và đi qua từng giai đoạn trước khi lệnh được đặt.",
     "hoverHint": "Rê chuột lên từng bước để xem điều gì có thể xảy ra sai.",
     "tooltipTitle": "⚠ Điều gì có thể xảy ra sai?",
+    "metrics": {
+      "signalsSent": "{{count}} tín hiệu hôm nay",
+      "riskChecked": "{{approved}} duyệt · {{rejected}} từ chối",
+      "tradesExecuted": "{{count}} lệnh",
+      "alertsSent": "{{count}} thông báo",
+      "active": "Đang hoạt động"
+    },
     "steps": {
       "ingestor": {
         "label": "Thu thập dữ liệu",

@@ -1,6 +1,8 @@
 {
-  "paperMode": "📝 Paper Mode",
-  "liveTrading": "💰 Live Trading",
+  "paperMode": "📝 Paper",
+  "testnetMode": "🧪 TestNet",
+  "liveTrading": "💰 Live",
+  "tradingModeLabel": "Trading Mode",
   "updatedAt": "Updated {{time}}",
   "todayPnl": "Today's P&L",
   "simulated": "Simulated",

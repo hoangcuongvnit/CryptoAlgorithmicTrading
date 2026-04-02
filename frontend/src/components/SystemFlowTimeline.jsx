@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useRiskStats, useNotifierStats, useTradingStats } from '../hooks/useDashboard.js'
 
 const STEP_IDS = ['ingestor', 'analyzer', 'strategy', 'riskguard', 'executor', 'notifier']
 const STEP_ICONS = {
@@ -22,6 +23,20 @@ const STEP_COLORS = {
 export function SystemFlowTimeline() {
   const { t } = useTranslation('guidance')
   const [tooltip, setTooltip] = useState(null)
+  const { data: risk } = useRiskStats()
+  const { data: notifier } = useNotifierStats()
+  const { data: trading } = useTradingStats()
+
+  const totalSignals = (risk?.todayApproved ?? 0) + (risk?.todayRejected ?? 0)
+
+  const stepMetrics = {
+    ingestor: totalSignals > 0 ? t('flow.metrics.active') : null,
+    analyzer: totalSignals > 0 ? t('flow.metrics.active') : null,
+    strategy: totalSignals > 0 ? t('flow.metrics.signalsSent', { count: totalSignals }) : null,
+    riskguard: risk ? t('flow.metrics.riskChecked', { approved: risk.todayApproved, rejected: risk.todayRejected }) : null,
+    executor: trading ? t('flow.metrics.tradesExecuted', { count: trading.totalTrades }) : null,
+    notifier: notifier ? t('flow.metrics.alertsSent', { count: notifier.todayTotal }) : null,
+  }
 
   const steps = STEP_IDS.map(id => ({
     id,
@@ -30,6 +45,7 @@ export function SystemFlowTimeline() {
     label: t(`flow.steps.${id}.label`),
     desc: t(`flow.steps.${id}.desc`),
     risk: t(`flow.steps.${id}.risk`),
+    metric: stepMetrics[id],
   }))
 
   return (
@@ -53,6 +69,9 @@ export function SystemFlowTimeline() {
               <div className="text-2xl mb-1">{step.icon}</div>
               <div className="text-xs font-semibold text-gray-800 leading-tight">{step.label}</div>
               <p className="text-xs text-gray-500 mt-1 leading-snug">{step.desc}</p>
+              {step.metric && (
+                <p className="text-xs font-semibold mt-1.5 leading-snug" style={{ color: step.color }}>{step.metric}</p>
+              )}
 
               {tooltip === step.id && (
                 <div
@@ -87,6 +106,9 @@ export function SystemFlowTimeline() {
               <div>
                 <div className="text-sm font-semibold text-gray-800">{step.label}</div>
                 <p className="text-xs text-gray-500 mt-0.5 leading-snug">{step.desc}</p>
+                {step.metric && (
+                  <p className="text-xs font-semibold mt-1 leading-snug" style={{ color: step.color }}>{step.metric}</p>
+                )}
                 <p className="text-xs mt-1.5 leading-snug" style={{ color: '#ea580c' }}>⚠ {step.risk}</p>
               </div>
             </div>

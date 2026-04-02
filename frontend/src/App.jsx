@@ -12,7 +12,7 @@ import { SettingsPage } from './pages/SettingsPage.jsx'
 import { BudgetPage } from './pages/BudgetPage.jsx'
 import { ShutdownControlPage } from './pages/ShutdownControlPage.jsx'
 import { SymbolTimelinePage } from './pages/SymbolTimelinePage.jsx'
-import { SettingsProvider } from './context/SettingsContext.jsx'
+import { SettingsProvider, useSettings } from './context/SettingsContext.jsx'
 
 const REPORTS_PATHS = ['/report', '/session-report', '/events', '/timeline']
 
@@ -66,6 +66,8 @@ function Layout() {
   ]
 
   const isReportsActive = REPORTS_PATHS.includes(location.pathname)
+
+  const { tradingMode } = useSettings()
 
   const toggleLang = () => {
     const next = i18n.language === 'vi' ? 'en' : 'vi'
@@ -162,9 +164,25 @@ function Layout() {
         </nav>
 
         {/* Footer — pinned to bottom */}
-        <div className="mt-auto px-6 py-4 border-t border-[#1d2b4a]">
-          <p className="text-xs" style={{ color: '#8ba4cc' }}>{t('dataRefreshes')}</p>
-          <p className="text-xs mt-0.5" style={{ color: '#4a6080' }}>{t('every15to30s')}</p>
+        <div className="mt-auto px-4 py-4 border-t border-[#1d2b4a] space-y-2">
+          {/* Trading mode badge */}
+          {tradingMode && (
+            <div className="flex items-center gap-2 px-2">
+              <span className="text-xs font-semibold rounded-full px-3 py-1 w-full text-center"
+                style={
+                  tradingMode === 'paper'
+                    ? { background: '#1e3a5f', border: '1px solid #2f6fed', color: '#7fb3ff' }
+                    : tradingMode === 'testnet'
+                    ? { background: '#1e3050', border: '1px solid #3b82f6', color: '#93c5fd' }
+                    : { background: '#3b1c1c', border: '1px solid #ef4444', color: '#fca5a5' }
+                }
+              >
+                {tradingMode === 'paper' ? '📝 Paper' : tradingMode === 'testnet' ? '🧪 TestNet' : '💰 Live'}
+              </span>
+            </div>
+          )}
+          <p className="text-xs px-2" style={{ color: '#8ba4cc' }}>{t('dataRefreshes')}</p>
+          <p className="text-xs px-2" style={{ color: '#4a6080' }}>{t('every15to30s')}</p>
         </div>
       </aside>
 

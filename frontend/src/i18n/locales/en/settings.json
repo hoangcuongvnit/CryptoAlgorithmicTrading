@@ -98,6 +98,21 @@
     "testnetApiKeyPlaceholder": "Enter your Binance Testnet API key",
     "testnetApiSecretPlaceholder": "Enter your Binance Testnet API secret",
     "enterKeyToTest": "Enter credentials above to test",
+    "saveAndSwitch": "Save & Switch Environment",
+    "pendingSwitchTestnet": "Pending: will switch active environment to Testnet on Save.",
+    "pendingSwitchMainnet": "Pending: will switch active environment to Mainnet on Save.",
+    "confirmSwitchToMainnet": {
+      "title": "Switch active environment to Mainnet?",
+      "message": "All future orders will execute on Binance using REAL FUNDS. Make sure your Live credentials are configured and tested before proceeding.",
+      "confirm": "Yes, switch to Mainnet",
+      "cancel": "Cancel"
+    },
+    "confirmSwitchToTestnet": {
+      "title": "Switch active environment to Testnet?",
+      "message": "Orders will be sent to Binance Testnet (testnet.binance.vision). No real funds will be used.",
+      "confirm": "Yes, switch to Testnet",
+      "cancel": "Cancel"
+    },
     "testnetWarning": "Warning: You are switching to Mainnet. This will use real funds for all future orders.",
     "testConnection": "Test Connection",
     "validating": "Testing...",

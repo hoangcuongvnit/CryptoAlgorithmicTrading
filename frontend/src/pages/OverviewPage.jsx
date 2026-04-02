@@ -18,8 +18,8 @@ export function OverviewPage() {
   const { data: config } = useRiskConfig()
   const { data: notifier, lastUpdated } = useNotifierStats()
 
+  const { tradingMode } = useSettings()
   const symbols = config?.allowedSymbols?.length > 0 ? config.allowedSymbols : DEFAULT_SYMBOLS
-  const mode = config?.paperTradingOnly !== false ? 'Paper' : 'Live'
 
   const totalOrders = (risk?.todayApproved ?? 0) + (risk?.todayRejected ?? 0)
 
@@ -29,9 +29,23 @@ export function OverviewPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{t('title')}</h1>
         <div className="flex items-center gap-3">
-          <span className={`px-3 py-1 rounded-full text-sm font-medium ${mode === 'Paper' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-            {mode === 'Paper' ? t('common:paperMode') : t('common:liveTrading')}
-          </span>
+          {tradingMode && (
+            <span className="px-3 py-1 rounded-full text-sm font-semibold border"
+              style={
+                tradingMode === 'paper'
+                  ? { background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8' }
+                  : tradingMode === 'testnet'
+                  ? { background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d' }
+                  : { background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626' }
+              }
+            >
+              {tradingMode === 'paper'
+                ? t('common:paperMode')
+                : tradingMode === 'testnet'
+                ? t('common:testnetMode')
+                : t('common:liveTrading')}
+            </span>
+          )}
           {lastUpdated && (
             <span className="text-xs text-gray-400">
               {t('common:updatedAt', { time: lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: systemTimezone }) })}
@@ -48,7 +62,7 @@ export function OverviewPage() {
         <StatCard
           title={t('common:todayPnl')}
           value={risk ? formatPnl(risk.dailyPnl) : '—'}
-          subtitle={mode === 'Paper' ? t('common:simulated') : t('common:realized')}
+          subtitle={tradingMode === 'live' ? t('common:realized') : t('common:simulated')}
           icon="💵"
           colorClass={risk ? pnlColorClass(risk.dailyPnl) : 'text-gray-400'}
         />

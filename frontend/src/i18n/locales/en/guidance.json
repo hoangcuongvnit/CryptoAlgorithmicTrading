@@ -21,6 +21,13 @@
     "subtitle": "Market data enters on the left and travels through each stage before an order is placed.",
     "hoverHint": "Hover any step to see what can go wrong.",
     "tooltipTitle": "⚠ What can go wrong?",
+    "metrics": {
+      "signalsSent": "{{count}} signals today",
+      "riskChecked": "{{approved}} approved · {{rejected}} rejected",
+      "tradesExecuted": "{{count}} trades",
+      "alertsSent": "{{count}} alerts",
+      "active": "Active"
+    },
     "steps": {
       "ingestor": {
         "label": "Data Ingestor",
