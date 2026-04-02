@@ -19,6 +19,9 @@ public sealed record ExchangeSettingsRecord(
     bool IsConfigured,
     string ApiKeyMasked,
     string ApiSecretMasked,
+    bool TestnetIsConfigured,
+    string TestnetApiKeyMasked,
+    string TestnetApiSecretMasked,
     bool UseTestnet,
     string? UpdatedBy,
     DateTime? UpdatedAtUtc);
@@ -326,17 +329,22 @@ public sealed class SystemSettingsRepository
             bool isConfigured = d.ContainsKey("exchange.binance.apiKey.encrypted");
             string apiKeyMasked = d.TryGetValue("exchange.binance.apiKeyMasked", out var akm) ? akm : "";
             string apiSecretMasked = d.TryGetValue("exchange.binance.apiSecretMasked", out var asm) ? asm : "";
+            bool testnetIsConfigured = d.ContainsKey("exchange.binance.testnetApiKey.encrypted");
+            string testnetApiKeyMasked = d.TryGetValue("exchange.binance.testnetApiKeyMasked", out var takm) ? takm : "";
+            string testnetApiSecretMasked = d.TryGetValue("exchange.binance.testnetApiSecretMasked", out var tasm) ? tasm : "";
             bool useTestnet = !d.TryGetValue("exchange.binance.useTestnet", out var ut) || ut == "true";
             string? updatedBy = d.TryGetValue("exchange.binance.updatedBy", out var ub) ? ub : null;
             DateTime? updatedAtUtc = d.TryGetValue("exchange.binance.updatedAtUtc", out var ua) &&
                                      DateTime.TryParse(ua, out var uad) ? uad : null;
 
-            return new ExchangeSettingsRecord(isConfigured, apiKeyMasked, apiSecretMasked, useTestnet, updatedBy, updatedAtUtc);
+            return new ExchangeSettingsRecord(isConfigured, apiKeyMasked, apiSecretMasked,
+                testnetIsConfigured, testnetApiKeyMasked, testnetApiSecretMasked,
+                useTestnet, updatedBy, updatedAtUtc);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read Exchange settings");
-            return new ExchangeSettingsRecord(false, "", "", true, null, null);
+            return new ExchangeSettingsRecord(false, "", "", false, "", "", true, null, null);
         }
     }
 
@@ -384,9 +392,55 @@ public sealed class SystemSettingsRepository
         }
     }
 
+    public async Task<string?> GetDecryptedTestnetApiKeyAsync(CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+        const string sql = """
+            SELECT value FROM public.system_settings
+            WHERE key = 'exchange.binance.testnetApiKey.encrypted' LIMIT 1;
+            """;
+        try
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            var encrypted = await conn.QuerySingleOrDefaultAsync<string>(
+                new CommandDefinition(sql, cancellationToken: ct));
+            return encrypted is null ? null : _binanceProtector.Unprotect(encrypted);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decrypt testnet API key");
+            return null;
+        }
+    }
+
+    public async Task<string?> GetDecryptedTestnetApiSecretAsync(CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+        const string sql = """
+            SELECT value FROM public.system_settings
+            WHERE key = 'exchange.binance.testnetApiSecret.encrypted' LIMIT 1;
+            """;
+        try
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            var encrypted = await conn.QuerySingleOrDefaultAsync<string>(
+                new CommandDefinition(sql, cancellationToken: ct));
+            return encrypted is null ? null : _binanceProtector.Unprotect(encrypted);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decrypt testnet API secret");
+            return null;
+        }
+    }
+
     public async Task SaveExchangeSettingsAsync(
         string? plainApiKey,
         string? plainApiSecret,
+        string? plainTestnetApiKey,
+        string? plainTestnetApiSecret,
         bool useTestnet,
         string? updatedBy,
         CancellationToken ct = default)
@@ -411,6 +465,18 @@ public sealed class SystemSettingsRepository
         {
             updates.Add(("exchange.binance.apiSecret.encrypted", _binanceProtector.Protect(plainApiSecret)));
             updates.Add(("exchange.binance.apiSecretMasked", MaskApiSecret(plainApiSecret)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(plainTestnetApiKey))
+        {
+            updates.Add(("exchange.binance.testnetApiKey.encrypted", _binanceProtector.Protect(plainTestnetApiKey)));
+            updates.Add(("exchange.binance.testnetApiKeyMasked", MaskApiKey(plainTestnetApiKey)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(plainTestnetApiSecret))
+        {
+            updates.Add(("exchange.binance.testnetApiSecret.encrypted", _binanceProtector.Protect(plainTestnetApiSecret)));
+            updates.Add(("exchange.binance.testnetApiSecretMasked", MaskApiSecret(plainTestnetApiSecret)));
         }
 
         const string sql = """

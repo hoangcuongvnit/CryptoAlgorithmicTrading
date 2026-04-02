@@ -55,5 +55,12 @@ public sealed class BinanceSettings
 {
     public string ApiKey { get; set; } = string.Empty;
     public string ApiSecret { get; set; } = string.Empty;
+    public string TestnetApiKey { get; set; } = string.Empty;
+    public string TestnetApiSecret { get; set; } = string.Empty;
     public bool UseTestnet { get; set; } = true;
+
+    public string ActiveApiKey => UseTestnet && !string.IsNullOrEmpty(TestnetApiKey)
+        ? TestnetApiKey : ApiKey;
+    public string ActiveApiSecret => UseTestnet && !string.IsNullOrEmpty(TestnetApiSecret)
+        ? TestnetApiSecret : ApiSecret;
 }

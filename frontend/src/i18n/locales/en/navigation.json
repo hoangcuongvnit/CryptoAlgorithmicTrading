@@ -12,5 +12,7 @@
   "systemSettings": "System Settings",
   "dataRefreshes": "Data refreshes automatically",
   "every15to30s": "Every 15–30 seconds",
-  "switchLang": "VI"
+  "switchLang": "VI",
+  "symbolTimeline": "Symbol Timeline",
+  "reports": "Reports"
 }

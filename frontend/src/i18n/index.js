@@ -14,6 +14,7 @@ import viReport from './locales/vi/report.json'
 import viSessionReport from './locales/vi/session-report.json'
 import viSettings from './locales/vi/settings.json'
 import viShutdown from './locales/vi/shutdown.json'
+import viTimeline from './locales/vi/timeline.json'
 
 import enBudget from './locales/en/budget.json'
 import enNavigation from './locales/en/navigation.json'
@@ -27,6 +28,7 @@ import enReport from './locales/en/report.json'
 import enSessionReport from './locales/en/session-report.json'
 import enSettings from './locales/en/settings.json'
 import enShutdown from './locales/en/shutdown.json'
+import enTimeline from './locales/en/timeline.json'
 
 i18n
   .use(LanguageDetector)
@@ -46,6 +48,7 @@ i18n
         sessionReport: viSessionReport,
         settings: viSettings,
         shutdown: viShutdown,
+        timeline: viTimeline,
       },
       en: {
         budget: enBudget,
@@ -60,6 +63,7 @@ i18n
         sessionReport: enSessionReport,
         settings: enSettings,
         shutdown: enShutdown,
+        timeline: enTimeline,
       },
     },
     lng: 'vi',

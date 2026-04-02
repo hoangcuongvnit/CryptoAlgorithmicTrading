@@ -1,0 +1,71 @@
+{
+  "title": "Symbol Timeline",
+  "subtitle": "Track the full processing pipeline for each symbol over a selected time window",
+  "selectSymbol": "Select Symbol",
+  "timeWindow": "Time Window",
+  "noData": "No events found for this symbol in the selected time window",
+  "noSelection": "Select a symbol and time window to view the timeline",
+  "loading": "Loading...",
+  "refreshing": "Refreshing...",
+  "priceSummary": "Price Summary",
+  "open": "Open",
+  "close": "Close",
+  "high": "High",
+  "low": "Low",
+  "ticks": "Data Points",
+  "eventType": {
+    "RISK_EVALUATION": "Risk Evaluation",
+    "ORDER": "Order Execution"
+  },
+  "outcome": {
+    "Safe": "Approved",
+    "Rejected": "Rejected",
+    "Risk": "Risk Warning",
+    "SUCCESS": "Success",
+    "FAILED": "Failed"
+  },
+  "stats": {
+    "title": "Summary",
+    "evaluations": "Risk Evaluations",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "orders": "Orders Placed",
+    "buys": "Buy Orders",
+    "sells": "Sell Orders"
+  },
+  "ruleResults": "Rule Results",
+  "ruleName": "Rule",
+  "ruleResult": "Result",
+  "ruleReason": "Reason",
+  "actualValue": "Actual",
+  "thresholdValue": "Threshold",
+  "duration": "Duration",
+  "showDetails": "Show details",
+  "hideDetails": "Hide details",
+  "latency": "Latency",
+  "strategy": "Strategy",
+  "quantity": "Quantity",
+  "requestedQty": "Requested Qty",
+  "adjustedQty": "Adjusted Qty",
+  "filledAt": "Filled at",
+  "filledQty": "Filled Qty",
+  "stopLoss": "Stop Loss",
+  "takeProfit": "Take Profit",
+  "reason": "Reason",
+  "paperTrade": "Paper Trade",
+  "status": "Status",
+  "side": {
+    "Buy": "Buy",
+    "Sell": "Sell"
+  },
+  "note": "Note: Only persisted steps are shown (risk evaluations and order executions). Signal analysis and strategy decisions are not stored in the database.",
+  "timeLabels": {
+    "5": "5 min",
+    "10": "10 min",
+    "15": "15 min",
+    "30": "30 min",
+    "60": "1 hour",
+    "120": "2 hours",
+    "300": "5 hours"
+  }
+}

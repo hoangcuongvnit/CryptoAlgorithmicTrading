@@ -1,4 +1,3 @@
-using Binance.Net.Interfaces.Clients;
 using Executor.API.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -11,16 +10,16 @@ namespace Executor.API.Infrastructure;
 /// </summary>
 public sealed class SpreadFilterService
 {
-    private readonly IBinanceRestClient _binanceClient;
+    private readonly BinanceRestClientProvider _clientProvider;
     private readonly TradingSettings _settings;
     private readonly ILogger<SpreadFilterService> _logger;
 
     public SpreadFilterService(
-        IBinanceRestClient binanceClient,
+        BinanceRestClientProvider clientProvider,
         IOptions<TradingSettings> settings,
         ILogger<SpreadFilterService> logger)
     {
-        _binanceClient = binanceClient;
+        _clientProvider = clientProvider;
         _settings = settings.Value;
         _logger = logger;
     }
@@ -38,7 +37,7 @@ public sealed class SpreadFilterService
 
         try
         {
-            var ob = await _binanceClient.SpotApi.ExchangeData.GetOrderBookAsync(
+            var ob = await _clientProvider.Current.SpotApi.ExchangeData.GetOrderBookAsync(
                 symbol, limit: 5, ct: ct);
 
             if (!ob.Success || !ob.Data.Bids.Any() || !ob.Data.Asks.Any())

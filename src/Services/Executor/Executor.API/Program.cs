@@ -1,5 +1,6 @@
+using Binance.Net;
 using Binance.Net.Clients;
-using Binance.Net.Interfaces.Clients;
+using CryptoExchange.Net.Authentication;
 using CryptoTrading.Shared.Session;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
@@ -53,7 +54,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
     return ConnectionMultiplexer.Connect(config);
 });
 
-builder.Services.AddSingleton<IBinanceRestClient>(_ => new BinanceRestClient());
+builder.Services.AddSingleton<BinanceRestClientProvider>();
 builder.Services.AddHttpClient("BybitConsensus", c => c.Timeout = TimeSpan.FromMilliseconds(500));
 
 builder.Services.AddSingleton<PriceReferenceRepository>();
@@ -119,10 +120,17 @@ app.MapGet("/api/trading/orders", async (
     [FromServices] OrderRepository repo,
     [FromQuery] string? symbol,
     [FromQuery] int? limit,
+    [FromQuery] DateTime? from,
+    [FromQuery] DateTime? to,
     CancellationToken ct) =>
 {
-    var orders = await repo.GetRecentOrdersAsync(limit ?? 50, ct, symbol);
-    return Results.Ok(orders);
+    if (from.HasValue && to.HasValue && symbol is not null)
+    {
+        var orders = await repo.GetOrdersByTimeRangeAsync(symbol, from.Value, to.Value, ct);
+        return Results.Ok(orders);
+    }
+    var recentOrders = await repo.GetRecentOrdersAsync(limit ?? 50, ct, symbol);
+    return Results.Ok(recentOrders);
 });
 
 // ── Daily Report endpoints ────────────────────────────────────────────────
@@ -532,7 +540,7 @@ app.MapPost("/api/trading/control/resume", async (
 // ── Runtime config reload endpoints (called by Gateway on settings change) ─
 
 app.MapPost("/api/trading/reload-exchange-config", (
-    [FromServices] IBinanceRestClient binanceClient,
+    [FromServices] BinanceRestClientProvider clientProvider,
     [FromServices] IOptions<BinanceSettings> binanceOpts,
     HttpRequest request,
     CancellationToken ct) =>
@@ -543,15 +551,20 @@ app.MapPost("/api/trading/reload-exchange-config", (
     var settings = binanceOpts.Value;
     settings.ApiKey = body.ApiKey;
     settings.ApiSecret = body.ApiSecret;
+    settings.TestnetApiKey = body.TestnetApiKey;
+    settings.TestnetApiSecret = body.TestnetApiSecret;
     settings.UseTestnet = body.UseTestnet;
 
-    binanceClient.SetApiCredentials(new CryptoExchange.Net.Authentication.ApiCredentials(body.ApiKey, body.ApiSecret));
+    var activeKey = body.UseTestnet && !string.IsNullOrEmpty(body.TestnetApiKey)
+        ? body.TestnetApiKey : body.ApiKey;
+    var activeSecret = body.UseTestnet && !string.IsNullOrEmpty(body.TestnetApiSecret)
+        ? body.TestnetApiSecret : body.ApiSecret;
+    clientProvider.Reconfigure(activeKey, activeSecret, body.UseTestnet);
 
     return Results.Ok(new { reloaded = true, useTestnet = body.UseTestnet });
 });
 
 app.MapPost("/api/trading/validate-exchange", async (
-    [FromServices] IBinanceRestClient binanceClient,
     HttpRequest request,
     CancellationToken ct) =>
 {
@@ -563,9 +576,15 @@ app.MapPost("/api/trading/validate-exchange", async (
 
     try
     {
-        // Temporarily set credentials and test account info
-        binanceClient.SetApiCredentials(new CryptoExchange.Net.Authentication.ApiCredentials(body.ApiKey, body.ApiSecret));
-        var result = await binanceClient.SpotApi.Account.GetAccountInfoAsync(ct: ct);
+        // Create a temporary client with the correct environment to validate credentials
+        using var tempClient = new BinanceRestClient(opts =>
+        {
+            opts.Environment = body.UseTestnet
+                ? BinanceEnvironment.Testnet
+                : BinanceEnvironment.Live;
+            opts.ApiCredentials = new ApiCredentials(body.ApiKey, body.ApiSecret);
+        });
+        var result = await tempClient.SpotApi.Account.GetAccountInfoAsync(ct: ct);
         if (result.Success)
         {
             return Results.Ok(new { valid = true, message = "Binance connection successful" });
@@ -615,6 +634,6 @@ record ScheduleCloseAllRequest(
 record CancelCloseAllRequest(string OperationId);
 
 record ResumeTradingRequest(string? Reason, string? RequestedBy, string ConfirmationToken);
-record ExchangeReloadRequest(string ApiKey, string ApiSecret, bool UseTestnet);
+record ExchangeReloadRequest(string ApiKey, string ApiSecret, string TestnetApiKey, string TestnetApiSecret, bool UseTestnet);
 record ValidateExchangeRequest(string ApiKey, string ApiSecret, bool UseTestnet);
 record TradingModeReloadRequest(bool PaperTradingMode);

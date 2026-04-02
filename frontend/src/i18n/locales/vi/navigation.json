@@ -12,5 +12,7 @@
   "systemSettings": "Cài đặt hệ thống",
   "dataRefreshes": "Dữ liệu tự động làm mới",
   "every15to30s": "Mỗi 15–30 giây",
-  "switchLang": "EN"
+  "switchLang": "EN",
+  "symbolTimeline": "Dòng thời gian",
+  "reports": "Báo cáo"
 }

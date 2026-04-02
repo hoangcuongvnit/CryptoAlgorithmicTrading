@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { OverviewPage } from './pages/OverviewPage.jsx'
 import { TradingPage } from './pages/TradingPage.jsx'
 import { SafetyPage } from './pages/SafetyPage.jsx'
@@ -11,30 +11,71 @@ import { SessionReportPage } from './pages/SessionReportPage.jsx'
 import { SettingsPage } from './pages/SettingsPage.jsx'
 import { BudgetPage } from './pages/BudgetPage.jsx'
 import { ShutdownControlPage } from './pages/ShutdownControlPage.jsx'
+import { SymbolTimelinePage } from './pages/SymbolTimelinePage.jsx'
 import { SettingsProvider } from './context/SettingsContext.jsx'
+
+const REPORTS_PATHS = ['/report', '/session-report', '/events', '/timeline']
 
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { t, i18n } = useTranslation('navigation')
   const navigate = useNavigate()
+  const location = useLocation()
+
+  const [reportsOpen, setReportsOpen] = useState(() => REPORTS_PATHS.includes(location.pathname))
+
+  // Auto-expand reports group when navigating directly to a child route
+  useEffect(() => {
+    if (REPORTS_PATHS.includes(location.pathname)) setReportsOpen(true)
+  }, [location.pathname])
 
   const NAV_ITEMS = [
-    { path: '/',          label: t('overview'),        icon: '📊' },
-    { path: '/trading',   label: t('tradingSignals'),  icon: '💹' },
-    { path: '/safety',    label: t('safetyRisk'),      icon: '🛡️' },
-    { path: '/events',    label: t('eventHistory'),    icon: '📋' },
-    { path: '/report',         label: t('dailyReport'),     icon: '📈' },
-    { path: '/session-report', label: t('sessionReport'),   icon: '🕐' },
-    { path: '/guidance',  label: t('guidance'),        icon: '🧭' },
-    { path: '/budget',    label: t('budget'),            icon: '💰' },
-    { path: '/shutdown',  label: t('shutdownControl'),  icon: '🛑' },
-    { path: '/settings',  label: t('systemSettings'),  icon: '⚙️' },
+    { path: '/',         label: t('overview'),       icon: '📊' },
+    { path: '/trading',  label: t('tradingSignals'), icon: '💹' },
+    { path: '/safety',   label: t('safetyRisk'),     icon: '🛡️' },
+    {
+      group: 'reports',
+      label: t('reports'),
+      icon: '📑',
+      children: [
+        { path: '/report',         label: t('dailyReport'),    icon: '📈' },
+        { path: '/session-report', label: t('sessionReport'),  icon: '🕐' },
+        { path: '/events',         label: t('eventHistory'),   icon: '📋' },
+        { path: '/timeline',       label: t('symbolTimeline'), icon: '⏱️' },
+      ],
+    },
+    { path: '/guidance', label: t('guidance'),        icon: '🧭' },
+    { path: '/budget',   label: t('budget'),          icon: '💰' },
+    { path: '/shutdown', label: t('shutdownControl'), icon: '🛑' },
+    { path: '/settings', label: t('systemSettings'),  icon: '⚙️' },
   ]
+
+  // Flat list for mobile header lookup
+  const ALL_PATHS = [
+    { path: '/', icon: '📊', label: t('overview') },
+    { path: '/trading', icon: '💹', label: t('tradingSignals') },
+    { path: '/safety', icon: '🛡️', label: t('safetyRisk') },
+    { path: '/report', icon: '📈', label: t('dailyReport') },
+    { path: '/session-report', icon: '🕐', label: t('sessionReport') },
+    { path: '/events', icon: '📋', label: t('eventHistory') },
+    { path: '/timeline', icon: '⏱️', label: t('symbolTimeline') },
+    { path: '/guidance', icon: '🧭', label: t('guidance') },
+    { path: '/budget', icon: '💰', label: t('budget') },
+    { path: '/shutdown', icon: '🛑', label: t('shutdownControl') },
+    { path: '/settings', icon: '⚙️', label: t('systemSettings') },
+  ]
+
+  const isReportsActive = REPORTS_PATHS.includes(location.pathname)
 
   const toggleLang = () => {
     const next = i18n.language === 'vi' ? 'en' : 'vi'
     i18n.changeLanguage(next)
   }
+
+  const navLinkClass = (isActive) =>
+    `w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-[#dbe7ff] hover:bg-[#1d2b4a] hover:text-white ${
+      isActive ? 'bg-[#2f6fed] !text-white' : ''
+    }`
 
   return (
     <div className="min-h-screen flex">
@@ -71,22 +112,53 @@ function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map(item => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === '/'}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-[#dbe7ff] hover:bg-[#1d2b4a] hover:text-white ${
-                  isActive ? 'bg-[#2f6fed] !text-white' : ''
-                }`
-              }
-            >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
-            </NavLink>
-          ))}
+          {NAV_ITEMS.map(item => {
+            if (item.group) {
+              return (
+                <div key={item.group}>
+                  {/* Group parent button */}
+                  <button
+                    onClick={() => setReportsOpen(o => !o)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-[#dbe7ff] hover:bg-[#1d2b4a] hover:text-white ${
+                      isReportsActive && !reportsOpen ? 'bg-[#1d2b4a]' : ''
+                    }`}
+                  >
+                    <span className="text-base">{item.icon}</span>
+                    <span className="flex-1 text-left">{item.label}</span>
+                    <span className={`text-xs transition-transform duration-200 ${reportsOpen ? 'rotate-90' : ''}`}>▶</span>
+                  </button>
+                  {/* Children */}
+                  {reportsOpen && (
+                    <div className="ml-3 mt-0.5 space-y-0.5 pl-3 border-l border-[#1d2b4a]">
+                      {item.children.map(child => (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          onClick={() => setSidebarOpen(false)}
+                          className={({ isActive }) => navLinkClass(isActive)}
+                        >
+                          <span className="text-base">{child.icon}</span>
+                          {child.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === '/'}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) => navLinkClass(isActive)}
+              >
+                <span className="text-base">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            )
+          })}
         </nav>
 
         {/* Footer — pinned to bottom */}
@@ -107,8 +179,8 @@ function Layout() {
             ☰
           </button>
           <h1 className="font-semibold text-gray-800 flex-1">
-            {NAV_ITEMS.find(n => n.path === window.location.pathname)?.icon}{' '}
-            {NAV_ITEMS.find(n => n.path === window.location.pathname)?.label}
+            {ALL_PATHS.find(n => n.path === location.pathname)?.icon}{' '}
+            {ALL_PATHS.find(n => n.path === location.pathname)?.label}
           </h1>
           <button
             onClick={toggleLang}
@@ -125,6 +197,7 @@ function Layout() {
             <Route path="/trading"   element={<TradingPage />} />
             <Route path="/report"          element={<ReportPage />} />
             <Route path="/session-report"  element={<SessionReportPage />} />
+            <Route path="/timeline"        element={<SymbolTimelinePage />} />
             <Route path="/safety"    element={<SafetyPage />} />
             <Route path="/events"    element={<EventsPage />} />
             <Route path="/guidance"  element={<GuidancePage onNavigate={p => navigate(p)} />} />

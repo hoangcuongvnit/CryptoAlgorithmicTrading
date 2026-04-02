@@ -762,4 +762,53 @@ public sealed class DashboardQueryService : IDashboardQueryService
         DateTime GapEnd,
         DateTime DetectedAt,
         DateTime? FilledAt);
+
+    public async Task<PriceSummary?> GetPriceSummaryAsync(
+        string symbol,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT
+                (SELECT open FROM historical_collector.price_ticks
+                 WHERE symbol = @Symbol AND interval = '1m' AND time >= @From AND time < @To
+                 ORDER BY time ASC LIMIT 1)  AS OpenPrice,
+                MAX(high)                    AS HighPrice,
+                MIN(low)                     AS LowPrice,
+                (SELECT close FROM historical_collector.price_ticks
+                 WHERE symbol = @Symbol AND interval = '1m' AND time >= @From AND time < @To
+                 ORDER BY time DESC LIMIT 1) AS ClosePrice,
+                COUNT(*)                     AS TotalTicks,
+                MIN(time)                    AS FirstTickUtc,
+                MAX(time)                    AS LastTickUtc
+            FROM historical_collector.price_ticks
+            WHERE symbol = @Symbol AND interval = '1m' AND time >= @From AND time < @To;
+            """;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        var row = await connection.QueryFirstOrDefaultAsync<PriceSummaryRaw>(
+            new CommandDefinition(sql, new { Symbol = symbol, From = from, To = to }, cancellationToken: cancellationToken));
+
+        if (row is null || row.TotalTicks == 0)
+            return null;
+
+        return new PriceSummary(
+            row.OpenPrice,
+            row.HighPrice,
+            row.LowPrice,
+            row.ClosePrice,
+            row.TotalTicks,
+            row.FirstTickUtc,
+            row.LastTickUtc);
+    }
+
+    private sealed record PriceSummaryRaw(
+        decimal? OpenPrice,
+        decimal? HighPrice,
+        decimal? LowPrice,
+        decimal? ClosePrice,
+        long TotalTicks,
+        DateTime? FirstTickUtc,
+        DateTime? LastTickUtc);
 }

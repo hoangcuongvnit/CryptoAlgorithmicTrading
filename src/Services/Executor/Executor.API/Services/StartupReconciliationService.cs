@@ -1,4 +1,3 @@
-using Binance.Net.Interfaces.Clients;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
 using Executor.API.Configuration;
@@ -31,7 +30,7 @@ public sealed class StartupReconciliationService : BackgroundService
     private readonly SessionTradingPolicy _sessionPolicy;
     private readonly SessionSettings _sessionSettings;
     private readonly TradingSettings _tradingSettings;
-    private readonly IBinanceRestClient _binanceClient;
+    private readonly BinanceRestClientProvider _clientProvider;
     private readonly ILogger<StartupReconciliationService> _logger;
 
     // How far back to look for unclosed positions (covers max 2 × 4-hour sessions)
@@ -46,7 +45,7 @@ public sealed class StartupReconciliationService : BackgroundService
         SessionTradingPolicy sessionPolicy,
         IOptions<SessionSettings> sessionSettings,
         IOptions<TradingSettings> tradingSettings,
-        IBinanceRestClient binanceClient,
+        BinanceRestClientProvider clientProvider,
         ILogger<StartupReconciliationService> logger)
     {
         _recoveryState = recoveryState;
@@ -57,7 +56,7 @@ public sealed class StartupReconciliationService : BackgroundService
         _sessionPolicy = sessionPolicy;
         _sessionSettings = sessionSettings.Value;
         _tradingSettings = tradingSettings.Value;
-        _binanceClient = binanceClient;
+        _clientProvider = clientProvider;
         _logger = logger;
     }
 
@@ -171,7 +170,7 @@ public sealed class StartupReconciliationService : BackgroundService
         {
             try
             {
-                var openOrdersResult = await _binanceClient.SpotApi.Trading
+                var openOrdersResult = await _clientProvider.Current.SpotApi.Trading
                     .GetOpenOrdersAsync(local.Symbol, ct: ct);
 
                 if (!openOrdersResult.Success)

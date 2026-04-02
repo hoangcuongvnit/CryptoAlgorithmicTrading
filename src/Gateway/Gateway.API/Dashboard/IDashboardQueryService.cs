@@ -35,6 +35,12 @@ public interface IDashboardQueryService
 
     Task<SchemaResponse> GetSchemaAsync(CancellationToken cancellationToken);
 
+    Task<PriceSummary?> GetPriceSummaryAsync(
+        string symbol,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<OrderRow>> GetRecentOrdersAsync(int limit, CancellationToken cancellationToken);
 
     Task<WorkbenchResponse> RunWorkbenchTemplateAsync(

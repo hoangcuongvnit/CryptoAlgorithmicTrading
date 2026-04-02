@@ -129,6 +129,7 @@ public sealed class OrderRepository
                    is_paper     AS IsPaperTrade,
                    success      AS Success,
                    error_msg    AS ErrorMessage,
+                   strategy     AS Strategy,
                    time         AS CreatedAt
             FROM public.orders
             """
@@ -150,6 +151,52 @@ public sealed class OrderRepository
         }
     }
 
+    public async Task<IReadOnlyList<OrderSummary>> GetOrdersByTimeRangeAsync(
+        string symbol,
+        DateTime from,
+        DateTime to,
+        CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT id           AS OrderId,
+                   symbol       AS Symbol,
+                   side         AS Side,
+                   order_type   AS OrderType,
+                   quantity     AS Quantity,
+                   price        AS EntryPrice,
+                   filled_price AS FilledPrice,
+                   filled_qty   AS FilledQty,
+                   stop_loss    AS StopLoss,
+                   take_profit  AS TakeProfit,
+                   status       AS Status,
+                   realized_pnl AS RealizedPnL,
+                   roe_percent  AS RoePercent,
+                   is_paper     AS IsPaperTrade,
+                   success      AS Success,
+                   error_msg    AS ErrorMessage,
+                   strategy     AS Strategy,
+                   time         AS CreatedAt
+            FROM public.orders
+            WHERE symbol = @Symbol AND time >= @From AND time < @To
+            ORDER BY time ASC
+            LIMIT 200;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<OrderSummary>(
+                new CommandDefinition(sql, new { Symbol = symbol, From = from, To = to }, cancellationToken: cancellationToken));
+            return rows.AsList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch orders by time range for {Symbol}", symbol);
+            return [];
+        }
+    }
+
     public sealed record OrderSummary(
         Guid OrderId,
         string Symbol,
@@ -167,6 +214,7 @@ public sealed class OrderRepository
         bool IsPaperTrade,
         bool Success,
         string? ErrorMessage,
+        string? Strategy,
         DateTime CreatedAt);
 
     // ── Daily Report DTOs ────────────────────────────────────────────────────

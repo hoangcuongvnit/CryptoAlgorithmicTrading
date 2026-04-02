@@ -287,3 +287,12 @@ export async function apiResumeTrading({ reason, requestedBy }) {
   })
 }
 
+export function useSymbolTimeline(symbol, minutesBack) {
+  const fn = useCallback(() => {
+    if (!symbol || !minutesBack) return Promise.resolve(null)
+    const params = new URLSearchParams({ symbol, minutesBack: String(minutesBack) })
+    return fetchJson(`/api/timeline/symbol?${params}`)
+  }, [symbol, minutesBack])
+  return usePolling(fn, 30000)
+}
+

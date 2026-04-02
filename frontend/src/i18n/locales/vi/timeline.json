@@ -1,0 +1,71 @@
+{
+  "title": "Dòng thời gian Symbol",
+  "subtitle": "Theo dõi toàn bộ quy trình xử lý của từng mã tiền trong khoảng thời gian đã chọn",
+  "selectSymbol": "Chọn mã tiền",
+  "timeWindow": "Khoảng thời gian",
+  "noData": "Không có sự kiện nào trong khoảng thời gian này",
+  "noSelection": "Chọn mã tiền và khoảng thời gian để xem dòng thời gian",
+  "loading": "Đang tải...",
+  "refreshing": "Đang làm mới...",
+  "priceSummary": "Tóm tắt giá",
+  "open": "Mở cửa",
+  "close": "Đóng cửa",
+  "high": "Cao nhất",
+  "low": "Thấp nhất",
+  "ticks": "Nến dữ liệu",
+  "eventType": {
+    "RISK_EVALUATION": "Đánh giá rủi ro",
+    "ORDER": "Đặt lệnh"
+  },
+  "outcome": {
+    "Safe": "Chấp thuận",
+    "Rejected": "Từ chối",
+    "Risk": "Cảnh báo rủi ro",
+    "SUCCESS": "Thành công",
+    "FAILED": "Thất bại"
+  },
+  "stats": {
+    "title": "Tổng kết",
+    "evaluations": "Lượt đánh giá",
+    "approved": "Chấp thuận",
+    "rejected": "Từ chối",
+    "orders": "Lệnh đặt",
+    "buys": "Lệnh mua",
+    "sells": "Lệnh bán"
+  },
+  "ruleResults": "Kết quả từng quy tắc",
+  "ruleName": "Quy tắc",
+  "ruleResult": "Kết quả",
+  "ruleReason": "Lý do",
+  "actualValue": "Giá trị thực",
+  "thresholdValue": "Ngưỡng",
+  "duration": "Thời gian",
+  "showDetails": "Xem chi tiết",
+  "hideDetails": "Ẩn chi tiết",
+  "latency": "Độ trễ",
+  "strategy": "Chiến lược",
+  "quantity": "Số lượng",
+  "requestedQty": "SL yêu cầu",
+  "adjustedQty": "SL điều chỉnh",
+  "filledAt": "Khớp tại giá",
+  "filledQty": "SL khớp",
+  "stopLoss": "Cắt lỗ",
+  "takeProfit": "Chốt lãi",
+  "reason": "Lý do",
+  "paperTrade": "Giao dịch ảo",
+  "status": "Trạng thái",
+  "side": {
+    "Buy": "Mua",
+    "Sell": "Bán"
+  },
+  "note": "Chú ý: Chỉ hiển thị các bước được lưu trữ (đánh giá rủi ro và đặt lệnh). Phân tích tín hiệu và quyết định chiến lược không được lưu vào cơ sở dữ liệu.",
+  "timeLabels": {
+    "5": "5 phút",
+    "10": "10 phút",
+    "15": "15 phút",
+    "30": "30 phút",
+    "60": "1 giờ",
+    "120": "2 giờ",
+    "300": "5 giờ"
+  }
+}

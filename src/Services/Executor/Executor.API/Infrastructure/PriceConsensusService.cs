@@ -1,4 +1,3 @@
-using Binance.Net.Interfaces.Clients;
 using Executor.API.Configuration;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
@@ -14,18 +13,18 @@ namespace Executor.API.Infrastructure;
 /// </summary>
 public sealed class PriceConsensusService
 {
-    private readonly IBinanceRestClient _binanceClient;
+    private readonly BinanceRestClientProvider _clientProvider;
     private readonly ConsensusPricingSettings _settings;
     private readonly ILogger<PriceConsensusService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
 
     public PriceConsensusService(
-        IBinanceRestClient binanceClient,
+        BinanceRestClientProvider clientProvider,
         IOptions<TradingSettings> settings,
         ILogger<PriceConsensusService> logger,
         IHttpClientFactory httpClientFactory)
     {
-        _binanceClient = binanceClient;
+        _clientProvider = clientProvider;
         _settings = settings.Value.ConsensusPricing;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
@@ -47,7 +46,7 @@ public sealed class PriceConsensusService
         // Binance
         try
         {
-            var result = await _binanceClient.SpotApi.ExchangeData.GetCurrentAvgPriceAsync(symbol, ct);
+            var result = await _clientProvider.Current.SpotApi.ExchangeData.GetCurrentAvgPriceAsync(symbol, ct);
             if (result.Success && result.Data.Price > 0)
                 prices.Add(("Binance", result.Data.Price));
         }

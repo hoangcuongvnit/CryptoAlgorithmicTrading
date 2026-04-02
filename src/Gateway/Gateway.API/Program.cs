@@ -260,6 +260,208 @@ app.MapGet("/api/risk-evaluations/{evaluationId:guid}", async (
     }
 });
 
+// ── Symbol Timeline endpoint ──────────────────────────────────────────────
+
+var timelineGroup = app.MapGroup("/api/timeline");
+
+timelineGroup.MapGet("/symbol", async (
+    [FromServices] IDashboardQueryService dashService,
+    [FromServices] IHttpClientFactory factory,
+    [FromQuery] string? symbol,
+    [FromQuery] int? minutesBack,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(symbol))
+        return Results.BadRequest(new { error = "symbol is required" });
+
+    var validWindows = new[] { 5, 10, 15, 30, 60, 120, 300 };
+    var window = minutesBack ?? 60;
+    if (!validWindows.Contains(window))
+        return Results.BadRequest(new { error = $"minutesBack must be one of: {string.Join(", ", validWindows)}" });
+
+    var toUtc = DateTime.UtcNow;
+    var fromUtc = toUtc.AddMinutes(-window);
+
+    var riskClient = factory.CreateClient("riskguard");
+    var executorClient = factory.CreateClient("executor");
+
+    var priceSummaryTask = dashService.GetPriceSummaryAsync(symbol, fromUtc, toUtc, ct);
+
+    var riskTask = riskClient.GetAsync(
+        $"/api/risk-evaluations?symbol={Uri.EscapeDataString(symbol)}&from={fromUtc:O}&to={toUtc:O}&pageSize=200&page=1", ct);
+
+    var ordersTask = executorClient.GetAsync(
+        $"/api/trading/orders?symbol={Uri.EscapeDataString(symbol)}&from={fromUtc:O}&to={toUtc:O}", ct);
+
+    await Task.WhenAll(priceSummaryTask, riskTask, ordersTask);
+
+    var priceSummary = await priceSummaryTask;
+
+    List<TimelineEvent> events = [];
+
+    // Parse risk evaluations
+    try
+    {
+        var riskResponse = await riskTask;
+        if (riskResponse.IsSuccessStatusCode)
+        {
+            var riskJson = await riskResponse.Content.ReadAsStringAsync(ct);
+            var riskData = System.Text.Json.JsonDocument.Parse(riskJson);
+            if (riskData.RootElement.TryGetProperty("items", out var items))
+            {
+                foreach (var item in items.EnumerateArray())
+                {
+                    var evalId = item.TryGetProperty("evaluationId", out var eid) ? eid.GetString() : null;
+                    var outcome = item.TryGetProperty("outcome", out var oc) ? oc.GetString() : "Unknown";
+                    var side = item.TryGetProperty("side", out var sd) ? sd.GetString() : null;
+                    var reqQty = item.TryGetProperty("requestedQuantity", out var rq) ? rq.GetDecimal() : (decimal?)null;
+                    var adjQty = item.TryGetProperty("adjustedQuantity", out var aq) ? aq.GetDecimal() : (decimal?)null;
+                    var latency = item.TryGetProperty("evaluationLatencyMs", out var lat) ? lat.GetInt32() : (int?)null;
+                    var reason = item.TryGetProperty("finalReasonMessage", out var rm) ? rm.GetString() : null;
+                    var evalAt = item.TryGetProperty("evaluatedAtUtc", out var eat) ? eat.GetDateTime() : DateTime.UtcNow;
+
+                    List<object> ruleResults = [];
+                    if (item.TryGetProperty("ruleResults", out var rules))
+                    {
+                        foreach (var rule in rules.EnumerateArray())
+                        {
+                            ruleResults.Add(new
+                            {
+                                ruleName = rule.TryGetProperty("ruleName", out var rn) ? rn.GetString() : null,
+                                result = rule.TryGetProperty("result", out var res) ? res.GetString() : null,
+                                reasonMessage = rule.TryGetProperty("reasonMessage", out var rmsg) ? rmsg.GetString() : null,
+                                actualValue = rule.TryGetProperty("actualValue", out var av) ? av.GetString() : null,
+                                thresholdValue = rule.TryGetProperty("thresholdValue", out var tv) ? tv.GetString() : null,
+                                durationMs = rule.TryGetProperty("durationMs", out var dm) ? dm.GetDouble() : (double?)null,
+                                sequenceOrder = rule.TryGetProperty("sequenceOrder", out var so) ? so.GetInt32() : (int?)null,
+                            });
+                        }
+                    }
+
+                    var passedCount = ruleResults.Count(r => ((dynamic)r).result == "Pass");
+                    var summary = outcome == "Safe"
+                        ? $"Risk evaluation approved — {passedCount}/{ruleResults.Count} rules passed"
+                        : $"Risk evaluation {outcome?.ToLower()} — {reason ?? "see details"}";
+
+                    events.Add(new TimelineEvent(
+                        evalAt,
+                        "RISK_EVALUATION",
+                        outcome ?? "Unknown",
+                        side,
+                        summary,
+                        new
+                        {
+                            evaluationId = evalId,
+                            requestedQuantity = reqQty,
+                            adjustedQuantity = adjQty,
+                            latencyMs = latency,
+                            finalReason = reason,
+                            ruleResults
+                        }));
+                }
+            }
+        }
+    }
+    catch { /* partial data — skip risk events if service unavailable */ }
+
+    // Parse orders
+    try
+    {
+        var ordersResponse = await ordersTask;
+        if (ordersResponse.IsSuccessStatusCode)
+        {
+            var ordersJson = await ordersResponse.Content.ReadAsStringAsync(ct);
+            var ordersData = System.Text.Json.JsonDocument.Parse(ordersJson);
+            foreach (var order in ordersData.RootElement.EnumerateArray())
+            {
+                var orderId = order.TryGetProperty("orderId", out var oid) ? oid.GetString() : null;
+                var side = order.TryGetProperty("side", out var sd) ? sd.GetString() : null;
+                var qty = order.TryGetProperty("quantity", out var q) ? q.GetDecimal() : (decimal?)null;
+                var filledPrice = order.TryGetProperty("filledPrice", out var fp) ? fp.GetDecimal() : (decimal?)null;
+                var filledQty = order.TryGetProperty("filledQty", out var fq) ? fq.GetDecimal() : (decimal?)null;
+                var sl = order.TryGetProperty("stopLoss", out var slp) ? slp.GetDecimal() : (decimal?)null;
+                var tp = order.TryGetProperty("takeProfit", out var tpp) ? tpp.GetDecimal() : (decimal?)null;
+                var strategy = order.TryGetProperty("strategy", out var strat) ? strat.GetString() : null;
+                var isPaper = order.TryGetProperty("isPaperTrade", out var ip) && ip.GetBoolean();
+                var success = order.TryGetProperty("success", out var suc) && suc.GetBoolean();
+                var status = order.TryGetProperty("status", out var st) ? st.GetString() : null;
+                var errorMsg = order.TryGetProperty("errorMessage", out var em) ? em.GetString() : null;
+                var createdAt = order.TryGetProperty("createdAt", out var ca) ? ca.GetDateTime() : DateTime.UtcNow;
+
+                var outcome = success ? "SUCCESS" : "FAILED";
+                var summary = success
+                    ? $"{side} {qty} {symbol} filled at {filledPrice:F4}"
+                    : $"{side} {qty} {symbol} failed — {errorMsg ?? "unknown error"}";
+
+                events.Add(new TimelineEvent(
+                    createdAt,
+                    "ORDER",
+                    outcome,
+                    side,
+                    summary,
+                    new
+                    {
+                        orderId,
+                        quantity = qty,
+                        filledPrice,
+                        filledQty,
+                        stopLoss = sl,
+                        takeProfit = tp,
+                        strategy,
+                        isPaper,
+                        status,
+                        errorMessage = errorMsg
+                    }));
+            }
+        }
+    }
+    catch { /* partial data — skip order events if service unavailable */ }
+
+    events.Sort((a, b) => a.TimestampUtc.CompareTo(b.TimestampUtc));
+
+    var riskEvents = events.Where(e => e.EventType == "RISK_EVALUATION").ToList();
+    var orderEvents = events.Where(e => e.EventType == "ORDER").ToList();
+
+    var stats = new
+    {
+        totalEvaluations = riskEvents.Count,
+        approvedEvaluations = riskEvents.Count(e => e.Outcome == "Safe"),
+        rejectedEvaluations = riskEvents.Count(e => e.Outcome == "Rejected"),
+        totalOrders = orderEvents.Count,
+        successfulOrders = orderEvents.Count(e => e.Outcome == "SUCCESS"),
+        failedOrders = orderEvents.Count(e => e.Outcome == "FAILED"),
+        buyOrders = orderEvents.Count(e => string.Equals(e.Side, "Buy", StringComparison.OrdinalIgnoreCase)),
+        sellOrders = orderEvents.Count(e => string.Equals(e.Side, "Sell", StringComparison.OrdinalIgnoreCase)),
+    };
+
+    return Results.Ok(new
+    {
+        symbol,
+        fromUtc,
+        toUtc,
+        priceSummary = priceSummary is null ? null : new
+        {
+            openPrice = priceSummary.OpenPrice,
+            highPrice = priceSummary.HighPrice,
+            lowPrice = priceSummary.LowPrice,
+            closePrice = priceSummary.ClosePrice,
+            totalTicks = priceSummary.TotalTicks,
+            firstTickUtc = priceSummary.FirstTickUtc,
+            lastTickUtc = priceSummary.LastTickUtc,
+        },
+        events = events.Select(e => new
+        {
+            timestampUtc = e.TimestampUtc,
+            eventType = e.EventType,
+            outcome = e.Outcome,
+            side = e.Side,
+            summary = e.Summary,
+            details = e.Details
+        }),
+        stats
+    });
+});
+
 // ── Notifier proxy endpoints ──────────────────────────────────────────────
 
 var notifierGroup = app.MapGroup("/api/notifier");
@@ -951,6 +1153,9 @@ settingsGroup.MapGet("/exchange/binance", async (SystemSettingsRepository repo, 
         isConfigured = cfg.IsConfigured,
         apiKeyMasked = cfg.ApiKeyMasked,
         apiSecretMasked = cfg.ApiSecretMasked,
+        testnetIsConfigured = cfg.TestnetIsConfigured,
+        testnetApiKeyMasked = cfg.TestnetApiKeyMasked,
+        testnetApiSecretMasked = cfg.TestnetApiSecretMasked,
         useTestnet = cfg.UseTestnet,
         updatedBy = cfg.UpdatedBy,
         updatedAtUtc = cfg.UpdatedAtUtc,
@@ -969,18 +1174,23 @@ settingsGroup.MapPut("/exchange/binance", async (
     catch { return Results.BadRequest("Invalid JSON body"); }
     if (body is null) return Results.BadRequest("Request body is required");
 
-    await repo.SaveExchangeSettingsAsync(body.ApiKey, body.ApiSecret, body.UseTestnet, body.UpdatedBy, ct);
+    await repo.SaveExchangeSettingsAsync(body.ApiKey, body.ApiSecret,
+        body.TestnetApiKey, body.TestnetApiSecret, body.UseTestnet, body.UpdatedBy, ct);
 
-    // Push to Executor if credentials provided
+    // Push to Executor — resolve active credentials (use supplied values or fall back to stored ones)
     var apiKey = !string.IsNullOrWhiteSpace(body.ApiKey) ? body.ApiKey : await repo.GetDecryptedApiKeyAsync(ct);
     var apiSecret = !string.IsNullOrWhiteSpace(body.ApiSecret) ? body.ApiSecret : await repo.GetDecryptedApiSecretAsync(ct);
-    if (apiKey is not null && apiSecret is not null)
+    var testnetApiKey = !string.IsNullOrWhiteSpace(body.TestnetApiKey) ? body.TestnetApiKey : await repo.GetDecryptedTestnetApiKeyAsync(ct);
+    var testnetApiSecret = !string.IsNullOrWhiteSpace(body.TestnetApiSecret) ? body.TestnetApiSecret : await repo.GetDecryptedTestnetApiSecretAsync(ct);
+    if (apiKey is not null || testnetApiKey is not null)
     {
         try
         {
             var client = factory.CreateClient("executor");
             await client.PostAsJsonAsync("/api/trading/reload-exchange-config",
-                new { apiKey, apiSecret, useTestnet = body.UseTestnet }, ct);
+                new { apiKey = apiKey ?? "", apiSecret = apiSecret ?? "",
+                      testnetApiKey = testnetApiKey ?? "", testnetApiSecret = testnetApiSecret ?? "",
+                      useTestnet = body.UseTestnet }, ct);
         }
         catch (Exception ex)
         {
@@ -1018,23 +1228,42 @@ settingsGroup.MapPost("/exchange/binance/validate", async (
 });
 
 // POST /api/settings/exchange/binance/validate-saved
+// Body: { useTestnet: bool } — picks live or testnet keys from DB accordingly
 settingsGroup.MapPost("/exchange/binance/validate-saved", async (
     SystemSettingsRepository repo,
     IHttpClientFactory factory,
+    HttpRequest request,
     CancellationToken ct) =>
 {
-    var apiKey = await repo.GetDecryptedApiKeyAsync(ct);
-    var apiSecret = await repo.GetDecryptedApiSecretAsync(ct);
-    var cfg = await repo.GetExchangeSettingsAsync(ct);
+    ValidateSavedRequest? body;
+    try { body = await request.ReadFromJsonAsync<ValidateSavedRequest>(ct); }
+    catch { body = null; }
 
-    if (apiKey is null || apiSecret is null)
-        return Results.Ok(new { valid = false, message = "No saved credentials found" });
+    // Default to the currently active environment stored in DB when no body supplied
+    var cfg = await repo.GetExchangeSettingsAsync(ct);
+    var useTestnet = body?.UseTestnet ?? cfg.UseTestnet;
+
+    string? apiKey, apiSecret;
+    if (useTestnet)
+    {
+        apiKey = await repo.GetDecryptedTestnetApiKeyAsync(ct);
+        apiSecret = await repo.GetDecryptedTestnetApiSecretAsync(ct);
+        if (apiKey is null || apiSecret is null)
+            return Results.Ok(new { valid = false, message = "No saved Testnet credentials found" });
+    }
+    else
+    {
+        apiKey = await repo.GetDecryptedApiKeyAsync(ct);
+        apiSecret = await repo.GetDecryptedApiSecretAsync(ct);
+        if (apiKey is null || apiSecret is null)
+            return Results.Ok(new { valid = false, message = "No saved Live credentials found" });
+    }
 
     try
     {
         var client = factory.CreateClient("executor");
         var response = await client.PostAsJsonAsync("/api/trading/validate-exchange",
-            new { apiKey, apiSecret, useTestnet = cfg.UseTestnet }, ct);
+            new { apiKey, apiSecret, useTestnet }, ct);
         var content = await response.Content.ReadAsStringAsync(ct);
         return Results.Content(content, "application/json", statusCode: (int)response.StatusCode);
     }
@@ -1344,12 +1573,16 @@ app.Lifetime.ApplicationStarted.Register(() =>
         {
             var apiKey = await repo.GetDecryptedApiKeyAsync();
             var apiSecret = await repo.GetDecryptedApiSecretAsync();
+            var testnetApiKey = await repo.GetDecryptedTestnetApiKeyAsync();
+            var testnetApiSecret = await repo.GetDecryptedTestnetApiSecretAsync();
             var exchangeCfg = await repo.GetExchangeSettingsAsync();
-            if (apiKey is not null && apiSecret is not null)
+            if (apiKey is not null || testnetApiKey is not null)
             {
                 var client = factory.CreateClient("executor");
                 await client.PostAsJsonAsync("/api/trading/reload-exchange-config",
-                    new { apiKey, apiSecret, useTestnet = exchangeCfg.UseTestnet });
+                    new { apiKey = apiKey ?? "", apiSecret = apiSecret ?? "",
+                          testnetApiKey = testnetApiKey ?? "", testnetApiSecret = testnetApiSecret ?? "",
+                          useTestnet = exchangeCfg.UseTestnet });
                 logger.LogInformation("Exchange credentials synced to Executor on startup (testnet={UseTestnet})", exchangeCfg.UseTestnet);
             }
             else
@@ -1507,8 +1740,10 @@ record TimezoneUpdateRequest(string Timezone, string? UpdatedBy);
 record TelegramValidateRequest(string BotToken, long ChatId);
 record TelegramSaveRequest(bool Enabled, string? BotToken, long ChatId, string? UpdatedBy);
 record TelegramTestMessageRequest(string? Message);
-record ExchangeSaveRequest(string? ApiKey, string? ApiSecret, bool UseTestnet, string? UpdatedBy);
+record ExchangeSaveRequest(string? ApiKey, string? ApiSecret, string? TestnetApiKey, string? TestnetApiSecret, bool UseTestnet, string? UpdatedBy);
 record ExchangeValidateRequest(string ApiKey, string ApiSecret, bool UseTestnet);
+record ValidateSavedRequest(bool UseTestnet);
 record TradingModeSaveRequest(bool PaperTradingMode, decimal InitialBalance, string? UpdatedBy);
 record RiskSaveRequest(decimal MaxDrawdownPercent, decimal MinRiskReward, decimal MaxPositionSizePercent, int CooldownSeconds, string? UpdatedBy);
 record HouseKeeperSaveRequest(bool Enabled, bool DryRun, string ScheduleUtc, int RetentionOrdersDays, int RetentionGapsDays, int RetentionTicksMonths, int BatchSize, int MaxRunSeconds, string? UpdatedBy);
+record TimelineEvent(DateTime TimestampUtc, string EventType, string Outcome, string? Side, string Summary, object Details);

@@ -104,6 +104,8 @@ services:
       - Trading__PaperTradingMode=${PAPER_TRADING_MODE:-true}
       - Binance__ApiKey=${BINANCE_API_KEY}
       - Binance__ApiSecret=${BINANCE_API_SECRET}
+      - Binance__TestnetApiKey=${BINANCE_TESTNET_API_KEY}
+      - Binance__TestnetApiSecret=${BINANCE_TESTNET_API_SECRET}
       - Binance__UseTestnet=${BINANCE_USE_TESTNET:-true}
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
@@ -177,6 +179,8 @@ services:
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
       - Binance__ApiKey=${BINANCE_API_KEY}
       - Binance__ApiSecret=${BINANCE_API_SECRET}
+      - Binance__TestnetApiKey=${BINANCE_TESTNET_API_KEY}
+      - Binance__TestnetApiSecret=${BINANCE_TESTNET_API_SECRET}
       - Binance__UseTestnet=${BINANCE_USE_TESTNET:-true}
     healthcheck:
       test: ["CMD", "dotnet", "--info"]

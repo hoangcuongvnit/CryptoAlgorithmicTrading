@@ -119,3 +119,12 @@ public sealed record WorkbenchResponse(
     int TotalRows,
     IReadOnlyList<string> Columns,
     IReadOnlyList<Dictionary<string, object?>> Rows);
+
+public sealed record PriceSummary(
+    decimal? OpenPrice,
+    decimal? HighPrice,
+    decimal? LowPrice,
+    decimal? ClosePrice,
+    long TotalTicks,
+    DateTime? FirstTickUtc,
+    DateTime? LastTickUtc);

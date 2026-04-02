@@ -1,5 +1,4 @@
 using Binance.Net.Enums;
-using Binance.Net.Interfaces.Clients;
 using CryptoTrading.Shared.DTOs;
 using Polly;
 using Polly.CircuitBreaker;
@@ -9,15 +8,15 @@ namespace Executor.API.Infrastructure;
 
 public sealed class BinanceOrderClient
 {
-    private readonly IBinanceRestClient _binanceClient;
+    private readonly BinanceRestClientProvider _clientProvider;
     private readonly ILogger<BinanceOrderClient> _logger;
     private readonly ResiliencePipeline _resiliencePipeline;
 
     public BinanceOrderClient(
-        IBinanceRestClient binanceClient,
+        BinanceRestClientProvider clientProvider,
         ILogger<BinanceOrderClient> logger)
     {
-        _binanceClient = binanceClient;
+        _clientProvider = clientProvider;
         _logger = logger;
 
         _resiliencePipeline = new ResiliencePipelineBuilder()
@@ -64,7 +63,7 @@ public sealed class BinanceOrderClient
             ? TimeInForce.GoodTillCanceled
             : (TimeInForce?)null;
 
-        var placeOrderResult = await _binanceClient.SpotApi.Trading.PlaceOrderAsync(
+        var placeOrderResult = await _clientProvider.Current.SpotApi.Trading.PlaceOrderAsync(
             request.Symbol,
             side,
             type,
