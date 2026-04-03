@@ -2,6 +2,7 @@ using Binance.Net;
 using Binance.Net.Clients;
 using CryptoExchange.Net.Authentication;
 using CryptoTrading.Shared.Session;
+using CryptoTrading.Shared.Timeline;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Executor.API.Services;
@@ -73,6 +74,7 @@ builder.Services.AddSingleton(sessionMetrics);
 builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
 builder.Services.AddSingleton<SessionClock>();
 builder.Services.AddSingleton<SessionTradingPolicy>();
+builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 builder.Services.AddSingleton<PositionLifecycleManager>();
 builder.Services.AddSingleton<OrderExecutionService>();
 

@@ -4,6 +4,7 @@ services:
 
   postgres:
     image: timescale/timescaledb:latest-pg16
+    profiles: [infra]
     container_name: trading_postgres
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-trader}
@@ -31,6 +32,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    profiles: [infra]
     container_name: trading_redis
     command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     ports:
@@ -56,8 +58,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
       postgres:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
@@ -97,8 +101,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
       postgres:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - Trading__PaperTradingMode=${PAPER_TRADING_MODE:-true}
@@ -135,6 +141,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
@@ -165,8 +172,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
       postgres:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - Trading__Symbols__0=BTCUSDT
@@ -205,6 +214,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
@@ -225,6 +235,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
       riskguard:
         condition: service_healthy
       executor:
@@ -251,8 +262,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       executor:
         condition: service_healthy
+      timelinelogger:
+        condition: service_healthy
+    volumes:
+      - gateway_dpkeys:/app/data-protection-keys
     environment:
       - DOTNET_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
@@ -260,6 +276,7 @@ services:
       - RiskGuard__BaseUrl=http://trading_riskguard:5093
       - Notifier__BaseUrl=http://trading_notifier:5094
       - Executor__BaseUrl=http://trading_executor:5094
+      - TimelineLogger__BaseUrl=http://trading_timelinelogger:5096
       - Dashboard__MaxRangeDaysFor1m=30
       - Dashboard__MaxRangeDaysForHigherIntervals=365
       - Dashboard__DefaultPageSize=100
@@ -290,6 +307,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - HistoricalData__Enabled=${HISTORICAL_BACKFILL_ENABLED:-false}
@@ -324,6 +342,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
@@ -344,6 +363,71 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  mongodb:
+    image: mongo:7.0
+    profiles: [infra]
+    container_name: trading_mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME:-timeline_user}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-strongpassword}
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE:-cryptotrading_timeline}
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  timelinelogger:
+    build:
+      context: ..
+      dockerfile: src/Services/TimelineLogger/TimelineLogger.Worker/Dockerfile
+    container_name: trading_timelinelogger
+    depends_on:
+      redis:
+        condition: service_healthy
+        required: false
+      mongodb:
+        condition: service_healthy
+        required: false
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5096
+      - Redis__Connection=trading_redis:6379
+      - MongoDB__ConnectionString=mongodb://${MONGO_USERNAME:-timeline_user}:${MONGO_PASSWORD:-strongpassword}@trading_mongodb:27017/${MONGO_DATABASE:-cryptotrading_timeline}?authSource=admin
+      - MongoDB__Database=${MONGO_DATABASE:-cryptotrading_timeline}
+      - Timeline__BatchSize=${TIMELINE_BATCH_SIZE:-100}
+      - Timeline__BatchTimeoutMs=${TIMELINE_BATCH_TIMEOUT_MS:-5000}
+      - Timeline__DefaultRetentionDays=${TIMELINE_DEFAULT_RETENTION_DAYS:-90}
+    ports:
+      - "5096:5096"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - trading_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   trading_network:
     driver: bridge
@@ -351,3 +435,5 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  mongo_data:
+  gateway_dpkeys:

@@ -4,6 +4,7 @@ using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Json;
 using CryptoTrading.Shared.Session;
+using CryptoTrading.Shared.Timeline;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using Strategy.Worker.Services;
@@ -18,6 +19,7 @@ public sealed class Worker : BackgroundService
     private readonly RiskGuardService.RiskGuardServiceClient _riskGuardClient;
     private readonly OrderExecutorService.OrderExecutorServiceClient _executorClient;
     private readonly SignalToOrderMapper _mapper;
+    private readonly ITimelineEventPublisher _timeline;
     private readonly SessionClock _sessionClock;
     private readonly SessionTradingPolicy _sessionPolicy;
     private readonly SessionSettings _sessionSettings;
@@ -29,6 +31,7 @@ public sealed class Worker : BackgroundService
         RiskGuardService.RiskGuardServiceClient riskGuardClient,
         OrderExecutorService.OrderExecutorServiceClient executorClient,
         SignalToOrderMapper mapper,
+        ITimelineEventPublisher timeline,
         SessionClock sessionClock,
         SessionTradingPolicy sessionPolicy,
         IOptions<SessionSettings> sessionSettings)
@@ -38,6 +41,7 @@ public sealed class Worker : BackgroundService
         _riskGuardClient = riskGuardClient;
         _executorClient = executorClient;
         _mapper = mapper;
+        _timeline = timeline;
         _sessionClock = sessionClock;
         _sessionPolicy = sessionPolicy;
         _sessionSettings = sessionSettings.Value;
@@ -155,6 +159,25 @@ public sealed class Worker : BackgroundService
             _logger.LogDebug("Signal for {Symbol} ignored by strategy mapper", signal.Symbol);
             return;
         }
+
+        await _timeline.PublishAsync(new TimelineEvent
+        {
+            SourceService = "Strategy",
+            EventType = TimelineEventTypes.OrderMapped,
+            Symbol = order.Symbol,
+            SessionId = order.SessionId,
+            Severity = TimelineSeverity.Info,
+            Payload = new Dictionary<string, object?>
+            {
+                ["side"] = order.Side.ToString(),
+                ["quantity"] = order.Quantity,
+                ["price"] = order.Price,
+                ["stop_loss"] = order.StopLoss,
+                ["take_profit"] = order.TakeProfit,
+                ["order_type"] = order.Type.ToString(),
+            },
+            Tags = [order.Side.ToString().ToLowerInvariant(), "order_mapped"],
+        }, cancellationToken);
 
         var riskResponse = await _riskGuardClient.ValidateOrderAsync(new ValidateOrderRequest
         {

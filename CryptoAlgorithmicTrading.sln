@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.3.11520.95 d18.3
+VisualStudioVersion = 18.3.11520.95
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared", "src\Shared\Shared.csproj", "{EBF2DF6B-257D-4884-8911-45987FCEFEAD}"
 EndProject
@@ -22,6 +22,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HistoricalCollector.Worker", "src\Services\HistoricalCollector\HistoricalCollector.Worker\HistoricalCollector.Worker.csproj", "{02D13576-5DAC-4A8D-93C9-0A0FF9D78802}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HouseKeeper.Worker", "src\Services\HouseKeeper\HouseKeeper.Worker\HouseKeeper.Worker.csproj", "{D3F5A8B1-2C4E-4F67-9A0B-CF1234567890}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Services", "Services", "{984BB9B3-3FA3-BE33-9484-CAC21695A33C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TimelineLogger", "TimelineLogger", "{AD98D8AD-30D9-99BB-0ADC-F1CF2C417341}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimelineLogger.Worker", "src\Services\TimelineLogger\TimelineLogger.Worker\TimelineLogger.Worker.csproj", "{93586874-53E7-4FDB-BE36-510EA75CD723}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -153,9 +161,26 @@ Global
 		{D3F5A8B1-2C4E-4F67-9A0B-CF1234567890}.Release|x64.Build.0 = Release|Any CPU
 		{D3F5A8B1-2C4E-4F67-9A0B-CF1234567890}.Release|x86.ActiveCfg = Release|Any CPU
 		{D3F5A8B1-2C4E-4F67-9A0B-CF1234567890}.Release|x86.Build.0 = Release|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Debug|x64.Build.0 = Debug|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Debug|x86.Build.0 = Debug|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Release|Any CPU.Build.0 = Release|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Release|x64.ActiveCfg = Release|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Release|x64.Build.0 = Release|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Release|x86.ActiveCfg = Release|Any CPU
+		{93586874-53E7-4FDB-BE36-510EA75CD723}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{984BB9B3-3FA3-BE33-9484-CAC21695A33C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{AD98D8AD-30D9-99BB-0ADC-F1CF2C417341} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
+		{93586874-53E7-4FDB-BE36-510EA75CD723} = {AD98D8AD-30D9-99BB-0ADC-F1CF2C417341}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6B83120A-163A-450D-B4E8-CF01164B8465}

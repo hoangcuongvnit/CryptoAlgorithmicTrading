@@ -48,6 +48,10 @@
     <PackageVersion Include="OpenTelemetry.Instrumentation.StackExchangeRedis" Version="1.0.0-rc9.14" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.8.0-beta.1" />
+    <!-- MongoDB -->
+    <PackageVersion Include="MongoDB.Driver" Version="3.4.0" />
+    <!-- Export -->
+    <PackageVersion Include="CsvHelper" Version="33.0.1" />
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageVersion Include="xUnit" Version="2.9.3" />

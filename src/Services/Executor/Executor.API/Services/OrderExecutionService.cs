@@ -1,5 +1,6 @@
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
+using CryptoTrading.Shared.Timeline;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
@@ -23,6 +24,7 @@ public sealed class OrderExecutionService
     private readonly OrderExecutionMetrics _metrics;
     private readonly SessionClock _sessionClock;
     private readonly SessionSettings _sessionSettings;
+    private readonly ITimelineEventPublisher _timeline;
     private readonly ILogger<OrderExecutionService> _logger;
 
     public OrderExecutionService(
@@ -37,6 +39,7 @@ public sealed class OrderExecutionService
         OrderExecutionMetrics metrics,
         SessionClock sessionClock,
         IOptions<SessionSettings> sessionSettings,
+        ITimelineEventPublisher timeline,
         ILogger<OrderExecutionService> logger)
     {
         _tradingSettings = tradingSettings.Value;
@@ -50,6 +53,7 @@ public sealed class OrderExecutionService
         _metrics = metrics;
         _sessionClock = sessionClock;
         _sessionSettings = sessionSettings.Value;
+        _timeline = timeline;
         _logger = logger;
     }
 
@@ -184,6 +188,27 @@ public sealed class OrderExecutionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Audit stream publish failed for {Symbol}", orderRequest.Symbol);
+        }
+
+        if (orderResult.Success)
+        {
+            _ = _timeline.PublishAsync(new TimelineEvent
+            {
+                SourceService = "Executor",
+                EventType = TimelineEventTypes.OrderFilled,
+                Symbol = orderResult.Symbol,
+                SessionId = orderResult.SessionId,
+                Severity = TimelineSeverity.Info,
+                Payload = new Dictionary<string, object?>
+                {
+                    ["order_id"] = orderResult.OrderId,
+                    ["side"] = orderRequest.Side.ToString(),
+                    ["filled_qty"] = orderResult.FilledQty,
+                    ["filled_price"] = orderResult.FilledPrice,
+                    ["is_paper"] = orderResult.IsPaperTrade,
+                },
+                Tags = [orderRequest.Side.ToString().ToLowerInvariant(), "filled"],
+            }, ct);
         }
 
         return orderResult;

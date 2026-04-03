@@ -296,3 +296,33 @@ export function useSymbolTimeline(symbol, minutesBack) {
   return usePolling(fn, 30000)
 }
 
+export function useTimelineEvents(symbol, { startDate, endDate, eventType, eventCategory, limit = 100, offset = 0 } = {}) {
+  const fn = useCallback(() => {
+    if (!symbol) return Promise.resolve(null)
+    const params = new URLSearchParams({ symbol, limit: String(limit), offset: String(offset) })
+    if (startDate) params.set('startDate', startDate)
+    if (endDate) params.set('endDate', endDate)
+    if (eventType) params.set('eventType', eventType)
+    if (eventCategory) params.set('eventCategory', eventCategory)
+    return fetchJson(`/api/timeline/events?${params}`)
+  }, [symbol, startDate, endDate, eventType, eventCategory, limit, offset])
+  return usePolling(fn, 30000)
+}
+
+export function useTimelineSummary(symbol, date) {
+  const fn = useCallback(() => {
+    if (!symbol) return Promise.resolve(null)
+    const params = new URLSearchParams({ symbol })
+    if (date) params.set('date', date)
+    return fetchJson(`/api/timeline/summary?${params}`)
+  }, [symbol, date])
+  return usePolling(fn, 60000)
+}
+
+export function useTimelineDashboard(days = 7) {
+  const fn = useCallback(() => {
+    return fetchJson(`/api/timeline/dashboard?days=${days}`)
+  }, [days])
+  return usePolling(fn, 60000)
+}
+

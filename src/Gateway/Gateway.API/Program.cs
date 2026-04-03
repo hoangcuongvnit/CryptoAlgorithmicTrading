@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Gateway.API.Dashboard;
 using Gateway.API.Settings;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -9,7 +10,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<DashboardOptions>(builder.Configuration.GetSection("Dashboard"));
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<IDashboardQueryService, DashboardQueryService>();
-builder.Services.AddDataProtection();
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("/app/data-protection-keys"))
+    .SetApplicationName("CryptoTradingGateway");
 
 builder.Services.AddSingleton(sp =>
 {
@@ -38,6 +41,12 @@ builder.Services.AddHttpClient("executor", client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["Executor:BaseUrl"] ?? "http://localhost:5094");
     client.Timeout = TimeSpan.FromSeconds(5);
+});
+
+builder.Services.AddHttpClient("timelinelogger", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["TimelineLogger:BaseUrl"] ?? "http://localhost:5096");
+    client.Timeout = TimeSpan.FromSeconds(10);
 });
 
 var app = builder.Build();
@@ -460,6 +469,84 @@ timelineGroup.MapGet("/symbol", async (
         }),
         stats
     });
+});
+
+// ── TimelineLogger proxy endpoints (MongoDB-backed) ───────────────────────
+// Forward /api/timeline/events|summary|dashboard|health to TimelineLogger service
+
+timelineGroup.MapGet("/events", async (
+    IHttpClientFactory factory, HttpRequest request, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("timelinelogger");
+    var qs = request.QueryString.Value ?? string.Empty;
+    try
+    {
+        var resp = await client.GetAsync($"/api/timeline/events{qs}", ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)resp.StatusCode);
+    }
+    catch { return Results.Json(new { status = "unavailable" }, statusCode: 503); }
+});
+
+timelineGroup.MapGet("/summary", async (
+    IHttpClientFactory factory, HttpRequest request, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("timelinelogger");
+    var qs = request.QueryString.Value ?? string.Empty;
+    try
+    {
+        var resp = await client.GetAsync($"/api/timeline/summary{qs}", ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)resp.StatusCode);
+    }
+    catch { return Results.Json(new { status = "unavailable" }, statusCode: 503); }
+});
+
+timelineGroup.MapGet("/dashboard", async (
+    IHttpClientFactory factory, HttpRequest request, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("timelinelogger");
+    var qs = request.QueryString.Value ?? string.Empty;
+    try
+    {
+        var resp = await client.GetAsync($"/api/timeline/dashboard{qs}", ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)resp.StatusCode);
+    }
+    catch { return Results.Json(new { status = "unavailable" }, statusCode: 503); }
+});
+
+timelineGroup.MapGet("/tl-health", async (
+    IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("timelinelogger");
+    try
+    {
+        var resp = await client.GetAsync("/api/timeline/health", ct);
+        var body = await resp.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)resp.StatusCode);
+    }
+    catch { return Results.Json(new { status = "unavailable" }, statusCode: 503); }
+});
+
+timelineGroup.MapGet("/export", async (
+    IHttpClientFactory factory, HttpRequest request, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("timelinelogger");
+    var qs = request.QueryString.Value ?? string.Empty;
+    try
+    {
+        var resp = await client.GetAsync($"/api/timeline/export{qs}", ct);
+        if (!resp.IsSuccessStatusCode)
+            return Results.StatusCode((int)resp.StatusCode);
+        var bytes = await resp.Content.ReadAsByteArrayAsync(ct);
+        var contentType = resp.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
+        var filename = resp.Content.Headers.ContentDisposition?.FileNameStar
+            ?? resp.Content.Headers.ContentDisposition?.FileName
+            ?? "timeline_export.csv";
+        return Results.File(bytes, contentType, filename);
+    }
+    catch { return Results.Json(new { status = "unavailable" }, statusCode: 503); }
 });
 
 // ── Notifier proxy endpoints ──────────────────────────────────────────────

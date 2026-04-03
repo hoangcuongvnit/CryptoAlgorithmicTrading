@@ -2,6 +2,7 @@ using Analyzer.Worker.Analysis;
 using Analyzer.Worker.Configuration;
 using Analyzer.Worker.Infrastructure;
 using Analyzer.Worker.Workers;
+using CryptoTrading.Shared.Timeline;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -21,6 +22,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 
 // HTTP clients
 builder.Services.AddHttpClient("BinanceFunding", c => c.Timeout = TimeSpan.FromSeconds(10));
+
+// Timeline publisher
+builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 
 // Analysis pipeline
 builder.Services.AddSingleton<PriceBuffer>(sp =>

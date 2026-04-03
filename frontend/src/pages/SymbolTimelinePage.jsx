@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/StatCard.jsx'
-import { useSymbolTimeline, useRiskConfig } from '../hooks/useDashboard.js'
+import { useSymbolTimeline, useRiskConfig, useTimelineEvents, useTimelineSummary } from '../hooks/useDashboard.js'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { formatTime, formatDateTime } from '../utils/dateFormat.js'
 
@@ -38,6 +38,201 @@ function getEventStyle(eventType, outcome, side) {
       : { dot: 'bg-purple-500', border: 'border-purple-200', bg: 'bg-purple-50', icon: '📉', badge: 'bg-purple-100 text-purple-700' }
   }
   return { dot: 'bg-gray-400', border: 'border-gray-200', bg: 'bg-gray-50', icon: '📋', badge: 'bg-gray-100 text-gray-600' }
+}
+
+const CATEGORY_COLORS = {
+  TRADING:        { dot: 'bg-blue-500',   badge: 'bg-blue-100 text-blue-700',   icon: '💱' },
+  TRADING_SIGNAL: { dot: 'bg-indigo-500', badge: 'bg-indigo-100 text-indigo-700', icon: '📡' },
+  RISK:           { dot: 'bg-orange-500', badge: 'bg-orange-100 text-orange-700', icon: '🛡️' },
+  POSITION:       { dot: 'bg-green-500',  badge: 'bg-green-100 text-green-700',  icon: '📊' },
+  STRATEGY:       { dot: 'bg-purple-500', badge: 'bg-purple-100 text-purple-700', icon: '🧠' },
+  MARKET:         { dot: 'bg-cyan-500',   badge: 'bg-cyan-100 text-cyan-700',    icon: '📈' },
+  LIQUIDATION:    { dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700',      icon: '🔥' },
+  SESSION:        { dot: 'bg-gray-500',   badge: 'bg-gray-100 text-gray-700',    icon: '⏱️' },
+  PRICE_DATA:     { dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-600',  icon: '💹' },
+  NOTIFICATION:   { dot: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-700', icon: '🔔' },
+  ANALYSIS:       { dot: 'bg-teal-500',   badge: 'bg-teal-100 text-teal-700',   icon: '🔬' },
+  UNKNOWN:        { dot: 'bg-gray-300',   badge: 'bg-gray-100 text-gray-500',   icon: '❓' },
+}
+
+const SEVERITY_COLORS = {
+  WARNING: 'text-amber-600 bg-amber-50',
+  ERROR:   'text-red-600 bg-red-50',
+  INFO:    'text-blue-600 bg-blue-50',
+  DEBUG:   'text-gray-500 bg-gray-50',
+}
+
+function MongoEventItem({ event }) {
+  const [expanded, setExpanded] = useState(false)
+  const style = CATEGORY_COLORS[event.event_category] ?? CATEGORY_COLORS.UNKNOWN
+  const severityStyle = SEVERITY_COLORS[event.severity] ?? SEVERITY_COLORS.INFO
+  const payload = event.payload ?? {}
+  const metadata = event.metadata ?? {}
+
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1.5 ${style.dot}`} />
+        <div className="w-px flex-1 bg-gray-100 mt-1" />
+      </div>
+      <div className="flex-1 mb-3 rounded-lg border border-gray-100 bg-white p-3 shadow-sm">
+        <div className="flex items-start justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-base">{style.icon}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${style.badge}`}>
+              {event.event_category}
+            </span>
+            <span className="text-xs font-mono text-gray-600">{event.event_type}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${severityStyle}`}>
+              {event.severity}
+            </span>
+            {event.source_service && (
+              <span className="text-xs text-gray-400">from {event.source_service}</span>
+            )}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="text-xs font-mono text-gray-600">
+              {new Date(event.timestamp).toLocaleTimeString()}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-2">
+          {Object.entries(payload).slice(0, 6).map(([k, v]) => v != null && (
+            <span key={k} className="text-xs text-gray-600">
+              <span className="text-gray-400">{k}:</span> <span className="font-medium">{String(v)}</span>
+            </span>
+          ))}
+        </div>
+
+        {(Object.keys(metadata).length > 0 || event.tags?.length > 0) && (
+          <>
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="mt-1.5 text-xs text-blue-500 hover:text-blue-700"
+            >
+              {expanded ? '▲ less' : '▼ more'}
+            </button>
+            {expanded && (
+              <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                {Object.entries(metadata).map(([k, v]) => v != null && (
+                  <div key={k} className="text-xs text-gray-500">
+                    <span className="text-gray-400">{k}:</span> {String(v)}
+                  </div>
+                ))}
+                {event.tags?.length > 0 && (
+                  <div className="flex gap-1 flex-wrap mt-1">
+                    {event.tags.map(tag => (
+                      <span key={tag} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const EVENT_CATEGORIES = ['ALL', 'TRADING', 'POSITION', 'RISK', 'TRADING_SIGNAL', 'STRATEGY', 'MARKET']
+
+function MongoTimelineTab({ symbol, t }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [date, setDate] = useState(today)
+  const [category, setCategory] = useState('ALL')
+
+  const { data: eventsData, loading } = useTimelineEvents(symbol, {
+    startDate: date,
+    endDate: date,
+    eventCategory: category === 'ALL' ? undefined : category,
+    limit: 200,
+  })
+  const { data: summaryData } = useTimelineSummary(symbol, date)
+
+  const events = eventsData?.data ?? []
+  const summary = summaryData?.summary
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('dateLabel')}</label>
+          <input
+            type="date"
+            value={date}
+            max={today}
+            onChange={e => setDate(e.target.value)}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('categoryLabel')}</label>
+          <div className="flex gap-1 flex-wrap">
+            {EVENT_CATEGORIES.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors ${
+                  category === cat
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {cat === 'ALL' ? t('allCategories') : cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Daily summary strip */}
+      {summary && (
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 flex flex-wrap gap-4 text-sm">
+          <span><span className="text-gray-500">{t('totalEvents')}: </span><strong>{summary.total_events}</strong></span>
+          <span><span className="text-gray-500">{t('ordersPlaced')}: </span><strong>{summary.trading_metrics?.orders_placed ?? 0}</strong></span>
+          <span><span className="text-gray-500">{t('filled')}: </span><strong>{summary.trading_metrics?.orders_filled ?? 0}</strong></span>
+          <span><span className="text-gray-500">{t('riskApproved')}: </span><strong className="text-green-600">{summary.risk?.approvals ?? 0}</strong></span>
+          <span><span className="text-gray-500">{t('riskRejected')}: </span><strong className="text-red-500">{summary.risk?.rejections ?? 0}</strong></span>
+          <span><span className="text-gray-500">{t('signalsStrong')}: </span><strong className="text-indigo-600">{summary.signals?.strong ?? 0}</strong></span>
+        </div>
+      )}
+
+      {/* Export link */}
+      {events.length > 0 && (
+        <div className="text-right">
+          <a
+            href={`/api/timeline/export?symbol=${symbol}&startDate=${date}&endDate=${date}&format=csv`}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            download
+          >
+            ↓ {t('exportCsv')}
+          </a>
+        </div>
+      )}
+
+      {/* Event list */}
+      {loading && events.length === 0 && (
+        <div className="text-center py-10 text-gray-400">{t('loading')}</div>
+      )}
+      {!loading && events.length === 0 && (
+        <div className="text-center py-10 text-gray-400">
+          <p className="text-3xl mb-2">📭</p>
+          <p>{t('noMongoEvents')}</p>
+        </div>
+      )}
+      {events.length > 0 && (
+        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+          <p className="text-xs text-gray-400 mb-4">{eventsData?.total ?? events.length} {t('eventsFound')}</p>
+          {events.map((event, i) => (
+            <MongoEventItem key={event.id ?? i} event={event} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function getRuleResultStyle(result) {
@@ -266,6 +461,7 @@ export function SymbolTimelinePage() {
   const [symbol, setSymbol] = useState('')
   const [minutesBack, setMinutesBack] = useState(60)
   const [expandedEvents, setExpandedEvents] = useState({})
+  const [activeTab, setActiveTab] = useState('live')  // 'live' | 'mongo'
 
   const { data, loading, lastUpdated, refresh } = useSymbolTimeline(symbol, minutesBack)
 
@@ -286,27 +482,28 @@ export function SymbolTimelinePage() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#0f172a' }}>{t('title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{t('subtitle')}</p>
-          {lastUpdated && (
+          {lastUpdated && activeTab === 'live' && (
             <p className="text-xs text-gray-400 mt-0.5">
               {formatDateTime(lastUpdated, systemTimezone)}
             </p>
           )}
         </div>
-        <button
-          onClick={refresh}
-          disabled={!symbol || loading}
-          className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-        >
-          {loading ? t('refreshing') : '↻ Refresh'}
-        </button>
+        {activeTab === 'live' && (
+          <button
+            onClick={refresh}
+            disabled={!symbol || loading}
+            className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {loading ? t('refreshing') : '↻ Refresh'}
+          </button>
+        )}
       </div>
 
-      {/* Controls */}
+      {/* Symbol selector (shared) */}
       <div
         className="rounded-xl p-4 flex flex-wrap gap-4 items-end"
         style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}
       >
-        {/* Symbol selector */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('selectSymbol')}</label>
           <select
@@ -321,28 +518,57 @@ export function SymbolTimelinePage() {
           </select>
         </div>
 
-        {/* Time window */}
+        {/* Tab switcher */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('timeWindow')}</label>
-          <div className="flex gap-1">
-            {TIME_WINDOWS.map(w => (
-              <button
-                key={w.value}
-                onClick={() => { setMinutesBack(w.value); setExpandedEvents({}) }}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                  minutesBack === w.value
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {t(`timeLabels.${w.labelKey}`)}
-              </button>
-            ))}
+          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('viewMode')}</label>
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            <button
+              onClick={() => setActiveTab('live')}
+              className={`px-4 py-1.5 text-xs font-medium transition-colors ${
+                activeTab === 'live'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {t('tabLive')}
+            </button>
+            <button
+              onClick={() => setActiveTab('mongo')}
+              className={`px-4 py-1.5 text-xs font-medium transition-colors border-l border-gray-200 ${
+                activeTab === 'mongo'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {t('tabHistory')}
+            </button>
           </div>
         </div>
+
+        {/* Time window (live tab only) */}
+        {activeTab === 'live' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t('timeWindow')}</label>
+            <div className="flex gap-1">
+              {TIME_WINDOWS.map(w => (
+                <button
+                  key={w.value}
+                  onClick={() => { setMinutesBack(w.value); setExpandedEvents({}) }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    minutesBack === w.value
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {t(`timeLabels.${w.labelKey}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Empty state when no symbol selected */}
+      {/* Empty state */}
       {!symbol && (
         <div className="text-center py-16 text-gray-400">
           <p className="text-5xl mb-3">⏱️</p>
@@ -350,13 +576,16 @@ export function SymbolTimelinePage() {
         </div>
       )}
 
-      {/* Data loaded */}
-      {symbol && data && (
+      {/* MongoDB history tab */}
+      {symbol && activeTab === 'mongo' && (
+        <MongoTimelineTab symbol={symbol} t={t} />
+      )}
+
+      {/* Live tab content */}
+      {symbol && activeTab === 'live' && data && (
         <>
-          {/* Price summary */}
           <PriceSummaryCard priceSummary={priceSummary} symbol={symbol} t={t} systemTimezone={systemTimezone} />
 
-          {/* Stats grid */}
           {stats && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               <StatCard title={t('stats.evaluations')} value={stats.totalEvaluations}   icon="🛡️" colorClass="text-purple-600" />
@@ -368,12 +597,10 @@ export function SymbolTimelinePage() {
             </div>
           )}
 
-          {/* Note banner */}
           <div className="rounded-lg px-4 py-3 bg-amber-50 border border-amber-200 text-xs text-amber-700">
             ℹ️ {t('note')}
           </div>
 
-          {/* Timeline */}
           <div
             className="rounded-xl p-6"
             style={{ background: '#ffffff', border: '1px solid #dbe4ef', boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}
@@ -396,7 +623,6 @@ export function SymbolTimelinePage() {
                     systemTimezone={systemTimezone}
                   />
                 ))}
-                {/* Last dot cap */}
                 <div className="flex gap-4">
                   <div className="w-3 h-3 rounded-full bg-gray-300 shrink-0" />
                   <div className="text-xs text-gray-400 pb-2">{t('timeWindow')}: {t(`timeLabels.${String(minutesBack)}`)}</div>
@@ -407,8 +633,7 @@ export function SymbolTimelinePage() {
         </>
       )}
 
-      {/* Loading state */}
-      {symbol && loading && !data && (
+      {symbol && activeTab === 'live' && loading && !data && (
         <div className="text-center py-16 text-gray-400">
           <p className="text-lg">{t('loading')}</p>
         </div>

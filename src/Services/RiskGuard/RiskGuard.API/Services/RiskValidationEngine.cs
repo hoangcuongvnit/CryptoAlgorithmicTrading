@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Timeline;
 using RiskGuard.API.Rules;
 
 namespace RiskGuard.API.Services;
@@ -15,15 +16,18 @@ public sealed class RiskValidationEngine
 {
     private readonly IReadOnlyList<IRiskRule> _rules;
     private readonly ValidationHistory _history;
+    private readonly ITimelineEventPublisher _timeline;
     private readonly ILogger<RiskValidationEngine> _logger;
 
     public RiskValidationEngine(
         IEnumerable<IRiskRule> rules,
         ValidationHistory history,
+        ITimelineEventPublisher timeline,
         ILogger<RiskValidationEngine> logger)
     {
         _rules = rules.ToList();
         _history = history;
+        _timeline = timeline;
         _logger = logger;
     }
 
@@ -71,6 +75,23 @@ public sealed class RiskValidationEngine
                 _logger.LogDebug("[{Rule}] rejected {Symbol} {Side}: {Reason}",
                     rule.Name, symbol, side, result.Reason);
                 _history.Record(symbol, side, approved: false, rejectionReason: result.Reason);
+                _ = _timeline.PublishAsync(new TimelineEvent
+                {
+                    SourceService = "RiskGuard",
+                    EventType = TimelineEventTypes.RiskValidationRejected,
+                    Symbol = symbol,
+                    SessionId = sessionId,
+                    Severity = TimelineSeverity.Warning,
+                    Payload = new Dictionary<string, object?>
+                    {
+                        ["rule"] = rule.Name,
+                        ["reason"] = result.Reason,
+                        ["side"] = side,
+                        ["quantity"] = quantity,
+                        ["entry_price"] = entryPrice,
+                    },
+                    Tags = ["rejected", rule.Name.ToLowerInvariant()],
+                }, ct);
                 return RiskEvaluationResult.Reject(result.Reason, ruleDetails, totalSw.ElapsedMilliseconds);
             }
 
@@ -97,6 +118,22 @@ public sealed class RiskValidationEngine
 
         totalSw.Stop();
         _history.Record(symbol, side, approved: true, rejectionReason: string.Empty);
+        _ = _timeline.PublishAsync(new TimelineEvent
+        {
+            SourceService = "RiskGuard",
+            EventType = TimelineEventTypes.RiskValidationApproved,
+            Symbol = symbol,
+            SessionId = sessionId,
+            Severity = TimelineSeverity.Info,
+            Payload = new Dictionary<string, object?>
+            {
+                ["side"] = side,
+                ["quantity"] = effectiveQty,
+                ["entry_price"] = entryPrice,
+                ["latency_ms"] = totalSw.ElapsedMilliseconds,
+            },
+            Tags = ["approved"],
+        }, ct);
         return RiskEvaluationResult.Approve(effectiveQty, effectiveQty != quantity, ruleDetails, totalSw.ElapsedMilliseconds);
     }
 }

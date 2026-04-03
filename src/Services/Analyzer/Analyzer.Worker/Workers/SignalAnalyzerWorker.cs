@@ -4,6 +4,7 @@ using Analyzer.Worker.Infrastructure;
 using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Json;
+using CryptoTrading.Shared.Timeline;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using System.Text.Json;
@@ -16,6 +17,7 @@ public sealed class SignalAnalyzerWorker : BackgroundService
     private readonly PriceBuffer _priceBuffer;
     private readonly IndicatorEngine _indicatorEngine;
     private readonly SignalPublisher _signalPublisher;
+    private readonly ITimelineEventPublisher _timeline;
     private readonly string _signalInterval;
     private readonly ILogger<SignalAnalyzerWorker> _logger;
 
@@ -24,6 +26,7 @@ public sealed class SignalAnalyzerWorker : BackgroundService
         PriceBuffer priceBuffer,
         IndicatorEngine indicatorEngine,
         SignalPublisher signalPublisher,
+        ITimelineEventPublisher timeline,
         IOptions<AnalyzerSettings> settings,
         ILogger<SignalAnalyzerWorker> logger)
     {
@@ -31,6 +34,7 @@ public sealed class SignalAnalyzerWorker : BackgroundService
         _priceBuffer = priceBuffer;
         _indicatorEngine = indicatorEngine;
         _signalPublisher = signalPublisher;
+        _timeline = timeline;
         _signalInterval = settings.Value.SignalInterval;
         _logger = logger;
     }
@@ -86,5 +90,27 @@ public sealed class SignalAnalyzerWorker : BackgroundService
         }
 
         await _signalPublisher.PublishAsync(signal, cancellationToken);
+
+        await _timeline.PublishAsync(new TimelineEvent
+        {
+            SourceService = "Analyzer",
+            EventType = TimelineEventTypes.SignalGenerated,
+            Symbol = signal.Symbol,
+            Severity = TimelineSeverity.Info,
+            Payload = new Dictionary<string, object?>
+            {
+                ["strength"] = signal.Strength.ToString(),
+                ["rsi"] = signal.Rsi,
+                ["ema9"] = signal.Ema9,
+                ["ema21"] = signal.Ema21,
+                ["atr"] = signal.Atr14,
+            },
+            Metadata = new Dictionary<string, object?>
+            {
+                ["market_regime"] = signal.Regime.ToString(),
+                ["funding_rate"] = signal.FundingRate,
+            },
+            Tags = [signal.Strength.ToString().ToLowerInvariant(), "signal"],
+        }, cancellationToken);
     }
 }

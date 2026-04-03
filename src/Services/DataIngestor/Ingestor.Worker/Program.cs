@@ -1,11 +1,9 @@
 using Binance.Net;
 using Binance.Net.Clients;
 using Binance.Net.Interfaces.Clients;
-using CryptoExchange.Net.Authentication;
 using Ingestor.Worker.Configuration;
 using Ingestor.Worker.Infrastructure;
 using Ingestor.Worker.Workers;
-using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -25,28 +23,24 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     return ConnectionMultiplexer.Connect(config);
 });
 
-// Binance clients — environment (testnet vs live) is determined from config at startup
+// Binance clients
+// NOTE: Socket client always uses Live environment — Binance testnet does NOT provide
+// WebSocket market data streams (klines/tickers). Only REST order execution uses testnet.
 builder.Services.AddSingleton<IBinanceSocketClient>(sp =>
 {
-    var s = sp.GetRequiredService<IOptions<BinanceSettings>>().Value;
     return new BinanceSocketClient(opts =>
     {
-        opts.Environment = s.UseTestnet
-            ? BinanceEnvironment.Testnet
-            : BinanceEnvironment.Live;
+        opts.Environment = BinanceEnvironment.Live;
     });
 });
 
+// REST client always uses Live — market data queries (exchange info, server time, etc.)
+// do not need testnet. Only order execution in Executor uses testnet.
 builder.Services.AddSingleton<IBinanceRestClient>(sp =>
 {
-    var s = sp.GetRequiredService<IOptions<BinanceSettings>>().Value;
     return new BinanceRestClient(opts =>
     {
-        opts.Environment = s.UseTestnet
-            ? BinanceEnvironment.Testnet
-            : BinanceEnvironment.Live;
-        if (!string.IsNullOrEmpty(s.ActiveApiKey))
-            opts.ApiCredentials = new ApiCredentials(s.ActiveApiKey, s.ActiveApiSecret);
+        opts.Environment = BinanceEnvironment.Live;
     });
 });
 

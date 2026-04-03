@@ -40,6 +40,16 @@ public static class RedisChannels
     public const string SignalPattern = "signal:*";
 
     /// <summary>
+    /// Timeline log channel per symbol: coin:{symbol}:log
+    /// </summary>
+    public static string TimelineLog(string symbol) => $"coin:{symbol}:log";
+
+    /// <summary>
+    /// Timeline log channel pattern for subscription: coin:*:log
+    /// </summary>
+    public const string TimelinePattern = "coin:*:log";
+
+    /// <summary>
     /// Session lifecycle events channel: session:events
     /// </summary>
     public const string SessionEvents = "session:events";

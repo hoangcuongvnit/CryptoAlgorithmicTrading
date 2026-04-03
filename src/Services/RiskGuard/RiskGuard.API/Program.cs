@@ -1,5 +1,6 @@
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
+using CryptoTrading.Shared.Timeline;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
 using RiskGuard.API.Infrastructure;
@@ -45,6 +46,7 @@ builder.Services.AddSingleton<CooldownRule>();
 builder.Services.AddSingleton<IRiskRule>(sp => sp.GetRequiredService<CooldownRule>());
 builder.Services.AddSingleton<IRiskRule, MaxDrawdownRule>();
 
+builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 builder.Services.AddSingleton<RiskValidationEngine>();
 
 var app = builder.Build();

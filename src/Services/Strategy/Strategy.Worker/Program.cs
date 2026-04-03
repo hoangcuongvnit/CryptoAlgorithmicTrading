@@ -1,6 +1,7 @@
 using CryptoTrading.Executor.Grpc;
 using CryptoTrading.RiskGuard.Grpc;
 using CryptoTrading.Shared.Session;
+using CryptoTrading.Shared.Timeline;
 using Grpc.Net.Client;
 using StackExchange.Redis;
 using Strategy.Worker;
@@ -39,6 +40,7 @@ builder.Services.AddSingleton(sp =>
     var channel = GrpcChannel.ForAddress(endpoints.ExecutorUrl);
     return new OrderExecutorService.OrderExecutorServiceClient(channel);
 });
+builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 builder.Services.AddSingleton<SignalToOrderMapper>();
 builder.Services.AddHostedService<Worker>();
 
