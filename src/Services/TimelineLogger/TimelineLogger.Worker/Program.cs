@@ -89,8 +89,8 @@ app.MapGet("/api/timeline/events", async (
             severity = e.Severity,
             correlation_id = e.CorrelationId,
             session_id = e.SessionId,
-            payload = e.Payload,
-            metadata = e.Metadata,
+            payload = BsonDocToDict(e.Payload),
+            metadata = BsonDocToDict(e.Metadata),
             tags = e.Tags,
         }),
         timestamp = DateTime.UtcNow
@@ -200,7 +200,28 @@ app.MapGet("/api/timeline/export", async (
 
     if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
     {
-        return Results.Json(new { symbol, start = startDate, end = endDate, data = items });
+        return Results.Json(new
+        {
+            symbol,
+            start = startDate,
+            end = endDate,
+            data = items.Select(e => new
+            {
+                id = e.Id,
+                symbol = e.Symbol,
+                timestamp = e.Timestamp,
+                unix_timestamp = e.UnixTimestamp,
+                event_type = e.EventType,
+                event_category = e.EventCategory,
+                source_service = e.SourceService,
+                severity = e.Severity,
+                correlation_id = e.CorrelationId,
+                session_id = e.SessionId,
+                payload = BsonDocToDict(e.Payload),
+                metadata = BsonDocToDict(e.Metadata),
+                tags = e.Tags,
+            })
+        });
     }
 
     // CSV export
@@ -268,6 +289,23 @@ static DateTime? ParseDate(string? s) =>
 
 static DateTime? ParseDateTime(string? s) =>
     DateTime.TryParse(s, null, System.Globalization.DateTimeStyles.RoundtripKind, out var d) ? d.ToUniversalTime() : null;
+
+static Dictionary<string, object?> BsonDocToDict(MongoDB.Bson.BsonDocument doc) =>
+    doc.ToDictionary(e => e.Name, e => BsonValueToObj(e.Value));
+
+static object? BsonValueToObj(MongoDB.Bson.BsonValue v) => v.BsonType switch
+{
+    MongoDB.Bson.BsonType.Null => null,
+    MongoDB.Bson.BsonType.Boolean => v.AsBoolean,
+    MongoDB.Bson.BsonType.Int32 => v.AsInt32,
+    MongoDB.Bson.BsonType.Int64 => v.AsInt64,
+    MongoDB.Bson.BsonType.Double => v.AsDouble,
+    MongoDB.Bson.BsonType.String => v.AsString,
+    MongoDB.Bson.BsonType.DateTime => v.ToUniversalTime(),
+    MongoDB.Bson.BsonType.Document => BsonDocToDict(v.AsBsonDocument),
+    MongoDB.Bson.BsonType.Array => v.AsBsonArray.Select(BsonValueToObj).ToList(),
+    _ => v.ToString()
+};
 
 record ExportRow(string Symbol, DateTime Timestamp, string EventType,
     string EventCategory, string SourceService, string Severity,

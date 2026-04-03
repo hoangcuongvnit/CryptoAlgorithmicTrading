@@ -180,20 +180,33 @@ public sealed class CoinEventLoggerWorker : BackgroundService
     {
         var doc = new BsonDocument();
         foreach (var (key, value) in dict)
-        {
-            doc[key] = value switch
-            {
-                null => BsonNull.Value,
-                string s => new BsonString(s),
-                bool b => new BsonBoolean(b),
-                int i => new BsonInt32(i),
-                long l => new BsonInt64(l),
-                double d => new BsonDouble(d),
-                decimal dec => new BsonDouble((double)dec),
-                DateTime dt => new BsonDateTime(dt),
-                _ => BsonValue.Create(value?.ToString())
-            };
-        }
+            doc[key] = ToBsonValue(value);
         return doc;
     }
+
+    private static BsonValue ToBsonValue(object? value) => value switch
+    {
+        null => BsonNull.Value,
+        bool b => new BsonBoolean(b),
+        int i => new BsonInt32(i),
+        long l => new BsonInt64(l),
+        double d => new BsonDouble(d),
+        decimal dec => new BsonDouble((double)dec),
+        string s => new BsonString(s),
+        DateTime dt => new BsonDateTime(dt),
+        System.Text.Json.JsonElement je => JsonElementToBsonValue(je),
+        _ => BsonValue.Create(value.ToString())
+    };
+
+    private static BsonValue JsonElementToBsonValue(System.Text.Json.JsonElement je) => je.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.True => BsonBoolean.True,
+        System.Text.Json.JsonValueKind.False => BsonBoolean.False,
+        System.Text.Json.JsonValueKind.Null => BsonNull.Value,
+        System.Text.Json.JsonValueKind.String => new BsonString(je.GetString() ?? string.Empty),
+        System.Text.Json.JsonValueKind.Number when je.TryGetInt32(out var i) => new BsonInt32(i),
+        System.Text.Json.JsonValueKind.Number when je.TryGetInt64(out var l) => new BsonInt64(l),
+        System.Text.Json.JsonValueKind.Number => new BsonDouble(je.GetDouble()),
+        _ => new BsonString(je.ToString())
+    };
 }
