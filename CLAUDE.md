@@ -65,6 +65,7 @@ price:{SYMBOL}          # PriceTick (Ingestor → Analyzer)
 signal:{SYMBOL}         # TradeSignal (Analyzer → Strategy)
 trades:audit            # Redis Stream audit log (Executor publishes)
 executor:trading:mode   # Current trading mode broadcast
+coin:{SYMBOL}:log       # Timeline events (all services → TimelineLogger)
 ```
 
 ### Service Types
@@ -73,7 +74,18 @@ executor:trading:mode   # Current trading mode broadcast
 |------|---------|----------|
 | BackgroundService workers | `Host.CreateApplicationBuilder` | Ingestor, Analyzer, Strategy, Notifier, HistoricalCollector, HouseKeeper |
 | gRPC API servers | `WebApplication.CreateBuilder` | RiskGuard (5013/5093), Executor (5014/5094) |
+| Web API workers | `WebApplication.CreateBuilder` | TimelineLogger (5096) |
 | Web gateway | `WebApplication.CreateBuilder` | Gateway.API (5000) |
+
+### Binance Testnet Scope
+
+> **Testnet chỉ áp dụng cho Executor** (đặt lệnh thực thi). Tất cả service còn lại dùng Binance **Live** API.
+
+| Service | Binance Environment | Lý do |
+|---------|--------------------|----|
+| **Executor** | Live hoặc **Testnet** (theo `BINANCE_USE_TESTNET`) | Đặt/huỷ lệnh thực — cần testnet để test an toàn |
+| **Ingestor** | **Live** (luôn luôn) | Binance testnet không cung cấp WebSocket market data (kline/ticker) |
+| Analyzer, Strategy, RiskGuard, Notifier | Không gọi Binance trực tiếp | Chỉ dùng Redis pub/sub và gRPC nội bộ |
 
 ---
 
@@ -318,6 +330,48 @@ GET  /health
 
 ---
 
+### TimelineLogger — `src/Services/TimelineLogger/TimelineLogger.Worker/`
+
+**Role**: Thu thập & lưu trữ toàn bộ sự kiện giao dịch theo từng symbol vào MongoDB
+
+**Port**: HTTP=5096
+
+**Storage**: MongoDB (`cryptotrading_timeline` DB, collections: `coin_events`, `event_summary`)
+
+| File | Purpose |
+|------|---------|
+| `Program.cs` | Setup: MongoDB, Redis, REST endpoints |
+| `Workers/CoinEventLoggerWorker.cs` | Subscribes `coin:*:log`, buffers → batch insert MongoDB |
+| `Services/TimelineQueryService.cs` | Query engine: filter, paginate, summary, dashboard, export |
+| `Infrastructure/MongoDbContext.cs` | MongoDB client, index initialization |
+| `Infrastructure/CoinEventRepository.cs` | Insert/query `coin_events` collection |
+| `Infrastructure/EventSummaryRepository.cs` | Insert/query `event_summary` collection |
+| `Infrastructure/Documents/CoinEventDocument.cs` | MongoDB document model |
+| `Infrastructure/Documents/EventSummaryDocument.cs` | Daily summary document model |
+| `Configuration/MongoSettings.cs` | ConnectionString, Database, collection names |
+| `Configuration/TimelineSettings.cs` | BatchSize, BatchTimeoutMs, DefaultRetentionDays |
+
+**Event categories & retention**:
+
+| Category | Event Types | Retention |
+|----------|-------------|-----------|
+| `PRICE_DATA` | PriceTickReceived | 7 days |
+| `ANALYSIS` | IndicatorCalculated | 30 days |
+| `TRADING_SIGNAL`, `STRATEGY`, `RISK`, `MARKET`, `NOTIFICATION` | Signal/Risk/Order events | 90 days |
+| `TRADING`, `POSITION`, `LIQUIDATION`, `SESSION` | Order fills, positions, sessions | 365 days |
+
+**HTTP endpoints** (5096):
+```
+GET  /api/timeline/events            # Filtered events (symbol required, supports date/time range, type, category, severity)
+GET  /api/timeline/summary           # Daily summary or date-range summaries for a symbol
+GET  /api/timeline/dashboard         # Aggregated stats across all symbols (default last 7 days)
+GET  /api/timeline/export            # Export events as CSV or JSON
+GET  /api/timeline/health            # Redis + processing stats
+GET  /health
+```
+
+---
+
 ### Gateway — `src/Gateway/Gateway.API/`
 
 **Role**: YARP reverse proxy + dashboard data + credential storage
@@ -386,11 +440,9 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 
 ## DATABASE
 
-**Engine**: PostgreSQL + TimescaleDB (port 5433)
-**Access**: Npgsql + Dapper (raw SQL, no ORM)
-**Config key**: `ConnectionStrings:Postgres`
+### PostgreSQL + TimescaleDB
 
-### Schema
+**Port**: 5433 | **Access**: Npgsql + Dapper (raw SQL, no ORM) | **Config key**: `ConnectionStrings:Postgres`
 
 | Table | Location | Purpose |
 |-------|----------|---------|
@@ -404,6 +456,16 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 
 **Migration scripts**: `scripts/` (SQL files + `run-migration.ps1` / `run-rollback.ps1`)
 
+### MongoDB (TimelineLogger)
+
+**Port**: 27017 | **Access**: MongoDB.Driver | **Config key**: `MongoDB:ConnectionString`
+**Database**: `cryptotrading_timeline`
+
+| Collection | Purpose |
+|------------|---------|
+| `coin_events` | All timeline events per symbol (TTL index on `expiresAt`) |
+| `event_summary` | Daily aggregated summary per symbol |
+
 ---
 
 ## INFRASTRUCTURE
@@ -415,12 +477,14 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 |---------|-------|-----------|
 | postgres | 5433→5432 | — |
 | redis | 6379 | — |
+| mongodb | 27017 | — |
 | riskguard | 5013, 5093 | postgres, redis |
 | executor | 5014, 5094 | postgres, redis |
 | notifier | 5095 | redis |
 | analyzer | — | redis |
 | ingestor | — | postgres, redis |
 | strategy | — | redis |
+| timelinelogger | 5096 | redis, mongodb |
 | gateway | 5000 | all services |
 | historicalcollector | — | postgres |
 | housekeeper | — | postgres |
@@ -445,10 +509,15 @@ BINANCE_USE_TESTNET=true
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=0
 
-# Database
+# Database (PostgreSQL)
 POSTGRES_USER=trader
 POSTGRES_PASSWORD=strongpassword
 POSTGRES_DB=cryptotrading
+
+# Database (MongoDB — for TimelineLogger)
+MONGO_USERNAME=timeline_user
+MONGO_PASSWORD=strongpassword
+MONGO_DATABASE=cryptotrading_timeline
 
 # Trading
 PAPER_TRADING_MODE=true
@@ -459,6 +528,11 @@ MAX_DRAWDOWN_PERCENT=5.0
 MIN_RISK_REWARD=2.0
 MAX_POSITION_SIZE_PERCENT=2.0
 COOLDOWN_SECONDS=30
+
+# Timeline Logger
+TIMELINE_BATCH_SIZE=100
+TIMELINE_BATCH_TIMEOUT_MS=5000
+TIMELINE_DEFAULT_RETENTION_DAYS=90
 
 # Maintenance
 HOUSEKEEPER_ENABLED=true
