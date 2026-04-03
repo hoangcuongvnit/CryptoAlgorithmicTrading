@@ -62,6 +62,8 @@ builder.Services.AddSingleton<PriceReferenceRepository>();
 builder.Services.AddSingleton<OrderRepository>();
 builder.Services.AddSingleton<BudgetRepository>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
+builder.Services.AddSingleton<SystemEventPublisher>();
+builder.Services.AddSingleton<OrderWriteQueue>();
 builder.Services.AddSingleton<PaperOrderSimulator>();
 builder.Services.AddSingleton<BinanceOrderClient>();
 builder.Services.AddSingleton<SpreadFilterService>();
@@ -80,6 +82,7 @@ builder.Services.AddSingleton<OrderExecutionService>();
 
 // Recovery services — RecoveryStateService must be registered before hosted services that depend on it
 builder.Services.AddSingleton<RecoveryStateService>();
+builder.Services.AddHostedService<OrderPersistenceWorker>();
 builder.Services.AddHostedService<StartupReconciliationService>();
 builder.Services.AddHostedService<LiquidationOrchestrator>();
 builder.Services.AddHostedService<PartialTpMonitorService>();

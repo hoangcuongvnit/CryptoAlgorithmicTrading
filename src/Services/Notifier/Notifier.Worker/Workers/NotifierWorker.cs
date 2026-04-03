@@ -186,6 +186,7 @@ public sealed class NotifierWorker : BackgroundService
             _ = decimal.TryParse(fields.GetValueOrDefault("filled_price", "0"), out var filledPrice);
             _ = decimal.TryParse(fields.GetValueOrDefault("filled_qty", "0"), out var filledQty);
             _ = DateTime.TryParse(fields.GetValueOrDefault("time"), out var timestamp);
+            _ = Enum.TryParse<TradingErrorCode>(fields.GetValueOrDefault("error_code", "None"), ignoreCase: true, out var errorCode);
 
             return new OrderResult
             {
@@ -196,6 +197,7 @@ public sealed class NotifierWorker : BackgroundService
                 FilledPrice = filledPrice,
                 FilledQty = filledQty,
                 ErrorMessage = fields.GetValueOrDefault("error_message", string.Empty),
+                ErrorCode = errorCode,
                 Timestamp = timestamp == default ? DateTime.UtcNow : timestamp,
                 IsPaperTrade = isPaper
             };

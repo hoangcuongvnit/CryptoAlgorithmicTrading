@@ -70,7 +70,7 @@ public sealed class BinanceOrderClient
             request.Quantity,
             price: request.Type != OrderType.Market && request.Price > 0 ? request.Price : null,
             timeInForce: timeInForce,
-            stopPrice: request.StopLoss > 0 ? request.StopLoss : null,
+            stopPrice: request.Type == OrderType.StopLimit && request.StopLoss > 0 ? request.StopLoss : null,
             ct: cancellationToken);
 
         if (!placeOrderResult.Success)
@@ -86,19 +86,28 @@ public sealed class BinanceOrderClient
                 Side = request.Side,
                 Success = false,
                 ErrorMessage = placeOrderResult.Error?.Message ?? "Unknown exchange error",
+                ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
                 IsPaperTrade = false
             };
         }
 
+        var data = placeOrderResult.Data;
+        var filledPrice = data.AverageFillPrice > 0
+            ? data.AverageFillPrice ?? request.Price
+            : request.Price;
+        var filledQty = data.QuantityFilled > 0
+            ? data.QuantityFilled
+            : request.Quantity;
+
         return new OrderResult
         {
-            OrderId = placeOrderResult.Data.Id.ToString(),
+            OrderId = data.Id.ToString(),
             Symbol = request.Symbol,
             Side = request.Side,
             Success = true,
-            FilledPrice = request.Price,
-            FilledQty = request.Quantity,
+            FilledPrice = filledPrice,
+            FilledQty = filledQty,
             Timestamp = DateTime.UtcNow,
             IsPaperTrade = false
         };

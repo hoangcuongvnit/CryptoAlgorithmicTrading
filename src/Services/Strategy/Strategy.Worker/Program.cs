@@ -6,6 +6,7 @@ using Grpc.Net.Client;
 using StackExchange.Redis;
 using Strategy.Worker;
 using Strategy.Worker.Configuration;
+using Strategy.Worker.Infrastructure;
 using Strategy.Worker.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -41,6 +42,7 @@ builder.Services.AddSingleton(sp =>
     return new OrderExecutorService.OrderExecutorServiceClient(channel);
 });
 builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
+builder.Services.AddSingleton<StrategySystemEventPublisher>();
 builder.Services.AddSingleton<SignalToOrderMapper>();
 builder.Services.AddHostedService<Worker>();
 

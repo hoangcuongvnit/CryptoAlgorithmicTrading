@@ -5,6 +5,7 @@ using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
+using Polly.CircuitBreaker;
 
 namespace Executor.API.Services;
 
@@ -18,8 +19,9 @@ public sealed class OrderExecutionService
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly SpreadFilterService _spreadFilter;
     private readonly PriceConsensusService _consensus;
-    private readonly OrderRepository _orderRepository;
+    private readonly OrderWriteQueue _orderWriteQueue;
     private readonly AuditStreamPublisher _auditStreamPublisher;
+    private readonly SystemEventPublisher _systemEvents;
     private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionMetrics _metrics;
     private readonly SessionClock _sessionClock;
@@ -33,8 +35,9 @@ public sealed class OrderExecutionService
         BinanceOrderClient binanceOrderClient,
         SpreadFilterService spreadFilter,
         PriceConsensusService consensus,
-        OrderRepository orderRepository,
+        OrderWriteQueue orderWriteQueue,
         AuditStreamPublisher auditStreamPublisher,
+        SystemEventPublisher systemEvents,
         PositionTracker positionTracker,
         OrderExecutionMetrics metrics,
         SessionClock sessionClock,
@@ -47,8 +50,9 @@ public sealed class OrderExecutionService
         _binanceOrderClient = binanceOrderClient;
         _spreadFilter = spreadFilter;
         _consensus = consensus;
-        _orderRepository = orderRepository;
+        _orderWriteQueue = orderWriteQueue;
         _auditStreamPublisher = auditStreamPublisher;
+        _systemEvents = systemEvents;
         _positionTracker = positionTracker;
         _metrics = metrics;
         _sessionClock = sessionClock;
@@ -81,6 +85,7 @@ public sealed class OrderExecutionService
                     Side = orderRequest.Side,
                     Success = false,
                     ErrorMessage = consensusReason ?? "Price consensus check failed",
+                    ErrorCode = TradingErrorCode.PriceConsensusFailure,
                     Timestamp = DateTime.UtcNow,
                     IsPaperTrade = false,
                     SessionId = orderRequest.SessionId
@@ -101,6 +106,7 @@ public sealed class OrderExecutionService
                     Side = orderRequest.Side,
                     Success = false,
                     ErrorMessage = spreadReason ?? "Spread limit exceeded",
+                    ErrorCode = TradingErrorCode.SpreadLimitExceeded,
                     Timestamp = DateTime.UtcNow,
                     IsPaperTrade = false,
                     SessionId = orderRequest.SessionId
@@ -127,6 +133,36 @@ public sealed class OrderExecutionService
                     : LiquidationReason.None
             };
         }
+        catch (BrokenCircuitException ex)
+        {
+            _logger.LogError(ex, "Circuit breaker open for {Symbol} — exchange requests blocked", orderRequest.Symbol);
+            orderResult = new OrderResult
+            {
+                OrderId = Guid.NewGuid().ToString("N"),
+                Symbol = orderRequest.Symbol,
+                Success = false,
+                ErrorMessage = "Exchange circuit breaker is open. Too many recent failures.",
+                ErrorCode = TradingErrorCode.ExchangeCircuitOpen,
+                Timestamp = DateTime.UtcNow,
+                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                SessionId = orderRequest.SessionId
+            };
+        }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogError(ex, "Order execution timed out for {Symbol}", orderRequest.Symbol);
+            orderResult = new OrderResult
+            {
+                OrderId = Guid.NewGuid().ToString("N"),
+                Symbol = orderRequest.Symbol,
+                Success = false,
+                ErrorMessage = "Order execution timed out.",
+                ErrorCode = TradingErrorCode.ExchangeTimeout,
+                Timestamp = DateTime.UtcNow,
+                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                SessionId = orderRequest.SessionId
+            };
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order execution failed for {Symbol}", orderRequest.Symbol);
@@ -136,6 +172,7 @@ public sealed class OrderExecutionService
                 Symbol = orderRequest.Symbol,
                 Success = false,
                 ErrorMessage = ex.Message,
+                ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
                 IsPaperTrade = _tradingSettings.PaperTradingMode,
                 SessionId = orderRequest.SessionId
@@ -171,24 +208,31 @@ public sealed class OrderExecutionService
             }
         }
 
-        try
-        {
-            await _orderRepository.PersistAsync(orderRequest, orderResult, ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Order persistence failed for {Symbol}", orderRequest.Symbol);
-        }
+        // Enqueue DB write — never blocks the execution path
+        _orderWriteQueue.TryEnqueue(orderRequest, orderResult);
 
-        try
-        {
-            await _auditStreamPublisher.PublishAsync(orderRequest, orderResult);
-            _metrics.RecordAuditEventPublished();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Audit stream publish failed for {Symbol}", orderRequest.Symbol);
-        }
+        // Audit stream is non-critical — fire-and-forget
+        _ = _auditStreamPublisher.PublishAsync(orderRequest, orderResult)
+            .ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                {
+                    _logger.LogError(t.Exception, "Audit stream publish failed for {Symbol}", orderRequest.Symbol);
+                    _ = _systemEvents.PublishAsync(new SystemEvent
+                    {
+                        Type = SystemEventType.Error,
+                        ServiceName = "Executor",
+                        Message = $"Audit stream publish failed for {orderRequest.Symbol}: {t.Exception?.InnerException?.Message}",
+                        ErrorCode = TradingErrorCode.AuditStreamFailed,
+                        Symbol = orderRequest.Symbol,
+                        Timestamp = DateTime.UtcNow
+                    }, CancellationToken.None);
+                }
+                else
+                {
+                    _metrics.RecordAuditEventPublished();
+                }
+            }, TaskScheduler.Default);
 
         if (orderResult.Success)
         {

@@ -14,8 +14,9 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     private readonly TradingSettings _tradingSettings;
     private readonly PaperOrderSimulator _paperOrderSimulator;
     private readonly BinanceOrderClient _binanceOrderClient;
-    private readonly OrderRepository _orderRepository;
+    private readonly OrderWriteQueue _orderWriteQueue;
     private readonly AuditStreamPublisher _auditStreamPublisher;
+    private readonly SystemEventPublisher _systemEvents;
     private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionMetrics _metrics;
     private readonly SessionClock _sessionClock;
@@ -29,8 +30,9 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         IOptions<TradingSettings> tradingSettings,
         PaperOrderSimulator paperOrderSimulator,
         BinanceOrderClient binanceOrderClient,
-        OrderRepository orderRepository,
+        OrderWriteQueue orderWriteQueue,
         AuditStreamPublisher auditStreamPublisher,
+        SystemEventPublisher systemEvents,
         PositionTracker positionTracker,
         OrderExecutionMetrics metrics,
         SessionClock sessionClock,
@@ -43,8 +45,9 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         _tradingSettings = tradingSettings.Value;
         _paperOrderSimulator = paperOrderSimulator;
         _binanceOrderClient = binanceOrderClient;
-        _orderRepository = orderRepository;
+        _orderWriteQueue = orderWriteQueue;
         _auditStreamPublisher = auditStreamPublisher;
+        _systemEvents = systemEvents;
         _positionTracker = positionTracker;
         _metrics = metrics;
         _sessionClock = sessionClock;
@@ -64,14 +67,14 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         if (!orderRequestResult || orderRequest is null)
         {
             _metrics.RecordOrderRejected(request.Symbol, "Invalid order request");
-            orderResult = BuildFailureResult(request.Symbol, validationError ?? "Invalid order request.", isPaperTrade: _tradingSettings.PaperTradingMode);
+            orderResult = BuildFailureResult(request.Symbol, validationError ?? "Invalid order request.", _tradingSettings.PaperTradingMode, TradingErrorCode.InvalidOrderParameters);
             return await PersistAndReplyAsync(request, null, orderResult, context.CancellationToken, stopwatch);
         }
 
         if (_tradingSettings.GlobalKillSwitch)
         {
             _metrics.RecordOrderRejected(orderRequest.Symbol, "Global kill switch");
-            orderResult = BuildFailureResult(orderRequest.Symbol, "Global kill switch is enabled.", _tradingSettings.PaperTradingMode);
+            orderResult = BuildFailureResult(orderRequest.Symbol, "Global kill switch is enabled.", _tradingSettings.PaperTradingMode, TradingErrorCode.GlobalKillSwitchActive);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 
@@ -82,7 +85,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             orderResult = BuildFailureResult(
                 orderRequest.Symbol,
                 "System is in exit-only mode. New position orders are blocked during the close-all operation.",
-                _tradingSettings.PaperTradingMode);
+                _tradingSettings.PaperTradingMode,
+                TradingErrorCode.ShutdownExitOnlyMode);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 
@@ -93,7 +97,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             orderResult = BuildFailureResult(
                 orderRequest.Symbol,
                 $"System is in {_recoveryState.CurrentState} mode. New position orders blocked until recovery completes.",
-                _tradingSettings.PaperTradingMode);
+                _tradingSettings.PaperTradingMode,
+                TradingErrorCode.RecoveryModeBlocked);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 
@@ -108,7 +113,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
                 _metrics.RecordOrderRejected(orderRequest.Symbol, "Stale session");
                 orderResult = BuildFailureResult(orderRequest.Symbol,
                     $"Stale session order. Current: {session.SessionId}, Order: {request.SessionId}",
-                    _tradingSettings.PaperTradingMode);
+                    _tradingSettings.PaperTradingMode,
+                    TradingErrorCode.StaleSession);
                 return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
             }
 
@@ -118,7 +124,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
                 _metrics.RecordOrderRejected(orderRequest.Symbol, "Session liquidation window");
                 orderResult = BuildFailureResult(orderRequest.Symbol,
                     $"Session {session.SessionId} is in {session.CurrentPhase} phase. New positions blocked.",
-                    _tradingSettings.PaperTradingMode);
+                    _tradingSettings.PaperTradingMode,
+                    TradingErrorCode.SessionPhaseBlocked);
                 return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
             }
         }
@@ -127,7 +134,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             !_tradingSettings.AllowedSymbols.Contains(orderRequest.Symbol, StringComparer.OrdinalIgnoreCase))
         {
             _metrics.RecordOrderRejected(orderRequest.Symbol, "Symbol not allowed");
-            orderResult = BuildFailureResult(orderRequest.Symbol, $"Symbol {orderRequest.Symbol} is not allowed.", _tradingSettings.PaperTradingMode);
+            orderResult = BuildFailureResult(orderRequest.Symbol, $"Symbol {orderRequest.Symbol} is not allowed.", _tradingSettings.PaperTradingMode, TradingErrorCode.SymbolNotAllowed);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 
@@ -140,7 +147,8 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
                 orderResult = BuildFailureResult(
                     orderRequest.Symbol,
                     $"Order notional {notional:0.########} exceeds configured max {_tradingSettings.MaxNotionalPerOrder:0.########}.",
-                    _tradingSettings.PaperTradingMode);
+                    _tradingSettings.PaperTradingMode,
+                    TradingErrorCode.MaxNotionalExceeded);
                 return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
             }
         }
@@ -153,10 +161,15 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
                 ? await _paperOrderSimulator.ExecuteAsync(orderRequest, context.CancellationToken)
                 : await _binanceOrderClient.PlaceOrderAsync(orderRequest, context.CancellationToken);
         }
+        catch (OperationCanceledException ex)
+        {
+            _logger.LogError(ex, "Order execution timed out for {Symbol}", orderRequest.Symbol);
+            orderResult = BuildFailureResult(orderRequest.Symbol, "Order execution timed out.", _tradingSettings.PaperTradingMode, TradingErrorCode.ExchangeTimeout);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order execution failed unexpectedly for {Symbol}", orderRequest.Symbol);
-            orderResult = BuildFailureResult(orderRequest.Symbol, ex.Message, _tradingSettings.PaperTradingMode);
+            orderResult = BuildFailureResult(orderRequest.Symbol, ex.Message, _tradingSettings.PaperTradingMode, TradingErrorCode.ExchangeRequestFailed);
         }
 
         if (orderResult.Success)
@@ -182,29 +195,49 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         // Record latency metric
         _metrics.RecordOrderLatency(latencyMs, requestForPersistence.Symbol);
 
-        try
-        {
-            await _orderRepository.PersistAsync(requestForPersistence, result, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Order persistence failed for {Symbol}", requestForPersistence.Symbol);
-        }
+        // Enqueue DB write — never blocks gRPC response
+        _orderWriteQueue.TryEnqueue(requestForPersistence, result);
 
         if (result.Success)
         {
             _positionTracker.OnOrderFilled(requestForPersistence, result);
         }
+        else
+        {
+            // Notify Telegram immediately for all order failures
+            _ = _systemEvents.PublishAsync(new SystemEvent
+            {
+                Type = SystemEventType.OrderRejected,
+                ServiceName = "Executor",
+                Message = $"Order failed for {requestForPersistence.Symbol}: [{result.ErrorCode}] {result.ErrorMessage}",
+                ErrorCode = result.ErrorCode,
+                Symbol = requestForPersistence.Symbol,
+                Timestamp = DateTime.UtcNow
+            }, CancellationToken.None);
+        }
 
-        try
-        {
-            await _auditStreamPublisher.PublishAsync(requestForPersistence, result);
-            _metrics.RecordAuditEventPublished();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Audit stream publish failed for {Symbol}", requestForPersistence.Symbol);
-        }
+        // Audit stream is non-critical — fire-and-forget
+        _ = _auditStreamPublisher.PublishAsync(requestForPersistence, result)
+            .ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                {
+                    _logger.LogError(t.Exception, "Audit stream publish failed for {Symbol}", requestForPersistence.Symbol);
+                    _ = _systemEvents.PublishAsync(new SystemEvent
+                    {
+                        Type = SystemEventType.Error,
+                        ServiceName = "Executor",
+                        Message = $"Audit stream publish failed for {requestForPersistence.Symbol}: {t.Exception?.InnerException?.Message}",
+                        ErrorCode = TradingErrorCode.AuditStreamFailed,
+                        Symbol = requestForPersistence.Symbol,
+                        Timestamp = DateTime.UtcNow
+                    }, CancellationToken.None);
+                }
+                else
+                {
+                    _metrics.RecordAuditEventPublished();
+                }
+            }, TaskScheduler.Default);
 
         return new PlaceOrderReply
         {
@@ -220,7 +253,11 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         };
     }
 
-    private static OrderResult BuildFailureResult(string symbol, string errorMessage, bool isPaperTrade)
+    private static OrderResult BuildFailureResult(
+        string symbol,
+        string errorMessage,
+        bool isPaperTrade,
+        TradingErrorCode errorCode = TradingErrorCode.UnknownError)
     {
         return new OrderResult
         {
@@ -228,6 +265,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             Symbol = string.IsNullOrWhiteSpace(symbol) ? "UNKNOWN" : symbol.ToUpperInvariant(),
             Success = false,
             ErrorMessage = errorMessage,
+            ErrorCode = errorCode,
             Timestamp = DateTime.UtcNow,
             IsPaperTrade = isPaperTrade
         };

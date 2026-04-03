@@ -6,4 +6,6 @@ public sealed record SystemEvent
     public required string ServiceName { get; init; }
     public required string Message { get; init; }
     public required DateTime Timestamp { get; init; }
+    public TradingErrorCode? ErrorCode { get; init; }
+    public string? Symbol { get; init; }
 }

@@ -5,8 +5,10 @@ using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Json;
 using CryptoTrading.Shared.Session;
 using CryptoTrading.Shared.Timeline;
+using Grpc.Core;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
+using Strategy.Worker.Infrastructure;
 using Strategy.Worker.Services;
 using System.Text.Json;
 
@@ -20,6 +22,7 @@ public sealed class Worker : BackgroundService
     private readonly OrderExecutorService.OrderExecutorServiceClient _executorClient;
     private readonly SignalToOrderMapper _mapper;
     private readonly ITimelineEventPublisher _timeline;
+    private readonly StrategySystemEventPublisher _systemEvents;
     private readonly SessionClock _sessionClock;
     private readonly SessionTradingPolicy _sessionPolicy;
     private readonly SessionSettings _sessionSettings;
@@ -32,6 +35,7 @@ public sealed class Worker : BackgroundService
         OrderExecutorService.OrderExecutorServiceClient executorClient,
         SignalToOrderMapper mapper,
         ITimelineEventPublisher timeline,
+        StrategySystemEventPublisher systemEvents,
         SessionClock sessionClock,
         SessionTradingPolicy sessionPolicy,
         IOptions<SessionSettings> sessionSettings)
@@ -42,6 +46,7 @@ public sealed class Worker : BackgroundService
         _executorClient = executorClient;
         _mapper = mapper;
         _timeline = timeline;
+        _systemEvents = systemEvents;
         _sessionClock = sessionClock;
         _sessionPolicy = sessionPolicy;
         _sessionSettings = sessionSettings.Value;
@@ -160,7 +165,8 @@ public sealed class Worker : BackgroundService
             return;
         }
 
-        await _timeline.PublishAsync(new TimelineEvent
+        // Fire-and-forget: timeline publish must never delay order flow
+        _ = _timeline.PublishAsync(new TimelineEvent
         {
             SourceService = "Strategy",
             EventType = TimelineEventTypes.OrderMapped,
@@ -179,18 +185,56 @@ public sealed class Worker : BackgroundService
             Tags = [order.Side.ToString().ToLowerInvariant(), "order_mapped"],
         }, cancellationToken);
 
-        var riskResponse = await _riskGuardClient.ValidateOrderAsync(new ValidateOrderRequest
+        // RiskGuard call with 5-second timeout guard
+        ValidateOrderReply riskResponse;
+        try
         {
-            Symbol = order.Symbol,
-            Side = order.Side.ToString(),
-            Quantity = (double)order.Quantity,
-            EntryPrice = (double)order.Price,
-            StopLoss = (double)order.StopLoss,
-            TakeProfit = (double)order.TakeProfit,
-            SessionId = order.SessionId ?? string.Empty,
-            SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
-            IsReduceOnly = order.IsReduceOnly
-        }, cancellationToken: cancellationToken);
+            using var riskCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            riskCts.CancelAfter(TimeSpan.FromSeconds(5));
+            riskResponse = await _riskGuardClient.ValidateOrderAsync(new ValidateOrderRequest
+            {
+                Symbol = order.Symbol,
+                Side = order.Side.ToString(),
+                Quantity = (double)order.Quantity,
+                EntryPrice = (double)order.Price,
+                StopLoss = (double)order.StopLoss,
+                TakeProfit = (double)order.TakeProfit,
+                SessionId = order.SessionId ?? string.Empty,
+                SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
+                IsReduceOnly = order.IsReduceOnly
+            }, cancellationToken: riskCts.Token);
+        }
+        catch (RpcException rpcEx)
+        {
+            var errorCode = rpcEx.StatusCode == StatusCode.DeadlineExceeded
+                ? TradingErrorCode.RiskGuardCallTimeout
+                : TradingErrorCode.RiskGuardUnavailable;
+            _logger.LogError(rpcEx, "RiskGuard gRPC call failed for {Symbol}: {Status}", order.Symbol, rpcEx.Status.Detail);
+            _ = _systemEvents.PublishAsync(new SystemEvent
+            {
+                Type = SystemEventType.Error,
+                ServiceName = "Strategy",
+                Message = $"RiskGuard unavailable for {order.Symbol}: [{errorCode}] {rpcEx.Status.Detail}",
+                ErrorCode = errorCode,
+                Symbol = order.Symbol,
+                Timestamp = DateTime.UtcNow
+            }, CancellationToken.None);
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error calling RiskGuard for {Symbol}", order.Symbol);
+            _ = _systemEvents.PublishAsync(new SystemEvent
+            {
+                Type = SystemEventType.Error,
+                ServiceName = "Strategy",
+                Message = $"RiskGuard call failed for {order.Symbol}: {ex.Message}",
+                ErrorCode = TradingErrorCode.RiskGuardUnavailable,
+                Symbol = order.Symbol,
+                Timestamp = DateTime.UtcNow
+            }, CancellationToken.None);
+            return;
+        }
 
         if (!riskResponse.IsApproved)
         {
@@ -205,20 +249,58 @@ public sealed class Worker : BackgroundService
             ? (decimal)riskResponse.AdjustedQuantity
             : order.Quantity;
 
-        var executionReply = await _executorClient.PlaceOrderAsync(new PlaceOrderRequest
+        // Executor call with 5-second timeout guard
+        PlaceOrderReply executionReply;
+        try
         {
-            Symbol = order.Symbol,
-            Side = order.Side.ToString(),
-            OrderType = order.Type.ToString(),
-            Quantity = (double)finalQuantity,
-            Price = (double)order.Price,
-            StopLoss = (double)order.StopLoss,
-            TakeProfit = (double)order.TakeProfit,
-            Strategy = order.StrategyName,
-            SessionId = order.SessionId ?? string.Empty,
-            SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
-            IsReduceOnly = order.IsReduceOnly
-        }, cancellationToken: cancellationToken);
+            using var execCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            execCts.CancelAfter(TimeSpan.FromSeconds(5));
+            executionReply = await _executorClient.PlaceOrderAsync(new PlaceOrderRequest
+            {
+                Symbol = order.Symbol,
+                Side = order.Side.ToString(),
+                OrderType = order.Type.ToString(),
+                Quantity = (double)finalQuantity,
+                Price = (double)order.Price,
+                StopLoss = (double)order.StopLoss,
+                TakeProfit = (double)order.TakeProfit,
+                Strategy = order.StrategyName,
+                SessionId = order.SessionId ?? string.Empty,
+                SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
+                IsReduceOnly = order.IsReduceOnly
+            }, cancellationToken: execCts.Token);
+        }
+        catch (RpcException rpcEx)
+        {
+            var errorCode = rpcEx.StatusCode == StatusCode.DeadlineExceeded
+                ? TradingErrorCode.ExecutorCallTimeout
+                : TradingErrorCode.ExecutorUnavailable;
+            _logger.LogError(rpcEx, "Executor gRPC call failed for {Symbol}: {Status}", order.Symbol, rpcEx.Status.Detail);
+            _ = _systemEvents.PublishAsync(new SystemEvent
+            {
+                Type = SystemEventType.Error,
+                ServiceName = "Strategy",
+                Message = $"Executor unavailable for {order.Symbol}: [{errorCode}] {rpcEx.Status.Detail}",
+                ErrorCode = errorCode,
+                Symbol = order.Symbol,
+                Timestamp = DateTime.UtcNow
+            }, CancellationToken.None);
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error calling Executor for {Symbol}", order.Symbol);
+            _ = _systemEvents.PublishAsync(new SystemEvent
+            {
+                Type = SystemEventType.Error,
+                ServiceName = "Strategy",
+                Message = $"Executor call failed for {order.Symbol}: {ex.Message}",
+                ErrorCode = TradingErrorCode.ExecutorUnavailable,
+                Symbol = order.Symbol,
+                Timestamp = DateTime.UtcNow
+            }, CancellationToken.None);
+            return;
+        }
 
         if (executionReply.Success)
         {

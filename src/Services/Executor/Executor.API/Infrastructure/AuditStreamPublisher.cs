@@ -28,7 +28,7 @@ public sealed class AuditStreamPublisher
             new("filled_qty", result.FilledQty.ToString("0.########")),
             new("is_paper", result.IsPaperTrade.ToString()),
             new("success", result.Success.ToString()),
-            new("error_code", string.IsNullOrWhiteSpace(result.ErrorMessage) ? string.Empty : "EXECUTION_ERROR"),
+            new("error_code", result.ErrorCode == TradingErrorCode.None ? string.Empty : result.ErrorCode.ToString()),
             new("error_message", result.ErrorMessage ?? string.Empty),
             new("time", result.Timestamp.ToString("O")),
             new("session_id", request.SessionId ?? string.Empty),

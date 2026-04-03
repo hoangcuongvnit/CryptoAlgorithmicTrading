@@ -65,7 +65,14 @@ public sealed class TelegramNotifier
         SystemEventType.ConnectionLost     => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
         SystemEventType.ConnectionRestored => $"✅ WS RESTORED: {evt.Message}",
         SystemEventType.MaxDrawdownBreached => $"🚨 MAX DRAWDOWN BREACHED – All trading halted\n{evt.Message}",
-        SystemEventType.Error              => $"❌ ERROR in {evt.ServiceName}: {evt.Message}",
+        SystemEventType.Error =>
+            $"❌ ERROR [{evt.ErrorCode?.ToString() ?? "UNKNOWN"}] in {evt.ServiceName}" +
+            (evt.Symbol is not null ? $" ({evt.Symbol})" : string.Empty) +
+            $": {evt.Message}",
+        SystemEventType.OrderRejected =>
+            $"🚫 ORDER REJECTED [{evt.ErrorCode?.ToString() ?? "UNKNOWN"}]" +
+            (evt.Symbol is not null ? $" {evt.Symbol}" : string.Empty) +
+            $"\n{evt.ServiceName}: {evt.Message}",
         _                                  => $"ℹ️ {evt.ServiceName}: {evt.Message}"
     };
 
@@ -88,7 +95,10 @@ public sealed class TelegramNotifier
 
     private string FormatRejectedOrder(OrderResult order)
     {
-        return $"❌ REJECTED {order.Symbol}\n" +
+        var codeStr = order.ErrorCode != TradingErrorCode.None
+            ? $" [{order.ErrorCode}]"
+            : string.Empty;
+        return $"❌ REJECTED{codeStr} {order.Symbol}\n" +
                $"Reason: {order.ErrorMessage}\n" +
                $"Time: {_tz.Format(order.Timestamp, "HH:mm:ss")}";
     }

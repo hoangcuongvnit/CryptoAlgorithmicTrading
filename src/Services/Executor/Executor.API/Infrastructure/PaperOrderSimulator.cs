@@ -34,6 +34,7 @@ public sealed class PaperOrderSimulator
                 Side = request.Side,
                 Success = false,
                 ErrorMessage = "No valid reference price available for paper fill.",
+                ErrorCode = TradingErrorCode.NoReferencePrice,
                 Timestamp = DateTime.UtcNow,
                 IsPaperTrade = true
             };
