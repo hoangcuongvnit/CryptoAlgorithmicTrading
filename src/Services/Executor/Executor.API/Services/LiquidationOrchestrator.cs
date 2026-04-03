@@ -116,10 +116,12 @@ public sealed class LiquidationOrchestrator : BackgroundService
                 break;
 
             case SessionPhase.LiquidationOnly:
-                await DispatchCloseOrdersAsync(session, OrderType.Limit, ct);
+                // Entry-block window: new positions are blocked but existing ones are NOT auto-closed.
+                LogEntryBlockedWarning(session);
                 break;
 
             case SessionPhase.ForcedFlatten:
+                // Final 2-minute window: close all remaining open positions.
                 await DispatchCloseOrdersAsync(session, OrderType.Market, ct);
                 break;
         }
@@ -133,6 +135,7 @@ public sealed class LiquidationOrchestrator : BackgroundService
                 await PublishSessionEventAsync(SystemEventType.SessionEnding, session);
                 break;
             case SessionPhase.LiquidationOnly:
+                // Entry-block window started (final 30m). No new entries allowed; positions are NOT auto-closed yet.
                 await PublishSessionEventAsync(SystemEventType.LiquidationStarted, session);
                 break;
             case SessionPhase.ForcedFlatten:
@@ -320,8 +323,19 @@ public sealed class LiquidationOrchestrator : BackgroundService
         {
             _logger.LogWarning(
                 "Session {SessionId} entering soft unwind with {Count} open positions. " +
-                "Liquidation window in {Minutes:F1}m",
+                "Entry-block window in {Minutes:F1}m",
                 session.SessionId, positions.Count, session.TimeToLiquidation.TotalMinutes);
+        }
+    }
+
+    private void LogEntryBlockedWarning(SessionInfo session)
+    {
+        var positions = _positionTracker.GetOpenPositions();
+        if (positions.Count > 0)
+        {
+            _logger.LogWarning(
+                "Session {SessionId} [{Phase}]: new entries BLOCKED. {Count} open position(s) will be force-closed in {Minutes:F1}m.",
+                session.SessionId, session.CurrentPhase, positions.Count, session.TimeToEnd.TotalMinutes);
         }
     }
 

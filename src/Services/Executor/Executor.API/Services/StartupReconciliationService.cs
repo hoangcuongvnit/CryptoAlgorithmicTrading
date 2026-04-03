@@ -260,7 +260,8 @@ public sealed class StartupReconciliationService : BackgroundService
             bool staleSession = !string.IsNullOrEmpty(pos.SessionId) &&
                                 pos.SessionId != session.SessionId;
 
-            bool inLiquidation = _sessionPolicy.IsReduceOnlyWindow(session);
+            // Only auto-close during the final 2-minute ForcedFlatten window, not the entire 30-min entry-block window.
+            bool inAutoCloseWindow = _sessionPolicy.IsAutoCloseWindow(session);
 
             if (staleSession)
             {
@@ -268,15 +269,15 @@ public sealed class StartupReconciliationService : BackgroundService
                     "Recovery: {Symbol} belongs to ended session {OldSession} (current={CurrentSession}). Emergency close.",
                     pos.Symbol, pos.SessionId, session.SessionId);
             }
-            else if (inLiquidation)
+            else if (inAutoCloseWindow)
             {
                 _logger.LogWarning(
-                    "Recovery: restarted in liquidation window for {Symbol}. Submitting reduce-only close.",
+                    "Recovery: restarted in forced-flatten window for {Symbol}. Submitting reduce-only close.",
                     pos.Symbol);
             }
             else
             {
-                // Active session, normal window — position is valid, keep it open
+                // Active session, entry-block or normal window — position is valid, keep it open.
                 continue;
             }
 
@@ -289,7 +290,7 @@ public sealed class StartupReconciliationService : BackgroundService
                 IsReduceOnly = true,
                 SessionId = session.SessionId,
                 SessionPhase = session.CurrentPhase,
-                StrategyName = staleSession ? "RecoveryEmergencyFlatten" : "RecoveryLiquidation"
+                StrategyName = staleSession ? "RecoveryEmergencyFlatten" : "RecoveryForcedFlatten"
             };
 
             try

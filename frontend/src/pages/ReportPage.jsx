@@ -159,6 +159,8 @@ function HourlyHeatmap({ buckets }) {
   })
   const maxTotal = Math.max(...allHours.map(h => h.buyCount + h.sellCount), 1)
 
+  const SESSION_BOUNDARIES = new Set([8, 16])
+
   return (
     <div className="overflow-x-auto">
       <div className="flex gap-1 items-end" style={{ minWidth: 600 }}>
@@ -168,8 +170,9 @@ function HourlyHeatmap({ buckets }) {
           const bg = total === 0
             ? '#f1f5f9'
             : `rgba(47, 111, 237, ${0.15 + intensity * 0.75})`
+          const isBoundary = SESSION_BOUNDARIES.has(h.hour)
           return (
-            <div key={h.hour} className="flex flex-col items-center" style={{ flex: 1 }}>
+            <div key={h.hour} className="flex flex-col items-center" style={{ flex: 1, borderLeft: isBoundary ? '2px solid #f59e0b' : undefined }}>
               <div
                 className="w-full rounded text-xs text-center font-medium"
                 style={{
@@ -179,17 +182,21 @@ function HourlyHeatmap({ buckets }) {
                   lineHeight: '28px',
                   fontSize: 10,
                 }}
-                title={`${h.hour}:00 — ${h.buyCount}B / ${h.sellCount}S`}
+                title={`${h.hour}:00 — ${h.buyCount}B / ${h.sellCount}S${isBoundary ? ' | Session boundary' : ''}`}
               >
                 {total > 0 ? total : ''}
               </div>
-              <span className="text-xs mt-1" style={{ color: '#94a3b8', fontSize: 9 }}>
+              <span className="text-xs mt-1" style={{ color: isBoundary ? '#f59e0b' : '#94a3b8', fontSize: 9, fontWeight: isBoundary ? 700 : 400 }}>
                 {h.hour}
               </span>
             </div>
           )
         })}
       </div>
+      <p className="text-xs mt-2" style={{ color: '#94a3b8' }}>
+        <span style={{ borderLeft: '3px solid #f59e0b', paddingLeft: 4, marginRight: 4 }} />
+        Session boundary (S1: 00–08, S2: 08–16, S3: 16–24 UTC)
+      </p>
     </div>
   )
 }
@@ -206,7 +213,8 @@ function DurationHistogram({ trades }) {
     { label: '15-30m',min: 15,  max: 30 },
     { label: '30m-1h',min: 30,  max: 60 },
     { label: '1-4h',  min: 60,  max: 240 },
-    { label: '>4h',   min: 240, max: Infinity },
+    { label: '4-8h',  min: 240, max: 480 },
+    { label: '>8h',   min: 480, max: Infinity },
   ]
 
   const counts = buckets.map(b => ({
@@ -516,7 +524,7 @@ export function ReportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {symbols.map((s, i) => (
+                  {symbols.map((s) => (
                     <tr
                       key={s.symbol}
                       className="hover:bg-[#f8fafc] transition-colors"

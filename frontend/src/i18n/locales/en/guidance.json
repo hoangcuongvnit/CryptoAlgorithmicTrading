@@ -217,7 +217,7 @@
   },
 
   "campaign": {
-    "title": "4-Hour Session-Locked Campaign",
+    "title": "8-Hour Session-Locked Campaign",
     "subtitle": "Intraday campaign mode with strict session boundaries and mandatory end-of-session liquidation.",
     "badge": "Policy First",
     "sessionTableTitle": "Daily Session Windows",
@@ -226,20 +226,17 @@
       "window": "Time Window"
     },
     "sessions": {
-      "s1": { "label": "S1", "time": "00:00 -> 04:00" },
-      "s2": { "label": "S2", "time": "04:00 -> 08:00" },
-      "s3": { "label": "S3", "time": "08:00 -> 12:00" },
-      "s4": { "label": "S4", "time": "12:00 -> 16:00" },
-      "s5": { "label": "S5", "time": "16:00 -> 20:00" },
-      "s6": { "label": "S6", "time": "20:00 -> 24:00" }
+      "s1": { "label": "S1", "time": "00:00 -> 08:00" },
+      "s2": { "label": "S2", "time": "08:00 -> 16:00" },
+      "s3": { "label": "S3", "time": "16:00 -> 24:00" }
     },
     "mustHaveTitle": "Must-Have Operating Rules",
     "mustHave": {
-      "1": "All trading is split into six independent 4-hour sessions each day.",
+      "1": "All trading is split into three independent 8-hour sessions each day.",
       "2": "Every position opened in a session must be fully closed before that session ends.",
       "3": "No order, trade, or position is allowed to carry across session boundaries.",
-      "4": "New position opens are blocked in the final 30 minutes of each session.",
-      "5": "The final 30 minutes are liquidation-only and must end with flat exposure."
+      "4": "New position opens are blocked in the final 30 minutes of each session. Existing positions are NOT auto-closed during this window.",
+      "5": "In the final 2 minutes of each session, all remaining open positions are force-closed by market order. The session must end flat."
     },
     "documentsTitle": "Related Documents",
     "documentsHint": "Latest campaign and implementation references tracked in this repository:",

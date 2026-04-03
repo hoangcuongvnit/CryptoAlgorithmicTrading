@@ -217,7 +217,7 @@
   },
 
   "campaign": {
-    "title": "Chiến dịch giao dịch theo phiên 4 giờ",
+    "title": "Chiến dịch giao dịch theo phiên 8 giờ",
     "subtitle": "Chế độ giao dịch trong ngày với ranh giới phiên nghiêm ngặt và bắt buộc tất toán cuối phiên.",
     "badge": "Ưu tiên chính sách",
     "sessionTableTitle": "Khung thời gian phiên trong ngày",
@@ -226,20 +226,17 @@
       "window": "Khung giờ"
     },
     "sessions": {
-      "s1": { "label": "S1", "time": "00:00 -> 04:00" },
-      "s2": { "label": "S2", "time": "04:00 -> 08:00" },
-      "s3": { "label": "S3", "time": "08:00 -> 12:00" },
-      "s4": { "label": "S4", "time": "12:00 -> 16:00" },
-      "s5": { "label": "S5", "time": "16:00 -> 20:00" },
-      "s6": { "label": "S6", "time": "20:00 -> 24:00" }
+      "s1": { "label": "S1", "time": "00:00 -> 08:00" },
+      "s2": { "label": "S2", "time": "08:00 -> 16:00" },
+      "s3": { "label": "S3", "time": "16:00 -> 24:00" }
     },
     "mustHaveTitle": "Quy tắc vận hành bắt buộc",
     "mustHave": {
-      "1": "Toàn bộ giao dịch được chia thành 6 phiên độc lập, mỗi phiên 4 giờ mỗi ngày.",
+      "1": "Toàn bộ giao dịch được chia thành 3 phiên độc lập, mỗi phiên 8 giờ mỗi ngày.",
       "2": "Mọi vị thế mở trong phiên phải được đóng hoàn toàn trước khi phiên đó kết thúc.",
       "3": "Không lệnh, giao dịch hoặc vị thế nào được phép kéo dài qua ranh giới phiên.",
-      "4": "Chặn mở vị thế mới trong 30 phút cuối của mỗi phiên.",
-      "5": "30 phút cuối chỉ dành cho tất toán và phải kết thúc với trạng thái không còn vị thế."
+      "4": "Chặn mở vị thế mới trong 30 phút cuối của mỗi phiên. Các vị thế đang mở KHÔNG bị đóng tự động trong giai đoạn này.",
+      "5": "Trong 2 phút cuối của mỗi phiên, tất cả vị thế đang mở sẽ bị đóng cưỡng bức bằng lệnh thị trường. Phiên phải kết thúc không còn vị thế nào."
     },
     "documentsTitle": "Tài liệu liên quan",
     "documentsHint": "Các tài liệu chiến dịch và triển khai mới nhất trong repository:",

@@ -515,13 +515,13 @@ public sealed class OrderRepository
                 SELECT
                     @DateStr || '-S' || gs::text                                          AS expected_session_id,
                     gs                                                                     AS session_num,
-                    (@Start::timestamptz + ((gs - 1) * INTERVAL '4 hours'))               AS session_start,
-                    (@Start::timestamptz + (gs       * INTERVAL '4 hours'))               AS session_end
-                FROM generate_series(1, 6) gs
+                    (@Start::timestamptz + ((gs - 1) * INTERVAL '8 hours'))               AS session_start,
+                    (@Start::timestamptz + (gs       * INTERVAL '8 hours'))               AS session_end
+                FROM generate_series(1, 3) gs
             ),
             order_stats AS (
                 SELECT
-                    (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int                         AS session_num,
+                    (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int                         AS session_num,
                     COUNT(*) FILTER (WHERE success = true)                                 AS total_orders,
                     COUNT(*) FILTER (WHERE side = 'Buy'  AND success = true)               AS buy_count,
                     COUNT(*) FILTER (WHERE side = 'Sell' AND success = true)               AS sell_count,
@@ -534,7 +534,7 @@ public sealed class OrderRepository
                     STRING_AGG(DISTINCT symbol, ', ') FILTER (WHERE success = true)        AS symbols_csv
                 FROM public.orders
                 WHERE time >= @Start AND time < @End{modeFilter}
-                GROUP BY (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int
+                GROUP BY (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int
             )
             SELECT
                 ds.expected_session_id                    AS session_id,
@@ -589,7 +589,7 @@ public sealed class OrderRepository
         }
     }
 
-    /// <summary>Returns session rows across a date range (multiple days × 6 sessions each).</summary>
+    /// <summary>Returns session rows across a date range (multiple days × 3 sessions each).</summary>
     public async Task<IReadOnlyList<SessionReportRow>> GetSessionRangeReportAsync(
         DateTime from,
         DateTime to,
@@ -602,11 +602,11 @@ public sealed class OrderRepository
 
         var sql = $"""
             SELECT
-                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int  AS session_id,
-                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int                                        AS session_num,
-                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4))     * INTERVAL '4 hours'))
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int  AS session_id,
+                (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int                                        AS session_num,
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 8))     * INTERVAL '8 hours'))
                                                                                                       AS session_start_utc,
-                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4) + 1) * INTERVAL '4 hours'))
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 8) + 1) * INTERVAL '8 hours'))
                                                                                                       AS session_end_utc,
                 COUNT(*) FILTER (WHERE success = true)                                                AS total_orders,
                 COUNT(*) FILTER (WHERE side = 'Buy'  AND success = true)                              AS buy_count,
@@ -621,10 +621,10 @@ public sealed class OrderRepository
             FROM public.orders
             WHERE time >= @Start AND time < @End{modeFilter}
             GROUP BY
-                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int,
-                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int,
-                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4))     * INTERVAL '4 hours')),
-                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 4) + 1) * INTERVAL '4 hours'))
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int,
+                (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int,
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 8))     * INTERVAL '8 hours')),
+                (DATE_TRUNC('day', time) + ((FLOOR(EXTRACT(HOUR FROM time) / 8) + 1) * INTERVAL '8 hours'))
             ORDER BY session_start_utc;
             """;
 
@@ -738,16 +738,16 @@ public sealed class OrderRepository
 
         var sql = $"""
             SELECT
-                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int  AS session_id,
-                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int                                        AS session_num,
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int  AS session_id,
+                (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int                                        AS session_num,
                 MIN(time)                                                                             AS session_start_utc,
                 COALESCE(SUM(realized_pnl), 0)                                                       AS session_pnl
             FROM public.orders
             WHERE time >= @Start AND time < @End
               AND success = true{modeFilter}
             GROUP BY
-                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int,
-                (FLOOR(EXTRACT(HOUR FROM time) / 4) + 1)::int
+                TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int,
+                (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int
             ORDER BY session_start_utc;
             """;
 
@@ -783,8 +783,8 @@ public sealed class OrderRepository
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Parses a sessionId like "20240321-S3" into UTC start/end boundaries.
-    /// Sessions are 4-hour blocks: S1=00:00-04:00, S2=04:00-08:00, ..., S6=20:00-24:00.
+    /// Parses a sessionId like "20240321-S2" into UTC start/end boundaries.
+    /// Sessions are 8-hour blocks: S1=00:00-08:00, S2=08:00-16:00, S3=16:00-24:00.
     /// </summary>
     private static bool TryParseSessionId(string sessionId, out DateTime start, out DateTime end)
     {
@@ -804,12 +804,12 @@ public sealed class OrderRepository
                 System.Globalization.DateTimeStyles.None, out var date))
             return false;
 
-        if (!int.TryParse(parts[1].AsSpan(1), out var sessionNum) || sessionNum < 1 || sessionNum > 6)
+        if (!int.TryParse(parts[1].AsSpan(1), out var sessionNum) || sessionNum < 1 || sessionNum > 3)
             return false;
 
         var dayUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
-        start = dayUtc.AddHours((sessionNum - 1) * 4);
-        end = dayUtc.AddHours(sessionNum * 4);
+        start = dayUtc.AddHours((sessionNum - 1) * 8);
+        end = dayUtc.AddHours(sessionNum * 8);
         return true;
     }
 

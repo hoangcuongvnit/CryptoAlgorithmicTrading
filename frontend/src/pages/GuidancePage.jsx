@@ -66,7 +66,7 @@ export function GuidancePage({ onNavigate }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-gray-700">
-                  {[1, 2, 3, 4, 5, 6].map(index => (
+                  {[1, 2, 3].map(index => (
                     <tr key={index}>
                       <td className="px-3 py-2">{t(`campaign.sessions.s${index}.label`)}</td>
                       <td className="px-3 py-2">{t(`campaign.sessions.s${index}.time`)}</td>

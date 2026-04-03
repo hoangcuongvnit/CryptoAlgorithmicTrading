@@ -64,12 +64,9 @@ function EmptyRow({ msg }) {
 // ── Session label ─────────────────────────────────────────────────────────────
 
 const SESSION_LABELS = {
-  1: 'S1 00:00–04:00',
-  2: 'S2 04:00–08:00',
-  3: 'S3 08:00–12:00',
-  4: 'S4 12:00–16:00',
-  5: 'S5 16:00–20:00',
-  6: 'S6 20:00–24:00',
+  1: 'S1 00:00–08:00',
+  2: 'S2 08:00–16:00',
+  3: 'S3 16:00–24:00',
 }
 
 // ── Equity bar chart ──────────────────────────────────────────────────────────
@@ -255,7 +252,7 @@ export function SessionReportPage() {
           />
           <StatCard
             label={t('kpi.activeSessions')}
-            value={`${summary.activeSessions} / 6`}
+            value={`${summary.activeSessions} / 3`}
           />
           <StatCard
             label={t('kpi.totalPnL')}
