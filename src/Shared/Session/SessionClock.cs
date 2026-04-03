@@ -39,8 +39,8 @@ public sealed class SessionClock
         var timeToEnd = sessionEndUtc - now;
         var timeToLiquidation = liquidationStartUtc - now;
 
-        var phase = DeterminePhase(now, sessionStartUtc, softUnwindStartUtc,
-            liquidationStartUtc, forcedFlattenStartUtc, sessionEndUtc);
+        var phase = DeterminePhase(now, softUnwindStartUtc,
+            liquidationStartUtc, forcedFlattenStartUtc);
 
         var sessionId = ComputeSessionId(sessionTzTime, sessionNumber);
 
@@ -67,15 +67,10 @@ public sealed class SessionClock
 
     private static SessionPhase DeterminePhase(
         DateTime utcNow,
-        DateTime sessionStartUtc,
         DateTime softUnwindStartUtc,
         DateTime liquidationStartUtc,
-        DateTime forcedFlattenStartUtc,
-        DateTime sessionEndUtc)
+        DateTime forcedFlattenStartUtc)
     {
-        if (utcNow < sessionStartUtc || utcNow >= sessionEndUtc)
-            return SessionPhase.SessionClosed;
-
         if (utcNow >= forcedFlattenStartUtc)
             return SessionPhase.ForcedFlatten;
 

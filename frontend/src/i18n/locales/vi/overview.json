@@ -8,6 +8,19 @@
     "drawdownUsed": "Mức giảm vốn",
     "drawdownOf": "của tối đa ${{max}}"
   },
+  "session": {
+    "title": "Phiên hiện tại",
+    "sessionLabel": "Phiên #{{number}}",
+    "endsIn": "Kết thúc sau",
+    "liquidationIn": "Thanh lý sau",
+    "phase": {
+      "Open": "Đang mở",
+      "SoftUnwind": "Giảm nhẹ",
+      "LiquidationOnly": "Thanh lý",
+      "ForcedFlatten": "Đóng bắt buộc",
+      "SessionClosed": "Đã đóng"
+    }
+  },
   "priceChart": {
     "title": "Biến động giá 1 giờ",
     "subtitle": "% thay đổi so với 60 phút trước — tất cả coin đang theo dõi",

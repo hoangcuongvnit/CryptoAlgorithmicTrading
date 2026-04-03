@@ -15,6 +15,11 @@ export function useRiskStats() {
   return usePolling(fn, 15000)
 }
 
+export function useSession() {
+  const fn = useCallback(() => fetchJson('/api/trading/session'), [])
+  return usePolling(fn, 30000)
+}
+
 export function useRiskConfig() {
   const fn = useCallback(() => fetchJson('/api/risk/config'), [])
   return usePolling(fn, 60000)

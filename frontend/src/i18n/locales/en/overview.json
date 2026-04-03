@@ -8,6 +8,19 @@
     "drawdownUsed": "Drawdown Used",
     "drawdownOf": "of ${{max}} max"
   },
+  "session": {
+    "title": "Current Session",
+    "sessionLabel": "Session #{{number}}",
+    "endsIn": "Ends in",
+    "liquidationIn": "Liquidation in",
+    "phase": {
+      "Open": "Open",
+      "SoftUnwind": "Soft Unwind",
+      "LiquidationOnly": "Liquidation",
+      "ForcedFlatten": "Forced Flatten",
+      "SessionClosed": "Closed"
+    }
+  },
   "priceChart": {
     "title": "1-Hour Price Change",
     "subtitle": "% change from 60 minutes ago — all tracked coins",
