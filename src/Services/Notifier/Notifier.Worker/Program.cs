@@ -1,3 +1,4 @@
+using CryptoTrading.Shared.Constants;
 using Microsoft.Extensions.Options;
 using Notifier.Worker.Channels;
 using Notifier.Worker.Configuration;
@@ -20,12 +21,16 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
     return ConnectionMultiplexer.Connect(config);
 });
 
+// Timezone service — reads active timezone from Redis on startup; updated live via pub/sub
+builder.Services.AddSingleton<TimezoneService>();
+
 // Telegram
 builder.Services.AddSingleton<TelegramNotifier>(sp =>
 {
     var settings = sp.GetRequiredService<IOptions<TelegramSettings>>().Value;
+    var tz = sp.GetRequiredService<TimezoneService>();
     var logger = sp.GetRequiredService<ILogger<TelegramNotifier>>();
-    return new TelegramNotifier(settings.BotToken, settings.ChatId, logger);
+    return new TelegramNotifier(settings.BotToken, settings.ChatId, tz, logger);
 });
 
 // Notification history
@@ -41,12 +46,29 @@ builder.Services.AddHostedService<NotifierWorker>();
 
 var app = builder.Build();
 
+// Seed timezone from Redis before workers start
+try
+{
+    var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
+    var tz = app.Services.GetRequiredService<TimezoneService>();
+    var db = redis.GetDatabase();
+    var stored = await db.StringGetAsync(RedisChannels.SystemConfigTimezone);
+    if (stored.HasValue && !stored.IsNullOrEmpty)
+        tz.Update(stored.ToString());
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogWarning(ex, "Could not read timezone from Redis on startup — defaulting to UTC");
+}
+
 // ── REST management endpoints (HTTP/1.1 on port 5094) ─────────────────────
 
 app.MapGet("/api/notifier/config", (
     IOptions<TelegramSettings> telegramOpts,
     IOptions<RedisSettings> redisOpts,
-    TelegramNotifier notifier) =>
+    TelegramNotifier notifier,
+    TimezoneService tz) =>
 {
     var t = telegramOpts.Value;
     var maskedChatId = t.ChatId > 0
@@ -59,7 +81,8 @@ app.MapGet("/api/notifier/config", (
         chatId = maskedChatId,
         botConfigured = !string.IsNullOrWhiteSpace(t.BotToken) && t.BotToken != "your_telegram_bot_token_here",
         redisConnection = redisOpts.Value.Connection,
-        historyCapacity = 100
+        historyCapacity = 100,
+        timezone = tz.IanaTimezoneId
     });
 });
 

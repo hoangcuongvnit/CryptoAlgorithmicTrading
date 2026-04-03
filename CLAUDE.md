@@ -66,6 +66,12 @@ signal:{SYMBOL}         # TradeSignal (Analyzer → Strategy)
 trades:audit            # Redis Stream audit log (Executor publishes)
 executor:trading:mode   # Current trading mode broadcast
 coin:{SYMBOL}:log       # Timeline events (all services → TimelineLogger)
+system:config:timezone  # Redis STRING key: active IANA timezone (e.g. "Asia/Ho_Chi_Minh")
+                        #   Written by Gateway on startup and on timezone save
+                        #   Read by Notifier on startup for Telegram message formatting
+system:config:changed   # Redis Pub/Sub: broadcast when system config changes
+                        #   Message payload = new IANA timezone string
+                        #   Notifier subscribes → hot-reloads timezone without restart
 ```
 
 ### Service Types

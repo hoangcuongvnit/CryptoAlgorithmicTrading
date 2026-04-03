@@ -90,26 +90,26 @@ export function TimezonePanel() {
           </label>
           <p className="text-xs text-gray-400 mb-3">{t('timezone.description')}</p>
 
-          <input
-            type="text"
-            placeholder={t('timezone.search')}
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full mb-2 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-
-          <select
-            size={8}
-            value={selected}
-            onChange={e => setSelected(e.target.value)}
-            className="w-full px-2 py-1 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-          >
-            {filtered.map(tz => (
-              <option key={tz} value={tz}>
-                {tz} ({tzOffset(tz)})
-              </option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder={t('timezone.search')}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <select
+              value={selected}
+              onChange={e => { setSelected(e.target.value); setSearch('') }}
+              className="flex-1 px-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono bg-white"
+            >
+              {filtered.map(tz => (
+                <option key={tz} value={tz}>
+                  {tz} ({tzOffset(tz)})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="text-sm space-y-1">

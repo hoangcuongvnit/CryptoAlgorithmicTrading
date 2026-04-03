@@ -53,4 +53,16 @@ public static class RedisChannels
     /// Session lifecycle events channel: session:events
     /// </summary>
     public const string SessionEvents = "session:events";
+
+    /// <summary>
+    /// Redis string key storing the active IANA timezone for all services: system:config:timezone
+    /// Example value: "Asia/Ho_Chi_Minh"
+    /// </summary>
+    public const string SystemConfigTimezone = "system:config:timezone";
+
+    /// <summary>
+    /// Pub/Sub channel broadcast when system config changes: system:config:changed
+    /// Message payload is the new IANA timezone string.
+    /// </summary>
+    public const string SystemConfigChanged = "system:config:changed";
 }

@@ -68,7 +68,7 @@ public sealed class BinanceOrderClient
             side,
             type,
             request.Quantity,
-            price: request.Price > 0 ? request.Price : null,
+            price: request.Type != OrderType.Market && request.Price > 0 ? request.Price : null,
             timeInForce: timeInForce,
             stopPrice: request.StopLoss > 0 ? request.StopLoss : null,
             ct: cancellationToken);

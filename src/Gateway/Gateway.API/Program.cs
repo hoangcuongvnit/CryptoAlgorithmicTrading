@@ -4,6 +4,7 @@ using Gateway.API.Settings;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,7 +50,31 @@ builder.Services.AddHttpClient("timelinelogger", client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
+// Redis — used to cache and broadcast system config (e.g., timezone) to other services
+var redisConnection = builder.Configuration.GetValue<string>("Redis:Connection") ?? "redis:6379";
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+{
+    var config = ConfigurationOptions.Parse(redisConnection);
+    config.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(config);
+});
+
 var app = builder.Build();
+
+// Seed Redis timezone key from PostgreSQL on startup so services read the correct value
+// even if they started before the Gateway did.
+try
+{
+    var settingsRepo = app.Services.GetRequiredService<SystemSettingsRepository>();
+    var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
+    var seedTz = await settingsRepo.GetTimezoneAsync();
+    await redis.GetDatabase().StringSetAsync("system:config:timezone", seedTz);
+}
+catch (Exception ex)
+{
+    var seedLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    seedLogger.LogWarning(ex, "Could not seed timezone to Redis on startup");
+}
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -968,6 +993,7 @@ settingsGroup.MapGet("/system/timezones", (SystemSettingsRepository repo) =>
 
 settingsGroup.MapPut("/system/timezone", async (
     SystemSettingsRepository repo,
+    IConnectionMultiplexer redis,
     HttpRequest request,
     CancellationToken ct) =>
 {
@@ -979,6 +1005,21 @@ settingsGroup.MapPut("/system/timezone", async (
         return Results.BadRequest($"Unknown timezone '{body.Timezone}'. Use a supported IANA timezone ID.");
 
     await repo.UpdateTimezoneAsync(body.Timezone, body.UpdatedBy, ct);
+
+    // Propagate to Redis so all services pick up the new timezone immediately
+    try
+    {
+        var db = redis.GetDatabase();
+        await db.StringSetAsync("system:config:timezone", body.Timezone);
+        await redis.GetSubscriber().PublishAsync(
+            RedisChannel.Literal("system:config:changed"), body.Timezone);
+    }
+    catch (Exception ex)
+    {
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Failed to propagate timezone {Timezone} to Redis", body.Timezone);
+    }
+
     return Results.Ok(new { timezone = body.Timezone });
 });
 

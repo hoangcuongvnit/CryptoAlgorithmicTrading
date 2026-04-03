@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { StatCard } from '../components/StatCard.jsx'
 import { useSymbolTimeline, useRiskConfig, useTimelineEvents, useTimelineSummary } from '../hooks/useDashboard.js'
 import { useSettings } from '../context/SettingsContext.jsx'
-import { formatTime, formatDateTime } from '../utils/dateFormat.js'
+import { formatTime, formatDateTime, todayInTz } from '../utils/dateFormat.js'
 
 const TIME_WINDOWS = [
   { value: 5,   labelKey: '5' },
@@ -62,7 +62,7 @@ const SEVERITY_COLORS = {
   DEBUG:   'text-gray-500 bg-gray-50',
 }
 
-function MongoEventItem({ event }) {
+function MongoEventItem({ event, systemTimezone }) {
   const [expanded, setExpanded] = useState(false)
   const style = CATEGORY_COLORS[event.event_category] ?? CATEGORY_COLORS.UNKNOWN
   const severityStyle = SEVERITY_COLORS[event.severity] ?? SEVERITY_COLORS.INFO
@@ -92,7 +92,7 @@ function MongoEventItem({ event }) {
           </div>
           <div className="text-right shrink-0">
             <div className="text-xs font-mono text-gray-600">
-              {new Date(event.timestamp).toLocaleTimeString()}
+              {formatTime(event.timestamp, systemTimezone)}
             </div>
           </div>
         </div>
@@ -138,8 +138,8 @@ function MongoEventItem({ event }) {
 
 const EVENT_CATEGORIES = ['ALL', 'TRADING', 'POSITION', 'RISK', 'TRADING_SIGNAL', 'STRATEGY', 'MARKET']
 
-function MongoTimelineTab({ symbol, t }) {
-  const today = new Date().toISOString().slice(0, 10)
+function MongoTimelineTab({ symbol, t, systemTimezone }) {
+  const today = todayInTz(systemTimezone)
   const [date, setDate] = useState(today)
   const [category, setCategory] = useState('ALL')
 
@@ -227,7 +227,7 @@ function MongoTimelineTab({ symbol, t }) {
         <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
           <p className="text-xs text-gray-400 mb-4">{eventsData?.total ?? events.length} {t('eventsFound')}</p>
           {events.map((event, i) => (
-            <MongoEventItem key={event.id ?? i} event={event} />
+            <MongoEventItem key={event.id ?? i} event={event} systemTimezone={systemTimezone} />
           ))}
         </div>
       )}
@@ -458,7 +458,7 @@ export function SymbolTimelinePage() {
   const { systemTimezone } = useSettings()
   const { data: riskConfig } = useRiskConfig()
 
-  const [symbol, setSymbol] = useState('')
+  const [symbol, setSymbol] = useState('BTCUSDT')
   const [minutesBack, setMinutesBack] = useState(60)
   const [expandedEvents, setExpandedEvents] = useState({})
   const [activeTab, setActiveTab] = useState('live')  // 'live' | 'mongo'
@@ -578,7 +578,7 @@ export function SymbolTimelinePage() {
 
       {/* MongoDB history tab */}
       {symbol && activeTab === 'mongo' && (
-        <MongoTimelineTab symbol={symbol} t={t} />
+        <MongoTimelineTab symbol={symbol} t={t} systemTimezone={systemTimezone} />
       )}
 
       {/* Live tab content */}

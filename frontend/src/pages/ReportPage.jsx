@@ -10,13 +10,7 @@ import {
   useCapitalFlow,
 } from '../hooks/useDashboard.js'
 import { useSettings } from '../context/SettingsContext.jsx'
-import { formatTime } from '../utils/dateFormat.js'
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function toDateStr(d) {
-  return d.toISOString().split('T')[0]
-}
+import { formatTime, todayInTz } from '../utils/dateFormat.js'
 
 function fmtPnl(v) {
   if (v === undefined || v === null) return '—'
@@ -253,10 +247,10 @@ const CF_COLORS = {
   SNAPSHOT_CLOSE: '#6366f1',
 }
 
-function CapitalFlowTimeline({ dateStr, t }) {
+function CapitalFlowTimeline({ dateStr, t, systemTimezone }) {
   const { data: events, loading, error } = useCapitalFlow({ from: dateStr, to: dateStr })
 
-  const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+  const fmtTime = iso => iso ? formatTime(iso, systemTimezone) : '—'
   const fmtUsd  = v => v != null ? `$${Number(v).toFixed(2)}` : '—'
   const fmtChg  = v => {
     const n = Number(v)
@@ -331,7 +325,7 @@ function CapitalFlowTimeline({ dateStr, t }) {
 export function ReportPage() {
   const { t } = useTranslation('report')
   const { systemTimezone } = useSettings()
-  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()))
+  const [selectedDate, setSelectedDate] = useState(() => todayInTz(systemTimezone))
   const [activeTab, setActiveTab] = useState('overview')
 
   const { data: summary,       loading: summaryLoading }   = useDailyReport(selectedDate)
@@ -366,13 +360,13 @@ export function ReportPage() {
           <input
             type="date"
             value={selectedDate}
-            max={toDateStr(new Date())}
+            max={todayInTz(systemTimezone)}
             onChange={e => setSelectedDate(e.target.value)}
             className="rounded-lg border border-[#dbe4ef] px-3 py-1.5 text-sm"
             style={{ color: '#0f172a', background: '#fff' }}
           />
           <button
-            onClick={() => setSelectedDate(toDateStr(new Date()))}
+            onClick={() => setSelectedDate(todayInTz(systemTimezone))}
             className="rounded-lg px-3 py-1.5 text-sm font-medium border border-[#2f6fed] text-[#2f6fed] hover:bg-[#eff6ff] transition-colors"
           >
             {t('today')}
@@ -724,7 +718,7 @@ export function ReportPage() {
 
           {/* Capital Flow Timeline */}
           <Section title={t('capitalFlow.title')}>
-            <CapitalFlowTimeline dateStr={selectedDate} t={t} />
+            <CapitalFlowTimeline dateStr={selectedDate} t={t} systemTimezone={systemTimezone} />
           </Section>
 
           {/* Individual trade list */}

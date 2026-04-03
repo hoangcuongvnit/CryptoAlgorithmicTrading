@@ -1,4 +1,16 @@
 /**
+ * Get today's date string (YYYY-MM-DD) in the given IANA timezone.
+ * Uses en-CA locale which naturally formats as YYYY-MM-DD.
+ */
+export function todayInTz(timezone = 'UTC') {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone || 'UTC' }).format(new Date())
+  } catch {
+    return new Date().toISOString().split('T')[0]
+  }
+}
+
+/**
  * Format a UTC timestamp as a time string (HH:MM or HH:MM:SS) in the given IANA timezone.
  * Falls back to UTC on any error.
  *

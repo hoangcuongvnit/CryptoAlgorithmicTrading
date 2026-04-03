@@ -26,6 +26,7 @@ public sealed class NotifierWorker : BackgroundService
     private readonly TelegramNotifier _telegramNotifier;
     private readonly NotificationBatcher _batcher;
     private readonly NotificationHistory _history;
+    private readonly TimezoneService _tz;
     private readonly ILogger<NotifierWorker> _logger;
 
     public NotifierWorker(
@@ -33,12 +34,14 @@ public sealed class NotifierWorker : BackgroundService
         TelegramNotifier telegramNotifier,
         NotificationBatcher batcher,
         NotificationHistory history,
+        TimezoneService tz,
         ILogger<NotifierWorker> logger)
     {
         _redis = redis;
         _telegramNotifier = telegramNotifier;
         _batcher = batcher;
         _history = history;
+        _tz = tz;
         _logger = logger;
     }
 
@@ -51,9 +54,22 @@ public sealed class NotifierWorker : BackgroundService
 
         // Startup notification is always immediate — it signals the system is live
         await _telegramNotifier.SendStartupNotificationAsync(stoppingToken);
-        _history.Add("startup", $"CryptoTrader ONLINE | {DateTime.UtcNow:HH:mm} UTC");
+        _history.Add("startup", $"CryptoTrader ONLINE | {_tz.Format(DateTime.UtcNow)}");
 
         var subscriber = _redis.GetSubscriber();
+
+        // Subscribe to system timezone changes so message timestamps stay current
+        await subscriber.SubscribeAsync(
+            RedisChannel.Literal(RedisChannels.SystemConfigChanged),
+            (_, message) =>
+            {
+                var ianaId = message.ToString();
+                if (!string.IsNullOrWhiteSpace(ianaId))
+                {
+                    _tz.Update(ianaId);
+                    _logger.LogInformation("Timezone updated to {Timezone} via Redis pub/sub", ianaId);
+                }
+            });
 
         await subscriber.SubscribeAsync(
             RedisChannel.Literal(RedisChannels.SystemEvents),
@@ -64,7 +80,7 @@ public sealed class NotifierWorker : BackgroundService
                     var systemEvent = JsonSerializer.Deserialize(message.ToString(), TradingJsonContext.Default.SystemEvent);
                     if (systemEvent is null) return;
 
-                    var formatted = TelegramNotifier.FormatSystemEvent(systemEvent);
+                    var formatted = _telegramNotifier.FormatSystemEvent(systemEvent);
                     var category = "system_event";
 
                     if (CriticalEventTypes.Contains(systemEvent.Type))
@@ -116,7 +132,7 @@ public sealed class NotifierWorker : BackgroundService
                     var orderResult = ParseStreamEntry(entry);
                     if (orderResult is null) continue;
 
-                    var formatted = TelegramNotifier.FormatOrderResult(orderResult);
+                    var formatted = _telegramNotifier.FormatOrderResult(orderResult);
 
                     if (!orderResult.Success)
                         await _batcher.SendCriticalAsync(formatted, stoppingToken);

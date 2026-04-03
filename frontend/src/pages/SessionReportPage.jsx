@@ -6,12 +6,8 @@ import {
   useSessionEquityCurve,
   useSessionSymbols,
 } from '../hooks/useDashboard.js'
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function toDateStr(d) {
-  return d.toISOString().split('T')[0]
-}
+import { useSettings } from '../context/SettingsContext.jsx'
+import { formatTime, todayInTz } from '../utils/dateFormat.js'
 
 function fmtPnl(v) {
   if (v === undefined || v === null) return '—'
@@ -27,9 +23,8 @@ function pnlColor(v) {
   return 'text-gray-500'
 }
 
-function fmtTime(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+function fmtTime(iso, timezone) {
+  return formatTime(iso, timezone)
 }
 
 function fmtNum(v, decimals = 4) {
@@ -177,7 +172,8 @@ function SymbolTable({ symbols, t, loading, error }) {
 
 export function SessionReportPage() {
   const { t } = useTranslation('sessionReport')
-  const [date, setDate] = useState(toDateStr(new Date()))
+  const { systemTimezone } = useSettings()
+  const [date, setDate] = useState(() => todayInTz(systemTimezone))
   const [mode, setMode] = useState('all')
   const [selectedSession, setSelectedSession] = useState(null)
 
@@ -227,7 +223,7 @@ export function SessionReportPage() {
           />
         </div>
         <button
-          onClick={() => { setDate(toDateStr(new Date())); setSelectedSession(null) }}
+          onClick={() => { setDate(todayInTz(systemTimezone)); setSelectedSession(null) }}
           className="text-sm px-3 py-1.5 rounded-lg border border-[#dbe4ef] hover:bg-[#f1f5f9] transition-colors"
           style={{ color: '#475569' }}
         >
@@ -245,7 +241,7 @@ export function SessionReportPage() {
         </select>
         {lastUpdated && (
           <span className="text-xs ml-auto" style={{ color: '#94a3b8' }}>
-            {t('lastUpdated')}: {lastUpdated.toLocaleTimeString()}
+            {t('lastUpdated')}: {formatTime(lastUpdated, systemTimezone)}
           </span>
         )}
       </div>
@@ -324,7 +320,7 @@ export function SessionReportPage() {
                               {s.sessionId}
                             </td>
                             <td className="py-2.5 pr-3 text-xs" style={{ color: '#475569' }}>
-                              {fmtTime(s.sessionStartUtc)}–{fmtTime(s.sessionEndUtc)}
+                              {fmtTime(s.sessionStartUtc, systemTimezone)}–{fmtTime(s.sessionEndUtc, systemTimezone)}
                             </td>
                             <td className="py-2.5 pr-3 text-right font-semibold">{s.totalOrders}</td>
                             <td className="py-2.5 pr-3 text-right text-green-700">{s.buyCount}</td>

@@ -1,4 +1,5 @@
 using CryptoTrading.Shared.DTOs;
+using Notifier.Worker.Services;
 using Telegram.Bot;
 
 namespace Notifier.Worker.Channels;
@@ -7,6 +8,7 @@ public sealed class TelegramNotifier
 {
     // Volatile config state — swapped atomically on hot-reload
     private volatile TelegramClientState _state;
+    private readonly TimezoneService _tz;
     private readonly ILogger<TelegramNotifier> _logger;
 
     public bool IsEnabled => _state.Enabled;
@@ -14,8 +16,10 @@ public sealed class TelegramNotifier
     public TelegramNotifier(
         string botToken,
         long chatId,
+        TimezoneService tz,
         ILogger<TelegramNotifier> logger)
     {
+        _tz = tz;
         _logger = logger;
         _state = BuildState(botToken, chatId, logger);
     }
@@ -47,46 +51,46 @@ public sealed class TelegramNotifier
 
     public async Task SendStartupNotificationAsync(CancellationToken cancellationToken = default)
     {
-        var message = $"🚀 CryptoTrader is ONLINE | {DateTime.UtcNow:HH:mm} UTC";
+        var message = $"🚀 CryptoTrader is ONLINE | {_tz.Format(DateTime.UtcNow)}";
         await SendMessageAsync(message, cancellationToken);
     }
 
     public async Task SendSystemEventAsync(SystemEvent evt, CancellationToken cancellationToken = default)
         => await SendMessageAsync(FormatSystemEvent(evt), cancellationToken);
 
-    public static string FormatSystemEvent(SystemEvent evt) => evt.Type switch
+    public string FormatSystemEvent(SystemEvent evt) => evt.Type switch
     {
-        SystemEventType.ServiceStarted => $"🚀 {evt.ServiceName} ONLINE | {evt.Timestamp:HH:mm} UTC",
-        SystemEventType.ServiceStopped => $"⏹️ {evt.ServiceName} STOPPED | {evt.Timestamp:HH:mm} UTC",
-        SystemEventType.ConnectionLost => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
+        SystemEventType.ServiceStarted  => $"🚀 {evt.ServiceName} ONLINE | {_tz.Format(evt.Timestamp)}",
+        SystemEventType.ServiceStopped  => $"⏹️ {evt.ServiceName} STOPPED | {_tz.Format(evt.Timestamp)}",
+        SystemEventType.ConnectionLost     => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
         SystemEventType.ConnectionRestored => $"✅ WS RESTORED: {evt.Message}",
         SystemEventType.MaxDrawdownBreached => $"🚨 MAX DRAWDOWN BREACHED – All trading halted\n{evt.Message}",
-        SystemEventType.Error => $"❌ ERROR in {evt.ServiceName}: {evt.Message}",
-        _ => $"ℹ️ {evt.ServiceName}: {evt.Message}"
+        SystemEventType.Error              => $"❌ ERROR in {evt.ServiceName}: {evt.Message}",
+        _                                  => $"ℹ️ {evt.ServiceName}: {evt.Message}"
     };
 
     public async Task SendOrderResultAsync(OrderResult order, CancellationToken cancellationToken = default)
         => await SendMessageAsync(FormatOrderResult(order), cancellationToken);
 
-    public static string FormatOrderResult(OrderResult order) => order.Success
+    public string FormatOrderResult(OrderResult order) => order.Success
         ? FormatSuccessfulOrder(order)
         : FormatRejectedOrder(order);
 
-    private static string FormatSuccessfulOrder(OrderResult order)
+    private string FormatSuccessfulOrder(OrderResult order)
     {
         var emoji = order.IsPaperTrade ? "📄" : "✅";
         var mode = order.IsPaperTrade ? "PAPER" : "LIVE";
         var side = order.Side.ToString().ToUpperInvariant();
 
         return $"{emoji} {mode} {side} {order.Symbol} @ ${order.FilledPrice:F2}\n" +
-               $"Qty: {order.FilledQty:F6} | Time: {order.Timestamp:HH:mm:ss} UTC";
+               $"Qty: {order.FilledQty:F6} | Time: {_tz.Format(order.Timestamp, "HH:mm:ss")}";
     }
 
-    private static string FormatRejectedOrder(OrderResult order)
+    private string FormatRejectedOrder(OrderResult order)
     {
         return $"❌ REJECTED {order.Symbol}\n" +
                $"Reason: {order.ErrorMessage}\n" +
-               $"Time: {order.Timestamp:HH:mm:ss} UTC";
+               $"Time: {_tz.Format(order.Timestamp, "HH:mm:ss")}";
     }
 
     private async Task SendMessageAsync(string message, CancellationToken cancellationToken)
