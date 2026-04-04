@@ -4,6 +4,7 @@ import { TelegramPanel } from '../components/settings/TelegramPanel.jsx'
 import { ExchangePanel } from '../components/settings/ExchangePanel.jsx'
 import { TradingModePanel } from '../components/settings/TradingModePanel.jsx'
 import { RiskSettingsPanel } from '../components/settings/RiskSettingsPanel.jsx'
+import { OrderAmountLimitsPanel } from '../components/settings/OrderAmountLimitsPanel.jsx'
 import { HouseKeeperPanel } from '../components/settings/HouseKeeperPanel.jsx'
 
 export function SettingsPage() {
@@ -31,7 +32,10 @@ export function SettingsPage() {
         <RiskSettingsPanel />
       </div>
 
-      {/* Row 4: HouseKeeper (full width) */}
+      {/* Row 4: Order Amount Limits (full width) */}
+      <OrderAmountLimitsPanel />
+
+      {/* Row 5: HouseKeeper (full width) */}
       <HouseKeeperPanel />
     </div>
   )

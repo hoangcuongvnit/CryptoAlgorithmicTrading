@@ -1536,6 +1536,62 @@ settingsGroup.MapPut("/risk", async (
     return Results.Ok(new { saved = true });
 });
 
+// ── Order Amount Limit settings endpoints ────────────────────────────────
+
+// GET /api/settings/order-amount-limit
+settingsGroup.MapGet("/order-amount-limit", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetOrderAmountLimitAsync(ct);
+    return Results.Ok(new
+    {
+        minOrderAmount = cfg.MinOrderAmount,
+        maxOrderAmount = cfg.MaxOrderAmount,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// PUT /api/settings/order-amount-limit
+settingsGroup.MapPut("/order-amount-limit", async (
+    SystemSettingsRepository repo,
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    OrderAmountLimitSaveRequest? body;
+    try { body = await request.ReadFromJsonAsync<OrderAmountLimitSaveRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+    if (body.MinOrderAmount is null) return Results.BadRequest("minOrderAmount is required");
+    if (body.MaxOrderAmount is null) return Results.BadRequest("maxOrderAmount is required");
+    if (body.MinOrderAmount <= 0 || body.MaxOrderAmount <= 0)
+        return Results.BadRequest("minOrderAmount and maxOrderAmount must be greater than 0");
+    if (body.MinOrderAmount > body.MaxOrderAmount)
+        return Results.BadRequest("minOrderAmount must be less than or equal to maxOrderAmount");
+
+    await repo.SaveOrderAmountLimitAsync(
+        body.MinOrderAmount.Value,
+        body.MaxOrderAmount.Value,
+        body.UpdatedBy,
+        ct);
+
+    try
+    {
+        var client = factory.CreateClient("executor");
+        await client.PostAsJsonAsync("/api/trading/reload-order-amount-limit", new
+        {
+            minOrderAmount = body.MinOrderAmount,
+            maxOrderAmount = body.MaxOrderAmount,
+        }, ct);
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to push order amount limits to Executor");
+    }
+
+    return Results.Ok(new { saved = true });
+});
+
 // ── HouseKeeper settings endpoints ────────────────────────────────────────
 
 // GET /api/settings/housekeeper
@@ -1762,6 +1818,23 @@ app.Lifetime.ApplicationStarted.Register(() =>
             logger.LogWarning(ex, "Failed to sync Trading Mode on startup");
         }
 
+        // Sync Order Amount Limits → Executor
+        try
+        {
+            var orderAmountCfg = await repo.GetOrderAmountLimitAsync();
+            var client = factory.CreateClient("executor");
+            await client.PostAsJsonAsync("/api/trading/reload-order-amount-limit", new
+            {
+                minOrderAmount = orderAmountCfg.MinOrderAmount,
+                maxOrderAmount = orderAmountCfg.MaxOrderAmount,
+            });
+            logger.LogInformation("Order amount limits synced to Executor on startup");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to sync Order Amount Limits to Executor on startup");
+        }
+
         // Sync Risk settings → RiskGuard
         try
         {
@@ -1891,6 +1964,7 @@ record TelegramTestMessageRequest(string? Message);
 record ExchangeSaveRequest(string? ApiKey, string? ApiSecret, string? TestnetApiKey, string? TestnetApiSecret, bool UseTestnet, string? UpdatedBy);
 record ExchangeValidateRequest(string ApiKey, string ApiSecret, bool UseTestnet);
 record ValidateSavedRequest(bool UseTestnet);
+record OrderAmountLimitSaveRequest(decimal? MinOrderAmount, decimal? MaxOrderAmount, string? UpdatedBy);
 record TradingModeSaveRequest(bool PaperTradingMode, decimal InitialBalance, string? UpdatedBy);
 record RiskSaveRequest(decimal MaxDrawdownPercent, decimal MinRiskReward, decimal MaxPositionSizePercent, int CooldownSeconds, string? UpdatedBy);
 record HouseKeeperSaveRequest(bool Enabled, bool DryRun, string ScheduleUtc, int RetentionOrdersDays, int RetentionGapsDays, int RetentionTicksMonths, int BatchSize, int MaxRunSeconds, string? UpdatedBy);

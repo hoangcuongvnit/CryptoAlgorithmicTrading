@@ -15,6 +15,7 @@ namespace Executor.API.Services;
 public sealed class OrderExecutionService
 {
     private readonly TradingSettings _tradingSettings;
+    private readonly OrderAmountLimitValidator _orderAmountValidator;
     private readonly PaperOrderSimulator _paperOrderSimulator;
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly SpreadFilterService _spreadFilter;
@@ -31,6 +32,7 @@ public sealed class OrderExecutionService
 
     public OrderExecutionService(
         IOptions<TradingSettings> tradingSettings,
+        OrderAmountLimitValidator orderAmountValidator,
         PaperOrderSimulator paperOrderSimulator,
         BinanceOrderClient binanceOrderClient,
         SpreadFilterService spreadFilter,
@@ -46,6 +48,7 @@ public sealed class OrderExecutionService
         ILogger<OrderExecutionService> logger)
     {
         _tradingSettings = tradingSettings.Value;
+        _orderAmountValidator = orderAmountValidator;
         _paperOrderSimulator = paperOrderSimulator;
         _binanceOrderClient = binanceOrderClient;
         _spreadFilter = spreadFilter;
@@ -71,6 +74,23 @@ public sealed class OrderExecutionService
         {
             SessionId = request.SessionId ?? session?.SessionId
         };
+
+        var amountValidation = await _orderAmountValidator.ValidateAsync(orderRequest, ct);
+        if (!amountValidation.Passed)
+        {
+            return new OrderResult
+            {
+                OrderId = Guid.NewGuid().ToString("N"),
+                Symbol = orderRequest.Symbol,
+                Side = orderRequest.Side,
+                Success = false,
+                ErrorMessage = amountValidation.ErrorMessage ?? "Order amount validation failed.",
+                ErrorCode = amountValidation.ErrorCode,
+                Timestamp = DateTime.UtcNow,
+                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                SessionId = orderRequest.SessionId
+            };
+        }
 
         // Phase 3.2: Consensus pricing gate (live mode only)
         if (!_tradingSettings.PaperTradingMode)

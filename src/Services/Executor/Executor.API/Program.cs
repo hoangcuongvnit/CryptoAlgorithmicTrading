@@ -47,6 +47,10 @@ builder.Services.Configure<TradingSettings>(builder.Configuration.GetSection("Tr
 builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection("Redis"));
 builder.Services.Configure<BinanceSettings>(builder.Configuration.GetSection("Binance"));
 
+var tradingBootstrapSettings = builder.Configuration.GetSection("Trading").Get<TradingSettings>() ?? new TradingSettings();
+builder.Services.AddSingleton(_ => new OrderAmountLimitStore(5m, tradingBootstrapSettings.MaxNotionalPerOrder > 0 ? tradingBootstrapSettings.MaxNotionalPerOrder : 1000m));
+builder.Services.AddSingleton<OrderAmountLimitValidator>();
+
 var redisConnection = builder.Configuration.GetValue<string>("Redis:Connection") ?? "localhost:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 {
@@ -65,7 +69,7 @@ builder.Services.AddSingleton<AuditStreamPublisher>();
 builder.Services.AddSingleton<SystemEventPublisher>();
 builder.Services.AddSingleton<OrderWriteQueue>();
 builder.Services.AddSingleton<PaperOrderSimulator>();
-builder.Services.AddSingleton<BinanceOrderClient>();
+builder.Services.AddSingleton<Executor.API.Infrastructure.BinanceOrderClient>();
 builder.Services.AddSingleton<SpreadFilterService>();
 builder.Services.AddSingleton<PriceConsensusService>();
 builder.Services.AddSingleton<PositionTracker>();
@@ -78,7 +82,7 @@ builder.Services.AddSingleton<SessionClock>();
 builder.Services.AddSingleton<SessionTradingPolicy>();
 builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 builder.Services.AddSingleton<PositionLifecycleManager>();
-builder.Services.AddSingleton<OrderExecutionService>();
+builder.Services.AddSingleton<Executor.API.Services.OrderExecutionService>();
 
 // Recovery services — RecoveryStateService must be registered before hosted services that depend on it
 builder.Services.AddSingleton<RecoveryStateService>();
@@ -96,7 +100,7 @@ builder.Services.AddHostedService<SessionExitOnlyMonitorService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.MapGrpcService<OrderExecutorGrpcService>();
+app.MapGrpcService<Executor.API.Services.OrderExecutorGrpcService>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Executor.API" }));
 app.MapGet("/metrics", () => "Prometheus metrics endpoint. Configure Prometheus to scrape http://localhost:9091/metrics");
 app.MapGet("/", () => "Order Executor gRPC service is running.");
@@ -570,6 +574,26 @@ app.MapPost("/api/trading/reload-exchange-config", (
     return Results.Ok(new { reloaded = true, useTestnet = body.UseTestnet });
 });
 
+app.MapPost("/api/trading/reload-order-amount-limit", async (
+    [FromServices] OrderAmountLimitStore orderAmountLimits,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    OrderAmountLimitReloadRequest? body;
+    try { body = await request.ReadFromJsonAsync<OrderAmountLimitReloadRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+    if (body.MinOrderAmount is null) return Results.BadRequest("minOrderAmount is required");
+    if (body.MaxOrderAmount is null) return Results.BadRequest("maxOrderAmount is required");
+    if (body.MinOrderAmount <= 0 || body.MaxOrderAmount <= 0)
+        return Results.BadRequest("minOrderAmount and maxOrderAmount must be greater than 0");
+    if (body.MinOrderAmount > body.MaxOrderAmount)
+        return Results.BadRequest("minOrderAmount must be less than or equal to maxOrderAmount");
+
+    orderAmountLimits.Update(body.MinOrderAmount.Value, body.MaxOrderAmount.Value);
+    return Results.Ok(new { reloaded = true, minOrderAmount = body.MinOrderAmount, maxOrderAmount = body.MaxOrderAmount });
+});
+
 app.MapPost("/api/trading/validate-exchange", async (
     HttpRequest request,
     CancellationToken ct) =>
@@ -642,4 +666,5 @@ record CancelCloseAllRequest(string OperationId);
 record ResumeTradingRequest(string? Reason, string? RequestedBy, string ConfirmationToken);
 record ExchangeReloadRequest(string ApiKey, string ApiSecret, string TestnetApiKey, string TestnetApiSecret, bool UseTestnet);
 record ValidateExchangeRequest(string ApiKey, string ApiSecret, bool UseTestnet);
+record OrderAmountLimitReloadRequest(decimal? MinOrderAmount, decimal? MaxOrderAmount);
 record TradingModeReloadRequest(bool PaperTradingMode);

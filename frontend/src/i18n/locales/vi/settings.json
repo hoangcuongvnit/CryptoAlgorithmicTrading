@@ -200,6 +200,25 @@
       "validationError": "Vui lòng kiểm tra lại các giá trị."
     }
   },
+  "orderAmountLimit": {
+    "title": "Giới hạn giá trị mỗi lệnh",
+    "subtitle": "Thiết lập giá trị tối thiểu và tối đa theo quote currency cho mỗi lệnh.",
+    "minOrderAmount": "Giá trị lệnh tối thiểu (USDT)",
+    "minOrderAmountHint": "Từ chối lệnh nếu giá trị danh nghĩa thấp hơn mức này.",
+    "maxOrderAmount": "Giá trị lệnh tối đa (USDT)",
+    "maxOrderAmountHint": "Từ chối lệnh nếu giá trị danh nghĩa vượt quá mức này.",
+    "save": "Lưu giới hạn giá trị lệnh",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu giới hạn giá trị lệnh và áp dụng cho Executor.",
+    "saveFailed": "Lưu giới hạn giá trị lệnh thất bại.",
+    "activeValues": "Đang áp dụng (Executor)",
+    "errors": {
+      "minRequired": "Cần nhập giá trị lệnh tối thiểu.",
+      "maxRequired": "Cần nhập giá trị lệnh tối đa.",
+      "rangeInvalid": "Giá trị tối thiểu phải nhỏ hơn hoặc bằng giá trị tối đa.",
+      "networkError": "Lỗi mạng. Vui lòng thử lại."
+    }
+  },
   "housekeeper": {
     "title": "HouseKeeper",
     "subtitle": "Cấu hình tự động dọn dẹp và lưu giữ dữ liệu.",

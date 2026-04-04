@@ -40,6 +40,12 @@ public sealed record RiskSettingsRecord(
     string? UpdatedBy,
     DateTime? UpdatedAtUtc);
 
+public sealed record OrderAmountLimitRecord(
+    decimal MinOrderAmount,
+    decimal MaxOrderAmount,
+    string? UpdatedBy,
+    DateTime? UpdatedAtUtc);
+
 public sealed record HouseKeeperSettingsRecord(
     bool Enabled,
     bool DryRun,
@@ -656,6 +662,81 @@ public sealed class SystemSettingsRepository
         }
 
         _logger.LogInformation("Risk settings saved by {UpdatedBy}", updatedBy ?? "unknown");
+    }
+
+    // ── Order Amount Limits ─────────────────────────────────────────────────
+
+    public async Task<OrderAmountLimitRecord> GetOrderAmountLimitAsync(CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+
+        const string sql = """
+            SELECT key, value FROM public.system_settings
+            WHERE key LIKE 'risk.%';
+            """;
+        try
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            var rows = await conn.QueryAsync<(string Key, string Value)>(
+                new CommandDefinition(sql, cancellationToken: ct));
+
+            var d = rows.ToDictionary(r => r.Key, r => r.Value);
+
+            decimal Parse(string key, decimal def) =>
+                d.TryGetValue(key, out var v) && decimal.TryParse(v,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : def;
+
+            return new OrderAmountLimitRecord(
+                Parse("risk.minOrderAmount", 5.0m),
+                Parse("risk.maxOrderAmount", 1000.0m),
+                d.TryGetValue("risk.orderAmount.updatedBy", out var ub) ? ub : null,
+                d.TryGetValue("risk.orderAmount.updatedAtUtc", out var ua) && DateTime.TryParse(ua, out var uad) ? uad : null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read order amount limits");
+            return new OrderAmountLimitRecord(5.0m, 1000.0m, null, null);
+        }
+    }
+
+    public async Task SaveOrderAmountLimitAsync(
+        decimal minOrderAmount,
+        decimal maxOrderAmount,
+        string? updatedBy,
+        CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+
+        var now = DateTime.UtcNow;
+        string Fmt(decimal v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var updates = new[]
+        {
+            ("risk.minOrderAmount", Fmt(minOrderAmount)),
+            ("risk.maxOrderAmount", Fmt(maxOrderAmount)),
+            ("risk.orderAmount.updatedBy", updatedBy ?? "system"),
+            ("risk.orderAmount.updatedAtUtc", now.ToString("O")),
+        };
+
+        const string sql = """
+            INSERT INTO public.system_settings (key, value, updated_at_utc, updated_by)
+            VALUES (@Key, @Value, @Now, @UpdatedBy)
+            ON CONFLICT (key) DO UPDATE
+                SET value          = EXCLUDED.value,
+                    updated_at_utc = EXCLUDED.updated_at_utc,
+                    updated_by     = EXCLUDED.updated_by;
+            """;
+
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        foreach (var (key, value) in updates)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(sql,
+                new { Key = key, Value = value, Now = now, UpdatedBy = updatedBy }, cancellationToken: ct));
+        }
+
+        _logger.LogInformation("Order amount limits saved by {UpdatedBy}", updatedBy ?? "unknown");
     }
 
     // ── HouseKeeper ───────────────────────────────────────────────────────────

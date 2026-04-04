@@ -12,6 +12,7 @@ namespace Executor.API.Services;
 public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecutorServiceBase
 {
     private readonly TradingSettings _tradingSettings;
+    private readonly OrderAmountLimitValidator _orderAmountValidator;
     private readonly PaperOrderSimulator _paperOrderSimulator;
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly OrderWriteQueue _orderWriteQueue;
@@ -28,6 +29,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
 
     public OrderExecutorGrpcService(
         IOptions<TradingSettings> tradingSettings,
+        OrderAmountLimitValidator orderAmountValidator,
         PaperOrderSimulator paperOrderSimulator,
         BinanceOrderClient binanceOrderClient,
         OrderWriteQueue orderWriteQueue,
@@ -43,6 +45,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         ILogger<OrderExecutorGrpcService> logger)
     {
         _tradingSettings = tradingSettings.Value;
+        _orderAmountValidator = orderAmountValidator;
         _paperOrderSimulator = paperOrderSimulator;
         _binanceOrderClient = binanceOrderClient;
         _orderWriteQueue = orderWriteQueue;
@@ -138,19 +141,16 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 
-        if (_tradingSettings.MaxNotionalPerOrder > 0 && orderRequest.Price > 0)
+        var amountValidation = await _orderAmountValidator.ValidateAsync(orderRequest, context.CancellationToken);
+        if (!amountValidation.Passed)
         {
-            var notional = orderRequest.Price * orderRequest.Quantity;
-            if (notional > _tradingSettings.MaxNotionalPerOrder)
-            {
-                _metrics.RecordOrderRejected(orderRequest.Symbol, "Notional exceeds max");
-                orderResult = BuildFailureResult(
-                    orderRequest.Symbol,
-                    $"Order notional {notional:0.########} exceeds configured max {_tradingSettings.MaxNotionalPerOrder:0.########}.",
-                    _tradingSettings.PaperTradingMode,
-                    TradingErrorCode.MaxNotionalExceeded);
-                return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
-            }
+            _metrics.RecordOrderRejected(orderRequest.Symbol, amountValidation.ErrorMessage ?? "Order amount validation failed");
+            orderResult = BuildFailureResult(
+                orderRequest.Symbol,
+                amountValidation.ErrorMessage ?? "Order amount validation failed.",
+                _tradingSettings.PaperTradingMode,
+                amountValidation.ErrorCode);
+            return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
         }
 
         _metrics.RecordOrderPlaced(orderRequest.Symbol, orderRequest.Side.ToString(), orderRequest.Quantity);

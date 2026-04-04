@@ -200,6 +200,25 @@
       "validationError": "Please check the input values."
     }
   },
+  "orderAmountLimit": {
+    "title": "Order Amount Limits",
+    "subtitle": "Set the minimum and maximum quote value allowed per order.",
+    "minOrderAmount": "Minimum Order Amount (USDT)",
+    "minOrderAmountHint": "Reject orders whose notional value is below this amount.",
+    "maxOrderAmount": "Maximum Order Amount (USDT)",
+    "maxOrderAmountHint": "Reject orders whose notional value exceeds this amount.",
+    "save": "Save Order Amount Limits",
+    "saving": "Saving...",
+    "saveSuccess": "Order amount limits saved and applied to Executor.",
+    "saveFailed": "Failed to save order amount limits.",
+    "activeValues": "Active in Executor",
+    "errors": {
+      "minRequired": "Minimum order amount is required.",
+      "maxRequired": "Maximum order amount is required.",
+      "rangeInvalid": "Minimum order amount must be less than or equal to maximum order amount.",
+      "networkError": "Network error. Please try again."
+    }
+  },
   "housekeeper": {
     "title": "HouseKeeper",
     "subtitle": "Configure automated data cleanup and retention.",
