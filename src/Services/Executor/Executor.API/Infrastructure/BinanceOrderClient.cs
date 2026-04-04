@@ -12,7 +12,9 @@ public sealed class BinanceOrderClient
     private readonly BinanceRestClientProvider _clientProvider;
     private readonly ILogger<BinanceOrderClient> _logger;
     private readonly ResiliencePipeline _resiliencePipeline;
-    private readonly ConcurrentDictionary<string, decimal> _stepSizeCache = new();
+
+    private sealed record SymbolFilters(decimal StepSize, decimal MinQty, decimal MinNotional);
+    private readonly ConcurrentDictionary<string, SymbolFilters> _filterCache = new();
 
     public BinanceOrderClient(
         BinanceRestClientProvider clientProvider,
@@ -47,29 +49,35 @@ public sealed class BinanceOrderClient
             cancellationToken);
     }
 
-    private async Task<decimal> GetStepSizeAsync(string symbol, CancellationToken ct)
+    private async Task<SymbolFilters> GetSymbolFiltersAsync(string symbol, CancellationToken ct)
     {
-        if (_stepSizeCache.TryGetValue(symbol, out var cached))
+        if (_filterCache.TryGetValue(symbol, out var cached))
             return cached;
 
         var info = await _clientProvider.Current.SpotApi.ExchangeData.GetExchangeInfoAsync(symbol, ct);
         if (!info.Success)
         {
-            _logger.LogWarning("Could not fetch LOT_SIZE for {Symbol}, quantity will be sent as-is", symbol);
-            return 0m;
+            _logger.LogWarning("Could not fetch exchange filters for {Symbol}, order will be sent as-is", symbol);
+            return new SymbolFilters(0m, 0m, 0m);
         }
 
         var symbolInfo = info.Data.Symbols.FirstOrDefault();
         if (symbolInfo is null)
         {
-            _logger.LogWarning("No symbol info returned for {Symbol}, quantity will be sent as-is", symbol);
-            return 0m;
+            _logger.LogWarning("No symbol info returned for {Symbol}, order will be sent as-is", symbol);
+            return new SymbolFilters(0m, 0m, 0m);
         }
 
         var stepSize = symbolInfo.LotSizeFilter?.StepSize ?? 0m;
-        _stepSizeCache[symbol] = stepSize;
-        _logger.LogDebug("Cached LOT_SIZE step size for {Symbol}: {StepSize}", symbol, stepSize);
-        return stepSize;
+        var minQty = symbolInfo.LotSizeFilter?.MinQuantity ?? 0m;
+        var minNotional = symbolInfo.MinNotionalFilter?.MinNotional ?? 0m;
+
+        var filters = new SymbolFilters(stepSize, minQty, minNotional);
+        _filterCache[symbol] = filters;
+        _logger.LogDebug(
+            "Cached filters for {Symbol}: StepSize={StepSize}, MinQty={MinQty}, MinNotional={MinNotional}",
+            symbol, stepSize, minQty, minNotional);
+        return filters;
     }
 
     private static decimal ApplyStepSize(decimal quantity, decimal stepSize)
@@ -80,24 +88,45 @@ public sealed class BinanceOrderClient
 
     private async Task<OrderResult> PlaceOrderCoreAsync(OrderRequest request, CancellationToken cancellationToken)
     {
-        var stepSize = await GetStepSizeAsync(request.Symbol, cancellationToken);
-        var quantity = ApplyStepSize(request.Quantity, stepSize);
+        var filters = await GetSymbolFiltersAsync(request.Symbol, cancellationToken);
+        var quantity = ApplyStepSize(request.Quantity, filters.StepSize);
 
         if (quantity <= 0)
         {
             _logger.LogWarning(
-                "Order quantity {Original} rounds to zero after LOT_SIZE step {Step} for {Symbol}",
-                request.Quantity, stepSize, request.Symbol);
+                "Order quantity {Original} for {Symbol} is below minimum step {Step}. Set DefaultOrderQuantity >= {Step}",
+                request.Quantity, request.Symbol, filters.StepSize, filters.StepSize);
             return new OrderResult
             {
                 Symbol = request.Symbol,
                 Side = request.Side,
                 Success = false,
-                ErrorMessage = $"Quantity {request.Quantity} rounds to zero with LOT_SIZE step {stepSize}",
+                ErrorMessage = $"Quantity {request.Quantity} rounds to zero with LOT_SIZE step {filters.StepSize}",
                 ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
                 IsPaperTrade = false
             };
+        }
+
+        if (filters.MinNotional > 0 && request.Price > 0)
+        {
+            var notional = quantity * request.Price;
+            if (notional < filters.MinNotional)
+            {
+                _logger.LogWarning(
+                    "Order notional {Notional:F4} for {Symbol} is below MIN_NOTIONAL {MinNotional}. Increase quantity or use a higher price",
+                    notional, request.Symbol, filters.MinNotional);
+                return new OrderResult
+                {
+                    Symbol = request.Symbol,
+                    Side = request.Side,
+                    Success = false,
+                    ErrorMessage = $"Order notional {notional:F4} below MIN_NOTIONAL {filters.MinNotional} for {request.Symbol}",
+                    ErrorCode = TradingErrorCode.ExchangeRequestFailed,
+                    Timestamp = DateTime.UtcNow,
+                    IsPaperTrade = false
+                };
+            }
         }
 
         var side = request.Side == CryptoTrading.Shared.DTOs.OrderSide.Buy

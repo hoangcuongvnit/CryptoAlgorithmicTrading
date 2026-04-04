@@ -254,6 +254,7 @@ app.MapGet("/api/trading/session", ([FromServices] SessionClock clock) =>
         currentPhase = session.CurrentPhase.ToString(),
         sessionStartUtc = session.SessionStartUtc,
         sessionEndUtc = session.SessionEndUtc,
+        liquidationStartUtc = session.LiquidationStartUtc,
         minutesToEnd = session.TimeToEnd.TotalMinutes,
         minutesToLiquidation = session.TimeToLiquidation.TotalMinutes
     });
