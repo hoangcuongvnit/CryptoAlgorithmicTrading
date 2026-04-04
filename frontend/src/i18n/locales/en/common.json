@@ -62,10 +62,13 @@
 
   "eventTimeline": {
     "noEvents": "No events yet. Waiting for activity...",
+    "noFilteredEvents": "No events match this category.",
+    "filterLabel": "Filter by category",
     "copy": "Copy",
     "copied": "Copied",
     "page": "Page {{page}}",
     "catLabel": {
+      "all": "All",
       "trade": "Trade",
       "rejected": "Rejected",
       "startup": "Startup",

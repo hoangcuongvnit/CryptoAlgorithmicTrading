@@ -5,6 +5,7 @@ public sealed class TradingSettings
     public bool PaperTradingMode { get; set; } = true;
     public bool GlobalKillSwitch { get; set; }
     public List<string> AllowedSymbols { get; set; } = new();
+    public decimal MinOrderAmount { get; set; } = 5m;
     public decimal MaxNotionalPerOrder { get; set; } = 1000m;
     public decimal PaperSlippageBps { get; set; } = 2m;
     public SpreadFilterSettings SpreadFilter { get; set; } = new();

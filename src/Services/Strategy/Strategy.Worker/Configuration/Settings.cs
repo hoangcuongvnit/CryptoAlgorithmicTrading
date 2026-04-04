@@ -14,6 +14,8 @@ public sealed class GrpcEndpoints
 public sealed class TradingSettings
 {
     public decimal DefaultOrderQuantity { get; set; } = 0.001m;
+    public decimal DefaultOrderNotionalUsdt { get; set; } = 25m;
+    public decimal MinOrderNotionalUsdt { get; set; } = 5m;
     public SignalThreshold MinimumSignalStrength { get; set; } = SignalThreshold.Moderate;
 
     // Phase 2.1: Adaptive stop-loss using ATR

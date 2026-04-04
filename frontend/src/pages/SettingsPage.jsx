@@ -17,26 +17,15 @@ export function SettingsPage() {
         <p className="text-sm text-gray-500 mt-1">{t('subtitle')}</p>
       </div>
 
-      {/* Row 1: Timezone + Telegram */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <TimezonePanel />
         <TelegramPanel />
-      </div>
-
-      {/* Row 2: Exchange Configuration (full width) */}
-      <ExchangePanel />
-
-      {/* Row 3: Trading Mode + Risk Management */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <ExchangePanel />
         <TradingModePanel />
         <RiskSettingsPanel />
+        <OrderAmountLimitsPanel />
+        <HouseKeeperPanel />
       </div>
-
-      {/* Row 4: Order Amount Limits (full width) */}
-      <OrderAmountLimitsPanel />
-
-      {/* Row 5: HouseKeeper (full width) */}
-      <HouseKeeperPanel />
     </div>
   )
 }

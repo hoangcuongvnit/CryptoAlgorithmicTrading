@@ -194,7 +194,7 @@ export function OverviewPage() {
       {/* Recent Events */}
       <div>
         <h2 className="text-lg font-semibold mb-3" style={{ color: '#0f172a' }}>{t('recentActivity')}</h2>
-        <EventTimeline events={notifier?.recentNotifications ?? notifier?.recent ?? []} maxItems={10} />
+        <EventTimeline events={notifier?.recentNotifications ?? notifier?.recent ?? []} />
       </div>
     </div>
   )

@@ -62,12 +62,18 @@ public sealed class SignalToOrderMapper
         if (stopLoss <= 0 || takeProfit <= 0)
             return false;
 
+        var quantity = ResolveOrderQuantity(entry);
+        if (quantity <= 0)
+        {
+            return false;
+        }
+
         orderRequest = new OrderRequest
         {
             Symbol = signal.Symbol,
             Side = side,
             Type = OrderType.Market,
-            Quantity = _settings.DefaultOrderQuantity,
+            Quantity = quantity,
             Price = entry,
             StopLoss = stopLoss,
             TakeProfit = takeProfit,
@@ -78,5 +84,26 @@ public sealed class SignalToOrderMapper
         };
 
         return true;
+    }
+
+    private decimal ResolveOrderQuantity(decimal entryPrice)
+    {
+        var quantity = _settings.DefaultOrderQuantity;
+
+        if (_settings.DefaultOrderNotionalUsdt > 0 && entryPrice > 0)
+        {
+            quantity = _settings.DefaultOrderNotionalUsdt / entryPrice;
+        }
+
+        if (_settings.MinOrderNotionalUsdt > 0 && entryPrice > 0)
+        {
+            var minQty = _settings.MinOrderNotionalUsdt / entryPrice;
+            if (quantity < minQty)
+            {
+                quantity = minQty;
+            }
+        }
+
+        return decimal.Round(quantity, 8, MidpointRounding.AwayFromZero);
     }
 }

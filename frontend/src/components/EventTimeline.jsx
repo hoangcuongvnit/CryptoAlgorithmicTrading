@@ -19,14 +19,26 @@ const CATEGORY_STYLE = {
   system_event: { icon: '⚙️', bg: 'bg-gray-100',  text: 'text-gray-700'  },
 }
 
+const CATEGORY_ORDER = ['all', 'order', 'order_rejected', 'startup', 'system_event']
+
+function getCategoryLabelKey(category) {
+  return {
+    all: 'eventTimeline.catLabel.all',
+    order: 'eventTimeline.catLabel.trade',
+    order_rejected: 'eventTimeline.catLabel.rejected',
+    startup: 'eventTimeline.catLabel.startup',
+    system_event: 'eventTimeline.catLabel.system',
+  }[category]
+}
+
 export function EventTimeline({ events, maxItems = 30 }) {
   const { t } = useTranslation('common')
   const { systemTimezone } = useSettings()
   const [page, setPage] = useState(1)
+  const [selectedCategory, setSelectedCategory] = useState('all')
   const [copiedKey, setCopiedKey] = useState('')
 
   const PAGE_SIZE = 10
-  const PAGE_COUNT = 3
 
   const sortedItems = useMemo(() => {
     if (!events || events.length === 0) return []
@@ -35,9 +47,36 @@ export function EventTimeline({ events, maxItems = 30 }) {
       .slice(0, maxItems)
   }, [events, maxItems])
 
+  const availableCategories = useMemo(() => {
+    const categories = new Set(
+      sortedItems
+        .map(item => item.category)
+        .filter(Boolean)
+    )
+
+    const orderedCategories = CATEGORY_ORDER.filter(category => category === 'all' || categories.has(category))
+    const extraCategories = [...categories].filter(category => !CATEGORY_ORDER.includes(category))
+    return [...orderedCategories, ...extraCategories]
+  }, [sortedItems])
+
+  const filteredItems = useMemo(() => {
+    if (selectedCategory === 'all') return sortedItems
+    return sortedItems.filter(item => item.category === selectedCategory)
+  }, [sortedItems, selectedCategory])
+
+  const pageCount = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+
   useEffect(() => {
     setPage(1)
   }, [events])
+
+  useEffect(() => {
+    setPage(prevPage => Math.min(prevPage, pageCount))
+  }, [pageCount])
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedCategory])
 
   useEffect(() => {
     if (!copiedKey) return undefined
@@ -54,16 +93,40 @@ export function EventTimeline({ events, maxItems = 30 }) {
     )
   }
 
-  const catLabelKey = (category) => ({
-    order: 'eventTimeline.catLabel.trade',
-    order_rejected: 'eventTimeline.catLabel.rejected',
-    startup: 'eventTimeline.catLabel.startup',
-    system_event: 'eventTimeline.catLabel.system',
-  }[category])
-
   const start = (page - 1) * PAGE_SIZE
   const end = start + PAGE_SIZE
-  const items = sortedItems.slice(start, end)
+  const items = filteredItems.slice(start, end)
+
+  if (filteredItems.length === 0) {
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{t('eventTimeline.filterLabel')}</span>
+          {availableCategories.map(category => {
+            const labelKey = getCategoryLabelKey(category)
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setSelectedCategory(category)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  selectedCategory === category
+                    ? 'bg-slate-800 text-white border-slate-800'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {labelKey ? t(labelKey) : category}
+              </button>
+            )
+          })}
+        </div>
+        <div className="text-center py-10 text-gray-400">
+          <p className="text-4xl mb-2">🔎</p>
+          <p>{t('eventTimeline.noFilteredEvents')}</p>
+        </div>
+      </div>
+    )
+  }
 
   const handleCopy = async (evt, idx) => {
     const copyText = evt.message ?? evt.summary ?? ''
@@ -79,11 +142,33 @@ export function EventTimeline({ events, maxItems = 30 }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{t('eventTimeline.filterLabel')}</span>
+        {availableCategories.map(category => {
+          const labelKey = getCategoryLabelKey(category)
+          return (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setSelectedCategory(category)}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                selectedCategory === category
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {labelKey ? t(labelKey) : category}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="space-y-2">
       {items.map((evt, idx) => {
         const rowKey = `${evt.timestampUtc}-${evt.category}-${start + idx}`
         const style = CATEGORY_STYLE[evt.category] ?? { icon: '📋', bg: 'bg-gray-100', text: 'text-gray-600' }
-        const labelKey = catLabelKey(evt.category)
+        const labelKey = getCategoryLabelKey(evt.category)
         const label = labelKey ? t(labelKey) : evt.category
         return (
           <div key={rowKey} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
@@ -108,23 +193,26 @@ export function EventTimeline({ events, maxItems = 30 }) {
           </div>
         )
       })}
-
-      <div className="pt-2 flex items-center justify-center gap-2">
-        {Array.from({ length: PAGE_COUNT }, (_, i) => i + 1).map(p => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => setPage(p)}
-            className={`text-xs px-3 py-1 rounded border transition-colors ${
-              page === p
-                ? 'bg-slate-800 text-white border-slate-800'
-                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {t('eventTimeline.page', { page: p })}
-          </button>
-        ))}
       </div>
+
+      {pageCount > 1 && (
+        <div className="pt-2 flex items-center justify-center gap-2">
+          {Array.from({ length: pageCount }, (_, i) => i + 1).map(p => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPage(p)}
+              className={`text-xs px-3 py-1 rounded border transition-colors ${
+                page === p
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {t('eventTimeline.page', { page: p })}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

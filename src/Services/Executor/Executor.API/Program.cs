@@ -48,7 +48,9 @@ builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection("Redi
 builder.Services.Configure<BinanceSettings>(builder.Configuration.GetSection("Binance"));
 
 var tradingBootstrapSettings = builder.Configuration.GetSection("Trading").Get<TradingSettings>() ?? new TradingSettings();
-builder.Services.AddSingleton(_ => new OrderAmountLimitStore(5m, tradingBootstrapSettings.MaxNotionalPerOrder > 0 ? tradingBootstrapSettings.MaxNotionalPerOrder : 1000m));
+builder.Services.AddSingleton(_ => new OrderAmountLimitStore(
+    tradingBootstrapSettings.MinOrderAmount > 0 ? tradingBootstrapSettings.MinOrderAmount : 5m,
+    tradingBootstrapSettings.MaxNotionalPerOrder > 0 ? tradingBootstrapSettings.MaxNotionalPerOrder : 1000m));
 builder.Services.AddSingleton<OrderAmountLimitValidator>();
 
 var redisConnection = builder.Configuration.GetValue<string>("Redis:Connection") ?? "localhost:6379";
@@ -572,6 +574,12 @@ app.MapPost("/api/trading/reload-exchange-config", (
     clientProvider.Reconfigure(activeKey, activeSecret, body.UseTestnet);
 
     return Results.Ok(new { reloaded = true, useTestnet = body.UseTestnet });
+});
+
+app.MapGet("/api/trading/order-amount-limit", ([FromServices] OrderAmountLimitStore orderAmountLimits) =>
+{
+    var snapshot = orderAmountLimits.Current;
+    return Results.Ok(new { minOrderAmount = snapshot.MinOrderAmount, maxOrderAmount = snapshot.MaxOrderAmount, updatedAtUtc = snapshot.UpdatedAtUtc });
 });
 
 app.MapPost("/api/trading/reload-order-amount-limit", async (

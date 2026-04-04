@@ -62,10 +62,13 @@
 
   "eventTimeline": {
     "noEvents": "Chưa có sự kiện. Đang chờ hoạt động...",
+    "noFilteredEvents": "Không có sự kiện phù hợp với bộ lọc này.",
+    "filterLabel": "Lọc theo category",
     "copy": "Sao chép",
     "copied": "Đã chép",
     "page": "Trang {{page}}",
     "catLabel": {
+      "all": "Tất cả",
       "trade": "Giao dịch",
       "rejected": "Từ chối",
       "startup": "Khởi động",
