@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Database -->
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Npgsql" />
+
     <!-- Redis -->
     <PackageReference Include="StackExchange.Redis" />
     

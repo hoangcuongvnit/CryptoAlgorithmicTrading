@@ -142,9 +142,13 @@ services:
       redis:
         condition: service_healthy
         required: false
+      postgres:
+        condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
+      - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
       - Telegram__BotToken=${TELEGRAM_BOT_TOKEN}
       - Telegram__ChatId=${TELEGRAM_CHAT_ID:-0}
     ports:

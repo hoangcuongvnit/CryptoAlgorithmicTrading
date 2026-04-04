@@ -1,4 +1,5 @@
 using CryptoTrading.Shared.DTOs;
+using Notifier.Worker.Infrastructure;
 using Notifier.Worker.Services;
 using Telegram.Bot;
 
@@ -9,6 +10,7 @@ public sealed class TelegramNotifier
     // Volatile config state — swapped atomically on hot-reload
     private volatile TelegramClientState _state;
     private readonly TimezoneService _tz;
+    private readonly NotificationMessageRepository _messageRepository;
     private readonly ILogger<TelegramNotifier> _logger;
 
     public bool IsEnabled => _state.Enabled;
@@ -17,9 +19,11 @@ public sealed class TelegramNotifier
         string botToken,
         long chatId,
         TimezoneService tz,
+        NotificationMessageRepository messageRepository,
         ILogger<TelegramNotifier> logger)
     {
         _tz = tz;
+        _messageRepository = messageRepository;
         _logger = logger;
         _state = BuildState(botToken, chatId, logger);
     }
@@ -52,11 +56,11 @@ public sealed class TelegramNotifier
     public async Task SendStartupNotificationAsync(CancellationToken cancellationToken = default)
     {
         var message = $"🚀 CryptoTrader is ONLINE | {_tz.Format(DateTime.UtcNow)}";
-        await SendMessageAsync(message, cancellationToken);
+        await SendMessageAsync(message, "startup", cancellationToken);
     }
 
     public async Task SendSystemEventAsync(SystemEvent evt, CancellationToken cancellationToken = default)
-        => await SendMessageAsync(FormatSystemEvent(evt), cancellationToken);
+        => await SendMessageAsync(FormatSystemEvent(evt), "system_event", cancellationToken);
 
     public string FormatSystemEvent(SystemEvent evt) => evt.Type switch
     {
@@ -77,7 +81,10 @@ public sealed class TelegramNotifier
     };
 
     public async Task SendOrderResultAsync(OrderResult order, CancellationToken cancellationToken = default)
-        => await SendMessageAsync(FormatOrderResult(order), cancellationToken);
+        => await SendMessageAsync(
+            FormatOrderResult(order),
+            order.Success ? "order" : "order_rejected",
+            cancellationToken);
 
     public string FormatOrderResult(OrderResult order) => order.Success
         ? FormatSuccessfulOrder(order)
@@ -103,23 +110,29 @@ public sealed class TelegramNotifier
                $"Time: {_tz.Format(order.Timestamp, "HH:mm:ss")}";
     }
 
-    private async Task SendMessageAsync(string message, CancellationToken cancellationToken)
+    private async Task SendMessageAsync(string message, string category, CancellationToken cancellationToken)
     {
         var state = _state;
         if (!state.Enabled)
         {
-            _logger.LogDebug("[Telegram disabled] {Message}", message[..Math.Min(50, message.Length)]);
+            _logger.LogDebug("[Telegram disabled] {Category}: {Message}", category, message[..Math.Min(50, message.Length)]);
             return;
         }
 
         try
         {
-            await state.Client!.SendMessage(
+            var sent = await state.Client!.SendMessage(
                 chatId: state.ChatId,
                 text: message,
                 cancellationToken: cancellationToken);
 
-            _logger.LogDebug("Sent Telegram notification: {Message}", message[..Math.Min(50, message.Length)]);
+            await _messageRepository.SaveSentAsync(
+                category,
+                message,
+                sent.MessageId.ToString(),
+                cancellationToken);
+
+            _logger.LogDebug("Sent Telegram notification ({Category}): {Message}", category, message[..Math.Min(50, message.Length)]);
         }
         catch (Exception ex)
         {
@@ -150,8 +163,8 @@ public sealed class TelegramNotifier
     }
 
     /// <summary>Sends an arbitrary message using the current active config. Used by test-message endpoint.</summary>
-    public Task SendDirectMessageAsync(string message, CancellationToken cancellationToken = default)
-        => SendMessageAsync(message, cancellationToken);
+    public Task SendDirectMessageAsync(string message, string category = "manual", CancellationToken cancellationToken = default)
+        => SendMessageAsync(message, category, cancellationToken);
 
     /// <summary>Validates credentials by creating a temporary client. Does not modify current state.</summary>
     public static async Task<(bool Valid, string? BotUsername, string Message)> ValidateCredentialsAsync(

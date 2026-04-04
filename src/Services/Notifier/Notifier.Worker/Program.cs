@@ -2,6 +2,7 @@ using CryptoTrading.Shared.Constants;
 using Microsoft.Extensions.Options;
 using Notifier.Worker.Channels;
 using Notifier.Worker.Configuration;
+using Notifier.Worker.Infrastructure;
 using Notifier.Worker.Services;
 using Notifier.Worker.Workers;
 using StackExchange.Redis;
@@ -29,12 +30,14 @@ builder.Services.AddSingleton<TelegramNotifier>(sp =>
 {
     var settings = sp.GetRequiredService<IOptions<TelegramSettings>>().Value;
     var tz = sp.GetRequiredService<TimezoneService>();
+    var messageRepository = sp.GetRequiredService<NotificationMessageRepository>();
     var logger = sp.GetRequiredService<ILogger<TelegramNotifier>>();
-    return new TelegramNotifier(settings.BotToken, settings.ChatId, tz, logger);
+    return new TelegramNotifier(settings.BotToken, settings.ChatId, tz, messageRepository, logger);
 });
 
 // Notification history
 builder.Services.AddSingleton<NotificationHistory>();
+builder.Services.AddSingleton<NotificationMessageRepository>();
 
 // Notification batcher — registered as singleton so NotifierWorker can inject it,
 // and as a hosted service so its timer loop starts automatically.
@@ -68,6 +71,7 @@ app.MapGet("/api/notifier/config", (
     IOptions<TelegramSettings> telegramOpts,
     IOptions<RedisSettings> redisOpts,
     TelegramNotifier notifier,
+    NotificationMessageRepository messageRepository,
     TimezoneService tz) =>
 {
     var t = telegramOpts.Value;
@@ -82,14 +86,40 @@ app.MapGet("/api/notifier/config", (
         botConfigured = !string.IsNullOrWhiteSpace(t.BotToken) && t.BotToken != "your_telegram_bot_token_here",
         redisConnection = redisOpts.Value.Connection,
         historyCapacity = 100,
+        persistenceEnabled = messageRepository.IsEnabled,
         timezone = tz.IanaTimezoneId
     });
 });
 
-app.MapGet("/api/notifier/stats", (NotificationHistory history) =>
+app.MapGet("/api/notifier/stats", async (
+    NotificationHistory history,
+    NotificationMessageRepository messageRepository,
+    int? limit,
+    CancellationToken ct) =>
 {
+    var maxItems = Math.Clamp(limit ?? 30, 1, 100);
+
+    if (messageRepository.IsEnabled)
+    {
+        var (totalDb, byCategoryDb) = await messageRepository.GetTodayCountsAsync(ct);
+        var recentDb = await messageRepository.GetRecentAsync(maxItems, ct);
+
+        return Results.Ok(new
+        {
+            todayTotal = totalDb,
+            todayByCategory = byCategoryDb,
+            recentNotifications = recentDb.Select(r => new
+            {
+                category = r.Category,
+                summary = r.Summary,
+                message = r.MessageText,
+                timestampUtc = r.TimestampUtc,
+            })
+        });
+    }
+
     var (total, byCategory) = history.GetTodayCounts();
-    var recent = history.GetRecent();
+    var recent = history.GetRecent().Take(maxItems);
 
     return Results.Ok(new
     {
@@ -101,6 +131,32 @@ app.MapGet("/api/notifier/stats", (NotificationHistory history) =>
             summary = r.Summary,
             timestampUtc = r.TimestampUtc
         })
+    });
+});
+
+app.MapGet("/api/notifier/messages", async (
+    NotificationMessageRepository messageRepository,
+    int? limit,
+    CancellationToken ct) =>
+{
+    if (!messageRepository.IsEnabled)
+        return Results.Ok(new { items = Array.Empty<object>(), persistenceEnabled = false });
+
+    var maxItems = Math.Clamp(limit ?? 50, 1, 200);
+    var rows = await messageRepository.GetRecentAsync(maxItems, ct);
+
+    return Results.Ok(new
+    {
+        items = rows.Select(r => new
+        {
+            id = r.Id,
+            category = r.Category,
+            summary = r.Summary,
+            message = r.MessageText,
+            timestampUtc = r.TimestampUtc,
+            externalMessageId = r.ExternalMessageId,
+        }),
+        persistenceEnabled = true
     });
 });
 
@@ -145,7 +201,7 @@ app.MapPost("/api/notifier/test-message", async (TelegramNotifier notifier, Http
 
     try
     {
-        await notifier.SendDirectMessageAsync(message, ct);
+        await notifier.SendDirectMessageAsync(message, "manual", ct);
         return Results.Ok(new { success = true, sentAtUtc = DateTime.UtcNow });
     }
     catch (Exception ex)

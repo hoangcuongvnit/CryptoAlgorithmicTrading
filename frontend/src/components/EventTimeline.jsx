@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSettings } from '../context/SettingsContext.jsx'
 import { formatTime } from '../utils/dateFormat.js'
@@ -21,8 +22,30 @@ const CATEGORY_STYLE = {
 export function EventTimeline({ events, maxItems = 30 }) {
   const { t } = useTranslation('common')
   const { systemTimezone } = useSettings()
+  const [page, setPage] = useState(1)
+  const [copiedKey, setCopiedKey] = useState('')
 
-  if (!events || events.length === 0) {
+  const PAGE_SIZE = 10
+  const PAGE_COUNT = 3
+
+  const sortedItems = useMemo(() => {
+    if (!events || events.length === 0) return []
+    return [...events]
+      .sort((a, b) => new Date(b.timestampUtc) - new Date(a.timestampUtc))
+      .slice(0, maxItems)
+  }, [events, maxItems])
+
+  useEffect(() => {
+    setPage(1)
+  }, [events])
+
+  useEffect(() => {
+    if (!copiedKey) return undefined
+    const timer = setTimeout(() => setCopiedKey(''), 1200)
+    return () => clearTimeout(timer)
+  }, [copiedKey])
+
+  if (sortedItems.length === 0) {
     return (
       <div className="text-center py-10 text-gray-400">
         <p className="text-4xl mb-2">📭</p>
@@ -38,30 +61,70 @@ export function EventTimeline({ events, maxItems = 30 }) {
     system_event: 'eventTimeline.catLabel.system',
   }[category])
 
-  const items = events.slice(0, maxItems)
+  const start = (page - 1) * PAGE_SIZE
+  const end = start + PAGE_SIZE
+  const items = sortedItems.slice(start, end)
+
+  const handleCopy = async (evt, idx) => {
+    const copyText = evt.message ?? evt.summary ?? ''
+    const rowKey = `${evt.timestampUtc}-${evt.category}-${idx}`
+    if (!copyText) return
+
+    try {
+      await navigator.clipboard.writeText(copyText)
+      setCopiedKey(rowKey)
+    } catch {
+      setCopiedKey('')
+    }
+  }
 
   return (
     <div className="space-y-2">
       {items.map((evt, idx) => {
+        const rowKey = `${evt.timestampUtc}-${evt.category}-${start + idx}`
         const style = CATEGORY_STYLE[evt.category] ?? { icon: '📋', bg: 'bg-gray-100', text: 'text-gray-600' }
         const labelKey = catLabelKey(evt.category)
         const label = labelKey ? t(labelKey) : evt.category
         return (
-          <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+          <div key={rowKey} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
             <span className="text-lg mt-0.5">{style.icon}</span>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-gray-800">{evt.summary}</p>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center flex-wrap gap-2 mt-1">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${style.bg} ${style.text}`}>
                   {label}
                 </span>
                 <span className="text-xs text-gray-400">{formatTime(evt.timestampUtc, systemTimezone, { seconds: true })}</span>
                 <span className="text-xs text-gray-300">({timeAgo(evt.timestampUtc)})</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(evt, start + idx)}
+                  className="ml-auto text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  {copiedKey === rowKey ? t('eventTimeline.copied') : t('eventTimeline.copy')}
+                </button>
               </div>
             </div>
           </div>
         )
       })}
+
+      <div className="pt-2 flex items-center justify-center gap-2">
+        {Array.from({ length: PAGE_COUNT }, (_, i) => i + 1).map(p => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setPage(p)}
+            className={`text-xs px-3 py-1 rounded border transition-colors ${
+              page === p
+                ? 'bg-slate-800 text-white border-slate-800'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {t('eventTimeline.page', { page: p })}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

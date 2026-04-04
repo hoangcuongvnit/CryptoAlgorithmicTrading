@@ -608,6 +608,26 @@ notifierGroup.MapGet("/stats", async (IHttpClientFactory factory, CancellationTo
     }
 });
 
+notifierGroup.MapGet("/messages", async (
+    IHttpClientFactory factory,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    var client = factory.CreateClient("notifier");
+    var qs = request.QueryString.Value ?? string.Empty;
+
+    try
+    {
+        var response = await client.GetAsync($"/api/notifier/messages{qs}", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Notifier unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 // ── Executor trading endpoints proxy ─────────────────────────────────────
 
 var tradingGroup = app.MapGroup("/api/trading");

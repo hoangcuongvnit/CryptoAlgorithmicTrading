@@ -62,6 +62,9 @@
 
   "eventTimeline": {
     "noEvents": "No events yet. Waiting for activity...",
+    "copy": "Copy",
+    "copied": "Copied",
+    "page": "Page {{page}}",
     "catLabel": {
       "trade": "Trade",
       "rejected": "Rejected",

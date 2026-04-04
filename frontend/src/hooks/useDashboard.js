@@ -26,7 +26,7 @@ export function useRiskConfig() {
 }
 
 export function useNotifierStats() {
-  const fn = useCallback(() => fetchJson('/api/notifier/stats'), [])
+  const fn = useCallback(() => fetchJson('/api/notifier/stats?limit=30'), [])
   return usePolling(fn, 20000)
 }
 
@@ -59,7 +59,7 @@ export function useActivities() {
   const { data: notifierData, loading: notifierLoading, error: notifierError, lastUpdated: notifierUpdated, refresh: refreshNotifier } = useNotifierStats()
 
   const activities = useMemo(
-    () => mergeAndSort(riskData?.recentValidations ?? [], notifierData?.recent ?? []),
+    () => mergeAndSort(riskData?.recentValidations ?? [], notifierData?.recentNotifications ?? notifierData?.recent ?? []),
     [riskData, notifierData]
   )
 

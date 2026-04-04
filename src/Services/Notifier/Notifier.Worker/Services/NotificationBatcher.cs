@@ -35,10 +35,10 @@ public sealed class NotificationBatcher : BackgroundService
     }
 
     /// <summary>Sends a message immediately, bypassing the batch queue.</summary>
-    public Task SendCriticalAsync(string message, CancellationToken ct = default)
+    public Task SendCriticalAsync(string message, string category = "critical", CancellationToken ct = default)
     {
-        _history.Add("critical", message);
-        return _telegramNotifier.SendDirectMessageAsync(message, ct);
+        _history.Add(category, message);
+        return _telegramNotifier.SendDirectMessageAsync(message, category, ct);
     }
 
     /// <summary>Adds an informational message to the batch queue.
@@ -48,7 +48,7 @@ public sealed class NotificationBatcher : BackgroundService
         if (!_enabled)
         {
             _history.Add(category, message);
-            _ = _telegramNotifier.SendDirectMessageAsync(message);
+            _ = _telegramNotifier.SendDirectMessageAsync(message, category);
             return;
         }
 
@@ -97,7 +97,7 @@ public sealed class NotificationBatcher : BackgroundService
 
         var message = FormatBatch(items);
         _history.Add("batch", $"Sent {items.Count} batched notifications");
-        await _telegramNotifier.SendDirectMessageAsync(message, ct);
+        await _telegramNotifier.SendDirectMessageAsync(message, "batch", ct);
         _logger.LogInformation("Sent batch of {Count} notifications", items.Count);
     }
 

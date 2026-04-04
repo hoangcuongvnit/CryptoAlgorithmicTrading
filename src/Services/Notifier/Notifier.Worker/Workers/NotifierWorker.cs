@@ -84,7 +84,7 @@ public sealed class NotifierWorker : BackgroundService
                     var category = "system_event";
 
                     if (CriticalEventTypes.Contains(systemEvent.Type))
-                        await _batcher.SendCriticalAsync(formatted, stoppingToken);
+                        await _batcher.SendCriticalAsync(formatted, category, stoppingToken);
                     else
                         _batcher.Enqueue(category, formatted);
 
@@ -135,7 +135,7 @@ public sealed class NotifierWorker : BackgroundService
                     var formatted = _telegramNotifier.FormatOrderResult(orderResult);
 
                     if (!orderResult.Success)
-                        await _batcher.SendCriticalAsync(formatted, stoppingToken);
+                        await _batcher.SendCriticalAsync(formatted, "order_rejected", stoppingToken);
                     else
                         _batcher.Enqueue("order", formatted);
 

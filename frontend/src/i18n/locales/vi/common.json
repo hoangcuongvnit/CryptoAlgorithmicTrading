@@ -62,6 +62,9 @@
 
   "eventTimeline": {
     "noEvents": "Chưa có sự kiện. Đang chờ hoạt động...",
+    "copy": "Sao chép",
+    "copied": "Đã chép",
+    "page": "Trang {{page}}",
     "catLabel": {
       "trade": "Giao dịch",
       "rejected": "Từ chối",
