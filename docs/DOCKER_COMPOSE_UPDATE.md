@@ -100,7 +100,7 @@ Proper dependency chains prevent services from starting before their dependencie
 - PostgreSQL connection
 
 **For OrderExecutor:**
-- Paper trading mode flag
+- Live trading mode flag
 - Binance API credentials
 - PostgreSQL & Redis connections
 

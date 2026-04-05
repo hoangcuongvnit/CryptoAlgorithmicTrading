@@ -169,7 +169,7 @@ executor_audit_events_published_total
 - **Audit Failures**: Should be 0; indicates database persistence issues
 
 ### Slippage & Fill Quality
-- `executor_fill_price_deviation_percent` tracks paper trading slippage
+- `executor_fill_price_deviation_percent` tracks order execution accuracy
 - Useful for backtesting simulator accuracy
 
 ## 7. Creating Custom Alerts

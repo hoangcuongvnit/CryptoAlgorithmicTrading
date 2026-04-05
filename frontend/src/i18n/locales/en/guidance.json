@@ -51,7 +51,7 @@
       },
       "executor": {
         "label": "Executor",
-        "desc": "Places orders on Binance, or simulates fills in paper trading mode.",
+        "desc": "Places orders on Binance with Polly retry logic for resilience.",
         "risk": "API errors or network issues can delay or miss order fills."
       },
       "notifier": {
@@ -106,9 +106,9 @@
     },
     "tradingMode": {
       "label": "Trading Mode",
-      "paperMeaning": "Paper trading is active — orders are fully simulated. No real money is at risk.",
+      "paperMeaning": "Live trading is active — orders are executed on Binance. Real money is at risk.",
       "liveMeaning": "Live trading is active — orders are sent to Binance using real funds.",
-      "paperConfig": "Paper Mode",
+      "paperConfig": "Live Trading",
       "liveConfig": "Live Mode",
       "paperCurrent": "Safe — no real orders",
       "liveCurrent": "Active — real orders enabled",
@@ -144,7 +144,7 @@
     "title": "Advanced Signal Quality & Safety Rules",
     "subtitle": "Multi-phase filters applied by Analyzer, Strategy, RiskGuard, and Executor before any order is placed.",
     "phaseLabel": "Phase {{num}}",
-    "configHint": "Rules marked 🟡 are opt-in via appsettings.json and disabled by default. Enable them gradually after validating on paper trading.",
+    "configHint": "Rules marked 🟡 are opt-in via appsettings.json and disabled by default. Enable them gradually after thorough testing.",
     "legend": {
       "active": "Always active",
       "config": "Opt-in via config",
@@ -282,7 +282,7 @@
       },
       "executor": {
         "name": "Executor",
-        "desc": "Places orders on Binance or simulates fills in paper mode."
+        "desc": "Places orders on Binance or with fallback mechanisms."
       }
     }
   },

@@ -8,7 +8,7 @@ This solution is a microservice-based crypto trading platform that automates the
 2. Analyze price action and compute technical indicators.
 3. Convert signals into trade intents.
 4. Apply strict risk controls before execution.
-5. Execute orders in paper mode or live mode.
+5. Execute orders via Binance live trading.
 6. Persist all events/orders for auditability and observability.
 7. Notify operators in real time (Telegram + dashboard APIs).
 

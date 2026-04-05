@@ -24,7 +24,7 @@ The report must allow users to clearly understand, for each session:
 5. Which coins were traded in the session.
 6. How total account value changes across sessions.
 
-The reporting model applies to both paper trading and live trading.
+The reporting model applies to live trading operations.
 
 ---
 

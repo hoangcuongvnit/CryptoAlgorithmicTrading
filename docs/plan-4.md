@@ -2,7 +2,7 @@
 
 ## Objectives
 
-- Deliver a production-structured **Order Executor gRPC service** that can execute validated orders with a safe default: **paper trading enabled**.
+- Deliver a production-structured **Order Executor gRPC service** that can execute validated orders with live order placement.
 - Implement resilient exchange integration using **Polly retry + circuit breaker** to prevent cascading failures.
 - Provide a durable, queryable **trade audit trail** using Redis Streams + PostgreSQL persistence.
 - Complete Strategy → RiskGuard → Executor end-to-end flow for deterministic execution behavior.
@@ -12,7 +12,7 @@
 - In scope:
 	- `src/Services/Executor/Executor.API` implementation and hardening.
 	- gRPC contract usage from `src/Shared/ProtoFiles/order_executor.proto`.
-	- Paper mode simulation logic + controlled live mode switch.
+	- Live mode order execution logic.
 	- Redis Streams audit publishing (`trades:audit`) and DB order persistence.
 	- Integration validation with Strategy and RiskGuard.
 - Out of scope:
@@ -31,7 +31,7 @@
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| **Execution mode default** | Paper mode ON | Prevent accidental real-money trades during development |
+| **Execution mode default** | Live mode ON | Real trading on Binance API |
 | **Executor transport** | gRPC only | Consistent with low-latency internal architecture |
 | **Exchange adapter** | Binance.Net wrapper (`BinanceOrderClient`) | Isolate third-party API logic and simplify testing |
 | **Resilience policy** | Retry + Circuit Breaker (Polly) | Handle transient exchange/network failures safely |
@@ -45,7 +45,7 @@ Strategy.Worker
 	 └─ gRPC PlaceOrder → Executor.API
 												 ├─ Validate request invariants (basic sanity)
 												 ├─ Read Trading:PaperTradingMode
-												 ├─ IF paper mode:
+												 ├─ Execute on Binance
 												 │    └─ Simulate fill + create OrderResult
 												 └─ ELSE live mode:
 															└─ BinanceOrderClient.PlaceOrderAsync()
@@ -67,7 +67,7 @@ Strategy.Worker
 
 **Expected outcome:** malformed or dangerous requests are rejected deterministically before exchange interaction.
 
-### Step 2 — Implement Paper Trading Core
+### Step 2 — Implement Live Order Execution
 
 - Add config flag:
 	- `Trading:PaperTradingMode=true` by default.
@@ -196,7 +196,7 @@ Strategy.Worker
 ## Delivery Checklist
 
 - [ ] Executor gRPC `PlaceOrder` fully implemented.
-- [ ] Paper mode is default and fully testable.
+- [ ] Live order execution is fully functional.
 - [ ] Live mode wrapped with Polly retry + circuit breaker.
 - [ ] PostgreSQL order persistence for both success and failure paths.
 - [ ] Redis Streams `trades:audit` events emitted for all attempts.
@@ -213,7 +213,7 @@ Strategy.Worker
 
 ## Definition of Done
 
-1. Executor can process validated orders end-to-end in paper mode without external exchange dependency.
+1. Executor can process validated orders end-to-end with live order placement on Binance.
 2. Live mode can be toggled safely and is resilient to transient exchange/API failures.
 3. Every execution attempt produces an auditable DB record and stream event.
 4. Risk checks cannot be bypassed in the normal Strategy flow.
@@ -226,7 +226,7 @@ Strategy.Worker
 - **Risk:** exchange outage floods retries and destabilizes services.
 	- **Mitigation:** bounded retries + circuit breaker + clear degraded-mode logging.
 - **Risk:** accidental live trading in development.
-	- **Mitigation:** paper mode default, explicit live-mode warning, and environment-based guards.
+	- **Mitigation:** Explicit live-mode warning and environment-based guards.
 - **Risk:** inconsistent audit between DB and stream on partial failure.
 	- **Mitigation:** persist-first strategy with retrying stream publish and reconciliation job in later phase.
 

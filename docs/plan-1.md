@@ -7,7 +7,7 @@
 | **Scope** | Full system (all 6 phases) | End-to-end build |
 | **Dashboard UI** | Blazor Server | C#/.NET ecosystem, SignalR live feeds |
 | **Trading pairs** | 100 pairs, selectable from dashboard | Dynamic Redis channel subscriptions |
-| **Trade mode** | Paper trading first (feature flag) | Safe default; toggle in `appsettings.json` |
+| **Trade mode** | Live trading on Binance API | Real-time execution with order management |
 | **AOT** | Enabled from day one | `[JsonSerializable]` source generators, no EF Core |
 | **Indicators** | `Skender.Stock.Indicators` (not TA-Lib) | Pure .NET, AOT-safe; TA-Lib requires P/Invoke |
 | **ORM** | Dapper + raw SQL (not EF Core) | EF Core reflection is incompatible with AOT |
@@ -462,7 +462,7 @@ public interface IRiskRule
 **`GrpcServices/OrderExecutorService.cs`:**
 - Implements `OrderExecutorService.OrderExecutorServiceBase`
 - Reads `PaperTradingMode` from config
-  - **Paper mode**: simulates fill at bid price; writes `OrderResult` to DB and Redis Streams; no Binance call
+  - **Live mode**: submits order to Binance API; writes `OrderResult` to DB and Redis Streams
   - **Live mode**: calls `BinanceOrderClient.PlaceOrderAsync` wrapped in Polly pipeline
 
 **`Infrastructure/BinanceOrderClient.cs`:**

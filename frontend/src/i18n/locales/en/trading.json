@@ -9,8 +9,7 @@
     "realized": "Realized",
     "winRate": "Win Rate",
     "maxDrawdown": "Max Drawdown",
-    "totalTrades": "Total Trades",
-    "paperMode": "Paper trading"
+    "totalTrades": "Total Trades"
   },
   "position": {
     "long": "LONG",

@@ -634,8 +634,8 @@ For each phase, run 3-month backtest:
 - **2024 + 2025 data** (bull + bear + range markets)  
 - **Metrics:** Win rate, max drawdown, Sharpe ratio, # rejected trades
 
-### 3. Paper Trading Validation (Pre-live)
-- Run in paper mode for 1 week minimum  
+### 3. Pre-Live Validation
+- Run for 1 week minimum on test environment  
 - Monitor: rejection rate, average execution price vs signal price, daily PnL distribution
 
 ---
@@ -690,7 +690,7 @@ For each phase, run 3-month backtest:
 - [ ] Track execution slippage post-order
 - [ ] Log slippage violations to DB
 - [ ] Config: `spread_limits` (BTC/ETH vs alts), `slippage_tolerance`
-- [ ] Unit tests (mock exchange) + paper trading test
+- [ ] Unit tests (mock exchange) + integration tests
 - [ ] Code review + merge
 
 ---
@@ -747,7 +747,7 @@ For each phase, run 3-month backtest:
 - [ ] PriceConsensusService: fetch from 3 exchanges, validate agreement
 - [ ] Executor: pre-order gate checks consensus
 - [ ] Config: `consensus_enabled`, `exchanges_list`, `price_agree_threshold`
-- [ ] Paper trading: monitor consensus rejections
+- [ ] Monitor consensus rejections on test environment
 - [ ] Code review + merge
 
 ---
@@ -829,7 +829,7 @@ if (config.Features.AdxTrendFilterEnabled)
 }
 ```
 
-**Activation Criteria:** If a rule's rejection rate exceeds 60% OR Sharpe ratio drops >20% in paper trading → disable via config, run postmortem.
+**Activation Criteria:** If a rule's rejection rate exceeds 60% OR Sharpe ratio drops >20% → disable via config, run postmortem.
 
 ---
 
@@ -853,7 +853,7 @@ Upon each phase completion:
    - How to interpret signals  
 
 4. **QA Checklist**  
-   - All backtest + paper trading validation points  
+   - All backtest + integration test validation points  
    - Known gotchas  
 
 ---
@@ -867,7 +867,7 @@ The 12 proposed safety rules form a coherent framework:
 🚀 **High impact, ready to build:** ADX, volume filters, spread/slippage gates (Phase 1)  
 📊 **Advanced but valuable:** Regime detection, consensus pricing (Phase 3)  
 
-**Recommended approach:** Execute Phase 1 (3 mo) to prove selectivity + cost reduction; then scale to Phase 2-3 based on empirical results from paper trading.
+**Recommended approach:** Execute Phase 1 (3 mo) to prove selectivity + cost reduction; then scale to Phase 2-3 based on empirical results from live trading.
 
 **Expected ROI:** 0.5%+ daily net profit (from ~0.3%), 50% drawdown reduction, and 99%+ system reliability by end of Phase 3.
 

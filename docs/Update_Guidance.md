@@ -34,7 +34,7 @@ Display a simple step-by-step flow:
 2. Analyzer computes indicators/signals.
 3. Strategy evaluates opportunities.
 4. RiskGuard validates risk rules.
-5. Executor places order (or paper trade).
+5. Executor places live order on Binance.
 6. Notifier publishes updates and alerts.
 
 UI pattern:
@@ -51,7 +51,7 @@ Show top rules as cards with plain-language descriptions:
 - Max position size
 - Minimum risk/reward
 - Cooldown between trades
-- Paper trading mode state
+- Live trading mode state
 
 For each rule card include:
 
@@ -172,7 +172,7 @@ Define a normalized frontend model:
 ### Phase 6: Validation
 
 - Test mobile and desktop behavior.
-- Test with paper-trading mode on/off.
+- Test with live trading enabled.
 - Run usability check with first-time users.
 - Capture feedback and iterate.
 

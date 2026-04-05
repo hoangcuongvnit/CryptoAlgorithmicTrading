@@ -472,9 +472,9 @@ networks:
 - [x] Integration test: Signal → Brain → RiskGuard flow
 
 ### Phase 4 – Order Execution ✅
-- [x] Build `OrderExecutor` gRPC service with paper trading simulator
+- [x] Build `OrderExecutor` gRPC service for live order placement
 - [x] Polly Circuit Breaker for Binance API calls (5 retries, exponential backoff)
-- [x] Paper trading mode (deterministic fills at reference price + slippage)
+- [x] Live trading mode with Binance integration (Market/Limit/StopLimit orders)
 - [x] Redis Streams audit log for all order events with event versioning
 - [x] PostgreSQL persistence with complete order metadata
 - [x] End-to-end integration test (Signal → RiskGuard → Executor → Persistence)

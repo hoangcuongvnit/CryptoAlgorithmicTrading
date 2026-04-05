@@ -8,7 +8,6 @@
   "chartHint": "Realized PnL per session. Trade count shown below each bar.",
   "mode": {
     "all": "All modes",
-    "paper": "Paper trading",
     "live": "Live trading"
   },
   "kpi": {

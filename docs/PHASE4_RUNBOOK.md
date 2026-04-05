@@ -1,7 +1,7 @@
 # Phase 4: Order Execution Engine - Runbook
 
 ## Overview
-Phase 4 implements the complete order execution pipeline with risk validation and paper trading simulation.
+Phase 4 implements the complete order execution pipeline with risk validation and live order placement.
 
 ## Architecture
 
@@ -69,7 +69,7 @@ PostgreSQL (orders table) + Redis Streams (trades:audit)
 }
 ```
 
-### Executor Paper Trading (appsettings.json)
+### Executor Configuration (appsettings.json)
 ```json
 {
   "Trading": {
@@ -142,7 +142,7 @@ CREATE TABLE orders (
     stop_loss DECIMAL(18, 8),               -- SL price
     take_profit DECIMAL(18, 8),             -- TP price
     strategy VARCHAR(100),                  -- Strategy name (e.g., "EMA_Crossover")
-    is_paper BOOLEAN NOT NULL DEFAULT TRUE, -- TRUE = paper trade, FALSE = live
+    is_paper BOOLEAN NOT NULL DEFAULT FALSE, -- TRUE = paper trade (legacy), FALSE = live
     success BOOLEAN NOT NULL,               -- Whether order was successfully executed
     error_msg TEXT                          -- Error details if success=FALSE
 );
@@ -217,7 +217,7 @@ grpcurl -plaintext localhost:5014 grpc.health.v1.Health/Check
 
 ## Known Limitations (Phase 4)
 
-1. **Paper mode only**: Live trading functionality exists but disabled by default
+1. **Live trading only**: System executes orders on Binance API
 2. **Slippage**: Fixed 5 BPS on all symbols; doesn't account for order book depth
 3. **Risk rules**: Hardcoded per-symbol cooldown; no graduated position sizing
 4. **Audit trail**: One-way write to Redis; no consumer processing audit events

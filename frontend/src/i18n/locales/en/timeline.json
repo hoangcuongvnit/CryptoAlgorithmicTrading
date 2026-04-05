@@ -52,7 +52,7 @@
   "stopLoss": "Stop Loss",
   "takeProfit": "Take Profit",
   "reason": "Reason",
-  "paperTrade": "Paper Trade",
+  "liveOrder": "Live Order",
   "status": "Status",
   "side": {
     "Buy": "Buy",

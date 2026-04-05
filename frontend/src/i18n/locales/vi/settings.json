@@ -91,7 +91,7 @@
     "testnetBadge": "Testnet",
     "mainnetBadge": "Mainnet",
     "activeEnvironment": "Môi trường đang dùng",
-    "activeEnvironmentHint": "Lệnh giao dịch sẽ được gửi đến môi trường này khi tắt Paper mode.",
+    "activeEnvironmentHint": "Lệnh giao dịch sẽ được gửi đến môi trường này cho giao dịch trực tiếp.",
     "activeLabel": "ĐANG DÙNG",
     "liveSection": "API Key Mainnet (Tiền thật)",
     "testnetSection": "API Key Testnet (Thử nghiệm)",
@@ -143,38 +143,6 @@
       "linkMain": "Mở Binance API Management",
       "linkTestnet": "Mở Binance Testnet",
       "warning": "Không chia sẻ API Secret. Thu hồi và tạo lại ngay nếu bị lộ."
-    }
-  },
-  "tradingMode": {
-    "title": "Chế độ giao dịch",
-    "subtitle": "Chuyển đổi giữa giao dịch giả lập (paper) và giao dịch thực.",
-    "paperMode": "Chế độ Paper Trading",
-    "paperModeDescription": "Lệnh được mô phỏng — không dùng tiền thật.",
-    "liveModeDescription": "Lệnh được thực thi trên Binance bằng tiền thật.",
-    "initialBalance": "Số dư ban đầu (USDT)",
-    "initialBalancePlaceholder": "ví dụ: 10000",
-    "currentMode": "Chế độ hiện tại",
-    "paper": "Paper",
-    "live": "Live",
-    "save": "Lưu chế độ giao dịch",
-    "saving": "Đang lưu...",
-    "saveSuccess": "Đã lưu chế độ giao dịch.",
-    "saveFailed": "Lưu thất bại.",
-    "confirmLive": {
-      "title": "Chuyển sang giao dịch THỰC?",
-      "message": "Bạn đang chuyển sang chế độ Live. Tất cả lệnh tiếp theo sẽ thực thi trên Binance bằng tiền thật. Không thể tự động hoàn tác.",
-      "confirm": "Đồng ý, chuyển sang Live",
-      "cancel": "Hủy"
-    },
-    "confirmPaper": {
-      "title": "Chuyển sang Paper Trading?",
-      "message": "Bạn đang chuyển sang chế độ Paper. Các vị thế thực đang mở sẽ KHÔNG bị đóng tự động.",
-      "confirm": "Đồng ý, chuyển sang Paper",
-      "cancel": "Hủy"
-    },
-    "errors": {
-      "balanceRequired": "Số dư ban đầu phải là số dương.",
-      "networkError": "Lỗi mạng. Vui lòng thử lại."
     }
   },
   "risk": {

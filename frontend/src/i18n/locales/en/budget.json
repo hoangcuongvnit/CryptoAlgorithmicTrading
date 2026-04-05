@@ -1,6 +1,6 @@
 {
   "title": "Virtual Budget",
-  "subtitle": "Paper trading capital management and cash flow tracking",
+  "subtitle": "Capital management and cash flow tracking",
 
   "status": {
     "initialCapital": "Initial Capital",
@@ -68,7 +68,7 @@
   },
 
   "empty": {
-    "noAccount": "No active paper trading account. Run the capital ledger migration first.",
+    "noAccount": "Budget account not found. Please ensure the system is initialized.",
     "error": "Failed to load budget data."
   }
 }

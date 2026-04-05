@@ -10,7 +10,7 @@ Primary goal:
 Scope:
 - Daily report (calendar day).
 - Session report (6 sessions/day, 4-hour each).
-- Capital/budget tracking integration (paper mode first, extensible to live mode).
+- Capital/budget tracking integration for live trading.
 
 ---
 
@@ -163,7 +163,7 @@ Required per session row:
 
 ## A. Data Objects to Integrate
 
-- `paper_trading_ledger`
+- `trading_ledger`
 - `session_capital_snapshot`
 - enhanced order/trade records with `session_id`, fees, slippage, and PnL fields
 

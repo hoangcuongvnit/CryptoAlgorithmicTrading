@@ -91,7 +91,7 @@
     "testnetBadge": "Testnet",
     "mainnetBadge": "Mainnet",
     "activeEnvironment": "Active Environment",
-    "activeEnvironmentHint": "Orders will be routed to this environment when Paper mode is OFF.",
+    "activeEnvironmentHint": "Orders will be routed to this environment for live trading.",
     "activeLabel": "ACTIVE",
     "liveSection": "Live (Mainnet) Credentials",
     "testnetSection": "Testnet Credentials",
@@ -143,38 +143,6 @@
       "linkMain": "Open Binance API Management",
       "linkTestnet": "Open Binance Testnet",
       "warning": "Never share your API Secret. Revoke and regenerate it immediately if it is ever exposed."
-    }
-  },
-  "tradingMode": {
-    "title": "Trading Mode",
-    "subtitle": "Switch between paper (simulated) and live trading.",
-    "paperMode": "Paper Trading Mode",
-    "paperModeDescription": "Orders are simulated — no real funds are used.",
-    "liveModeDescription": "Orders are executed on Binance with real funds.",
-    "initialBalance": "Initial Paper Balance (USDT)",
-    "initialBalancePlaceholder": "e.g. 10000",
-    "currentMode": "Current Mode",
-    "paper": "Paper",
-    "live": "Live",
-    "save": "Save Trading Mode",
-    "saving": "Saving...",
-    "saveSuccess": "Trading mode saved.",
-    "saveFailed": "Failed to save trading mode.",
-    "confirmLive": {
-      "title": "Switch to LIVE Trading?",
-      "message": "You are switching to LIVE mode. All future orders will execute on Binance using real funds. This cannot be undone automatically.",
-      "confirm": "Yes, switch to Live",
-      "cancel": "Cancel"
-    },
-    "confirmPaper": {
-      "title": "Switch to Paper Trading?",
-      "message": "You are switching to Paper mode. Open live positions will NOT be closed automatically.",
-      "confirm": "Yes, switch to Paper",
-      "cancel": "Cancel"
-    },
-    "errors": {
-      "balanceRequired": "Initial balance must be a positive number.",
-      "networkError": "Network error. Please try again."
     }
   },
   "risk": {

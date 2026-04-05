@@ -320,7 +320,7 @@ Add alerts:
 
 ## 14.2 Integration Tests
 
-1. Immediate close-all in paper mode with multiple symbols.
+1. Immediate close-all in live mode with multiple symbols.
 2. Scheduled +5 minutes close-all execution.
 3. Cancel schedule before execution.
 4. Service restart while schedule pending (must recover and execute).
@@ -336,7 +336,7 @@ Add alerts:
 
 ## 15. Rollout Plan
 
-1. Phase A: Backend API + state machine + paper mode only.
+1. Phase A: Backend API + state machine + live mode deployment.
 2. Phase B: Frontend controls + confirmation UX + notifications.
 3. Phase C: Live mode guarded rollout (symbol whitelist).
 4. Phase D: Hardening (alerts, timeout tuning, failover drills).
@@ -356,4 +356,4 @@ Feature flags:
 3. System blocks new entries during close-all operation.
 4. System emits explicit completion and shutdown-readiness notification.
 5. Operation is fully auditable and recoverable after restart.
-6. Integration and UAT scenarios pass in paper mode and live mode (guarded).
+6. Integration and UAT scenarios pass with live trading safeguards.

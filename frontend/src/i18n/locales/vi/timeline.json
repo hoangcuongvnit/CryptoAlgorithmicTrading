@@ -52,7 +52,7 @@
   "stopLoss": "Cắt lỗ",
   "takeProfit": "Chốt lãi",
   "reason": "Lý do",
-  "paperTrade": "Giao dịch ảo",
+  "liveOrder": "Lệnh giao dịch",
   "status": "Trạng thái",
   "side": {
     "Buy": "Mua",

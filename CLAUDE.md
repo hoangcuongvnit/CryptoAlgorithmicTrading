@@ -525,8 +525,7 @@ MONGO_USERNAME=timeline_user
 MONGO_PASSWORD=strongpassword
 MONGO_DATABASE=cryptotrading_timeline
 
-# Trading
-PAPER_TRADING_MODE=true
+# Trading (Live only)
 INITIAL_BALANCE=10000.00
 
 # Risk Rules

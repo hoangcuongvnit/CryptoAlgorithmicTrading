@@ -12,7 +12,7 @@ This document defines a detailed reporting page for daily trading activity so us
 6. Current owned capital flow (cash vs coin holdings).
 7. Buy/sell timestamps and average holding time per trade.
 
-The report is designed for both paper trading and live trading modes.
+The report is designed for live trading operations.
 
 ---
 

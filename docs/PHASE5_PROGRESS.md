@@ -83,7 +83,7 @@ rate(executor_orders_rejected_total[5m]) / rate(executor_orders_placed_total[5m]
 histogram_quantile(0.95, rate(executor_order_latency_ms_bucket[5m]))  # p95
 histogram_quantile(0.99, rate(executor_order_latency_ms_bucket[5m]))  # p99
 
-# Paper trading slippage
+# Live trading order execution
 avg(rate(executor_fill_price_deviation_percent_sum[5m]) / rate(executor_fill_price_deviation_percent_count[5m]))
 
 # Audit trail publishing
@@ -144,7 +144,7 @@ The observability stack provides **real-time visibility** into the Phase 4 Order
 | `executor_orders_placed_total` | Validates Strategy → Executor pipeline is working |
 | `executor_orders_rejected_total` | Monitors RiskGuard validation effectiveness |
 | `executor_order_latency_ms` | Early warning for database/network issues |
-| `executor_fill_price_deviation_percent` | Validates paper trading simulator accuracy |
+| `executor_fill_price_deviation_percent` | Validates order execution accuracy |
 | `executor_audit_events_published_total` | Ensures Redis Stream persistence |
 
 ## Performance Baseline (Single Service, Local)

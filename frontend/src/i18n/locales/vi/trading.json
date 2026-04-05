@@ -10,7 +10,7 @@
     "winRate": "Tỷ lệ thắng",
     "maxDrawdown": "Drawdown tối đa",
     "totalTrades": "Tổng lệnh",
-    "paperMode": "Giao dịch ảo"
+    "liveMode": "Giao dịch thực"
   },
   "position": {
     "long": "LONG",
