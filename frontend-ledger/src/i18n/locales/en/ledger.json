@@ -1,0 +1,94 @@
+{
+  "appTitle": "Financial Ledger",
+  "loading": "Loading...",
+  "error": "Error",
+  "noSession": "No active session",
+
+  "nav": {
+    "dashboard": "Dashboard",
+    "entries": "Entries",
+    "sessions": "Sessions",
+    "pnl": "P&L"
+  },
+
+  "status": {
+    "live": "Live",
+    "offline": "Offline"
+  },
+
+  "dashboard": {
+    "title": "Dashboard",
+    "session": "Session",
+    "initialBalance": "Initial Balance",
+    "currentBalance": "Current Balance",
+    "netPnl": "Net P&L",
+    "unrealizedPnl": "Unrealized P&L",
+    "realTimeEquity": "Real-time Equity",
+    "roe": "ROE",
+    "openPositions": "Open Positions"
+  },
+
+  "positions": {
+    "symbol": "Symbol",
+    "quantity": "Qty",
+    "entryPrice": "Entry",
+    "markPrice": "Mark",
+    "unrealizedPnl": "Unrealized PnL"
+  },
+
+  "entries": {
+    "title": "Ledger Entries",
+    "total": "Total",
+    "empty": "No entries found",
+    "filter": {
+      "symbol": "Symbol (e.g. BTCUSDT)",
+      "fromDate": "From date",
+      "toDate": "To date",
+      "allTypes": "All types"
+    },
+    "col": {
+      "timestamp": "Time",
+      "type": "Type",
+      "symbol": "Symbol",
+      "amount": "Amount",
+      "txId": "Binance Tx ID"
+    }
+  },
+
+  "sessions": {
+    "title": "Session Management",
+    "empty": "No sessions found",
+    "invalidBalance": "Balance must be greater than 0",
+    "resetTitle": "Reset Session",
+    "newBalance": "New initial balance",
+    "algorithmName": "Algorithm name",
+    "resetBtn": "Reset Session",
+    "resetting": "Resetting...",
+    "col": {
+      "algorithm": "Algorithm",
+      "status": "Status",
+      "initialBalance": "Initial Balance",
+      "startTime": "Start",
+      "endTime": "End"
+    }
+  },
+
+  "pnl": {
+    "title": "P&L Breakdown by Symbol",
+    "empty": "No P&L data yet",
+    "total": "Total",
+    "totalNet": "Net P&L",
+    "col": {
+      "symbol": "Symbol",
+      "realizedPnl": "Realized PnL",
+      "commission": "Commission",
+      "fundingFee": "Funding Fee",
+      "netPnl": "Net PnL"
+    }
+  },
+
+  "pagination": {
+    "prev": "Prev",
+    "next": "Next"
+  }
+}

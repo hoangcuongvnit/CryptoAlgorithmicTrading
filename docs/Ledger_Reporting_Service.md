@@ -3,6 +3,8 @@
 ## 1. System Overview
 The system is an independent Microservice within the broader architecture of the Automated Binance Futures Trading Bot. Its core responsibilities include managing cash flows (for both Mainnet and Testnet environments), calculating Profit and Loss (PnL) with exact precision, tracking trading fees, and providing a "Test Sessions" feature to facilitate backtesting and forward testing of trading algorithms.
 
+Mode policy: The service supports both live environments (Mainnet and Testnet APIs) and does not include paper trading mode.
+
 **Bounded Context:**
 * **In Scope (Responsibilities):** Ledger entry recording, Binance API data reconciliation, exact PnL calculation, statistical reporting, and test session reset management.
 * **Out of Scope (Non-Responsibilities):** Trading decision making, order execution, and managing direct websocket connections to the exchange for active trading.
@@ -11,8 +13,8 @@ The system is an independent Microservice within the broader architecture of the
 * **Backend:** .NET (Web API & Background/Worker Services).
 * **Frontend/Dashboard:** ReactJS.
 * **Database:** PostgreSQL (Ensuring ACID properties for financial data integrity).
-* **Real-time Communication:** SignalR (Pushing real-time PnL updates to the UI).
-* **Inter-service Communication:** Message Broker (RabbitMQ/Kafka) for asynchronous event-driven flows.
+* **Real-time Communication:** SignalR (Pushing live realized/unrealized PnL and equity updates to the UI).
+* **Inter-service Communication:** Reliable Message Broker using Redis Streams (consumer groups) or RabbitMQ via MassTransit (durable queues, retries, dead-letter).
 
 ## 3. Database Schema
 The system implements an **Immutable Ledger** pattern. Financial records are strictly `INSERT`-only; direct `UPDATE` operations on existing financial records are prohibited to prevent race conditions and ensure auditability.
@@ -59,25 +61,37 @@ $$Net\_PnL = Realized\_PnL + Commission + Funding\_Fee$$
 **C. Return on Equity (ROE):**
 $$ROE = \left( \frac{Net\_PnL}{Initial\_Margin\_Of\_Trade} \right) \times 100\%$$
 
+**D. Real-time Equity:**
+$$RealTimeEquity = CurrentBalance + UnrealizedPnL$$
+
 ## 5. Core Workflows
 
 ### 5.1. Data Ingestion & Reconciliation Sync
-1.  A **.NET Worker Service** runs in the background, periodically calling the Binance API: `GET /fapi/v1/income`.
-2.  The system inspects each returned record using the `tranId` (mapped to `BinanceTransactionId` in the DB).
-3.  If it does not exist: Map the Binance income type to the system's `LedgerEntries.Type`.
-4.  Identify the currently `ACTIVE` `SessionId` for the corresponding `AccountId`.
-5.  Execute an `INSERT` into the `LedgerEntries` table.
-6.  (Optional) Trigger a SignalR event to update the ReactJS UI in real-time.
+1.  The **Executor** consumes Binance User Data Stream events (ORDER_TRADE_UPDATE, ACCOUNT_UPDATE) from WebSocket.
+2.  Executor forwards normalized events to a **reliable broker** (Redis Streams or RabbitMQ/MassTransit).
+3.  Ledger consumes events with acknowledgements and retry semantics (at-least-once delivery).
+4.  Ledger applies idempotency using `BinanceTransactionId` (or equivalent unique event key).
+5.  Ledger maps event payloads into `LedgerEntries.Type` and executes immutable INSERT operations.
+6.  Ledger emits real-time SignalR updates after durable persistence is confirmed.
 
 ### 5.2. Session Reset Workflow
 This feature safely resets the testing environment while archiving historical data for future benchmarking, avoiding destructive hard deletes.
-1.  Receive an HTTP POST request to `/api/v1/ledger/reset-session` with the payload: `AccountId`, `NewInitialBalance`, `AlgorithmName`.
-2.  Update the old `TestSessions` record (currently ACTIVE): set `EndTime = NOW()` and `Status = ARCHIVED`.
-3.  Create a new `TestSessions` record: set `Status = ACTIVE`, `InitialBalance = {NewInitialBalance}`.
-4.  Insert an initialization log into `LedgerEntries`: `SessionId = {New_Id}`, `Type = INITIAL_FUNDING`, `Amount = {NewInitialBalance}`.
-5.  Publish a `SessionResetEvent` message to the Message Broker so the main Trading Engine can update its context.
+1.  Receive an HTTP POST request to `/api/ledger/sessions/reset` with payload: `AccountId`, `NewInitialBalance`, `AlgorithmName`.
+2.  Ledger starts a **Saga** and emits `Halt_And_Close_All` command to the Trading Engine via broker.
+3.  Trading Engine closes all open positions and cancels all pending orders.
+4.  Trading Engine emits `Clear_Confirmed` response to the broker.
+5.  Ledger consumes `Clear_Confirmed`, archives the old `TestSessions` record, and creates a new ACTIVE session.
+6.  Ledger inserts INITIAL_FUNDING entry for the new session and completes saga.
+
+### 5.3. Real-time Unrealized PnL & Equity Workflow
+1.  Trading Engine publishes live markPrice and open position snapshots.
+2.  Ledger (or projection worker) computes unrealized PnL continuously.
+3.  SignalR Hub streams `CurrentBalance`, `UnrealizedPnL`, and `RealTimeEquity` to frontend clients.
+4.  Frontend renders real-time risk/equity state without calling Binance synchronization REST endpoints.
 
 ## 6. Crucial Notes for AI Coding Assistants
 * **Idempotency:** All APIs and Event Handlers processing financial records MUST be idempotent. The `BinanceTransactionId` column with a Unique Constraint is the final safeguard at the database level.
 * **Data Types:** Always use the `decimal` (or `numeric` in PostgreSQL) data type for all currency-related columns (`Amount`, `Balance`) to prevent floating-point precision loss.
 * **Testnet/Mainnet Parity:** The business logic for Testnet and Mainnet is identical. The only differences are the Binance API Base URL and the `Environment` flag in the database.
+* **Reliability Requirement:** Do not use fire-and-forget Pub/Sub for critical financial events; use durable streams/queues with acknowledgements and retries.
+* **Synchronization Source:** Do not poll Binance `GET /fapi/v1/income` for synchronization; use Executor WebSocket-derived events to avoid API rate-limit pressure.

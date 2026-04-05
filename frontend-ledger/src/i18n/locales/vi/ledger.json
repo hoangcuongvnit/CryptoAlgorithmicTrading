@@ -1,0 +1,94 @@
+{
+  "appTitle": "Sổ Cái Tài Chính",
+  "loading": "Đang tải...",
+  "error": "Lỗi",
+  "noSession": "Không có phiên hoạt động",
+
+  "nav": {
+    "dashboard": "Tổng quan",
+    "entries": "Giao dịch",
+    "sessions": "Phiên",
+    "pnl": "Lợi nhuận"
+  },
+
+  "status": {
+    "live": "Trực tiếp",
+    "offline": "Ngoại tuyến"
+  },
+
+  "dashboard": {
+    "title": "Bảng điều khiển",
+    "session": "Phiên",
+    "initialBalance": "Số dư ban đầu",
+    "currentBalance": "Số dư hiện tại",
+    "netPnl": "Lợi nhuận ròng",
+    "unrealizedPnl": "Lợi nhuận chưa thực hiện",
+    "realTimeEquity": "Vốn thực tế",
+    "roe": "ROE",
+    "openPositions": "Vị thế đang mở"
+  },
+
+  "positions": {
+    "symbol": "Cặp",
+    "quantity": "Khối lượng",
+    "entryPrice": "Giá vào",
+    "markPrice": "Giá thị trường",
+    "unrealizedPnl": "Lãi/Lỗ"
+  },
+
+  "entries": {
+    "title": "Lịch sử giao dịch",
+    "total": "Tổng",
+    "empty": "Không có giao dịch nào",
+    "filter": {
+      "symbol": "Cặp tiền (VD: BTCUSDT)",
+      "fromDate": "Từ ngày",
+      "toDate": "Đến ngày",
+      "allTypes": "Tất cả loại"
+    },
+    "col": {
+      "timestamp": "Thời gian",
+      "type": "Loại",
+      "symbol": "Cặp",
+      "amount": "Số tiền",
+      "txId": "Mã GD Binance"
+    }
+  },
+
+  "sessions": {
+    "title": "Quản lý phiên",
+    "empty": "Không có phiên nào",
+    "invalidBalance": "Số dư phải lớn hơn 0",
+    "resetTitle": "Đặt lại phiên mới",
+    "newBalance": "Số dư ban đầu mới",
+    "algorithmName": "Tên chiến lược",
+    "resetBtn": "Đặt lại phiên",
+    "resetting": "Đang đặt lại...",
+    "col": {
+      "algorithm": "Chiến lược",
+      "status": "Trạng thái",
+      "initialBalance": "Số dư ban đầu",
+      "startTime": "Bắt đầu",
+      "endTime": "Kết thúc"
+    }
+  },
+
+  "pnl": {
+    "title": "Phân tích lợi nhuận theo cặp",
+    "empty": "Chưa có dữ liệu lợi nhuận",
+    "total": "Tổng cộng",
+    "totalNet": "Lợi nhuận ròng",
+    "col": {
+      "symbol": "Cặp tiền",
+      "realizedPnl": "Lãi/Lỗ thực hiện",
+      "commission": "Phí giao dịch",
+      "fundingFee": "Phí nắm giữ",
+      "netPnl": "Lợi nhuận ròng"
+    }
+  },
+
+  "pagination": {
+    "prev": "Trước",
+    "next": "Sau"
+  }
+}
