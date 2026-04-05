@@ -66,6 +66,8 @@
     "filterLabel": "Filter by category",
     "copy": "Copy",
     "copied": "Copied",
+    "expand": "Expand",
+    "collapse": "Collapse",
     "page": "Page {{page}}",
     "catLabel": {
       "all": "All",

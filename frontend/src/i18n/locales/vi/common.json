@@ -66,6 +66,8 @@
     "filterLabel": "Lọc theo category",
     "copy": "Sao chép",
     "copied": "Đã chép",
+    "expand": "Xem thêm",
+    "collapse": "Thu gọn",
     "page": "Trang {{page}}",
     "catLabel": {
       "all": "Tất cả",

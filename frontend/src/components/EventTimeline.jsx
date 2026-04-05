@@ -37,6 +37,7 @@ export function EventTimeline({ events, maxItems = 30 }) {
   const [page, setPage] = useState(1)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [copiedKey, setCopiedKey] = useState('')
+  const [expandedKeys, setExpandedKeys] = useState(new Set())
 
   const PAGE_SIZE = 10
 
@@ -129,7 +130,7 @@ export function EventTimeline({ events, maxItems = 30 }) {
   }
 
   const handleCopy = async (evt, idx) => {
-    const copyText = evt.message ?? evt.summary ?? ''
+    const copyText = [evt.summary, evt.message].filter(Boolean).join('\n').trim()
     const rowKey = `${evt.timestampUtc}-${evt.category}-${idx}`
     if (!copyText) return
 
@@ -139,6 +140,14 @@ export function EventTimeline({ events, maxItems = 30 }) {
     } catch {
       setCopiedKey('')
     }
+  }
+
+  const toggleExpand = (rowKey) => {
+    setExpandedKeys(prev => {
+      const next = new Set(prev)
+      next.has(rowKey) ? next.delete(rowKey) : next.add(rowKey)
+      return next
+    })
   }
 
   return (
@@ -170,24 +179,40 @@ export function EventTimeline({ events, maxItems = 30 }) {
         const style = CATEGORY_STYLE[evt.category] ?? { icon: '📋', bg: 'bg-gray-100', text: 'text-gray-600' }
         const labelKey = getCategoryLabelKey(evt.category)
         const label = labelKey ? t(labelKey) : evt.category
+        const isExpanded = expandedKeys.has(rowKey)
+        const hasDetail = evt.message && evt.message !== evt.summary
         return (
           <div key={rowKey} className="flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
             <span className="text-lg mt-0.5">{style.icon}</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-gray-800">{evt.summary}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{evt.summary}</p>
+              {isExpanded && hasDetail && (
+                <p className="text-xs text-gray-600 mt-1.5 whitespace-pre-wrap bg-gray-50 rounded p-2 border border-gray-100">{evt.message}</p>
+              )}
               <div className="flex items-center flex-wrap gap-2 mt-1">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${style.bg} ${style.text}`}>
                   {label}
                 </span>
                 <span className="text-xs text-gray-400">{formatTime(evt.timestampUtc, systemTimezone, { seconds: true })}</span>
                 <span className="text-xs text-gray-300">({timeAgo(evt.timestampUtc)})</span>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(evt, start + idx)}
-                  className="ml-auto text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
-                >
-                  {copiedKey === rowKey ? t('eventTimeline.copied') : t('eventTimeline.copy')}
-                </button>
+                <div className="ml-auto flex gap-1">
+                  {hasDetail && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(rowKey)}
+                      className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    >
+                      {isExpanded ? t('eventTimeline.collapse') : t('eventTimeline.expand')}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(evt, start + idx)}
+                    className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  >
+                    {copiedKey === rowKey ? t('eventTimeline.copied') : t('eventTimeline.copy')}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
