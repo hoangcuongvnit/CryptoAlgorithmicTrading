@@ -1012,20 +1012,20 @@ public sealed class OrderRepository
                 LIMIT 1
             )
             SELECT
-                id,
-                reconciliation_id,
-                reconciliation_utc,
-                symbol,
-                drift_type,
-                environment,
-                binance_value,
-                local_value,
-                recovery_action,
-                recovery_detail,
-                severity,
-                recovery_attempted,
-                recovery_success,
-                created_at
+                id                  AS "Id",
+                reconciliation_id   AS "ReconciliationId",
+                reconciliation_utc  AS "ReconciliationUtc",
+                symbol              AS "Symbol",
+                drift_type          AS "DriftType",
+                environment         AS "Environment",
+                binance_value       AS "BinanceValue",
+                local_value         AS "LocalValue",
+                recovery_action     AS "RecoveryAction",
+                recovery_detail     AS "RecoveryDetail",
+                severity            AS "Severity",
+                recovery_attempted  AS "RecoveryAttempted",
+                recovery_success    AS "RecoverySuccess",
+                created_at          AS "CreatedAt"
             FROM public.state_drift_logs
             WHERE reconciliation_id = (SELECT reconciliation_id FROM latest_cycle)
             ORDER BY created_at ASC;

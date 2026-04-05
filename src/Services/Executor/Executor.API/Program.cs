@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using System.Net.Http.Json;
 using StackExchange.Redis;
 
 // Npgsql 6+ strict mode rejects DateTime(Kind=Utc) for TIMESTAMP WITHOUT TIME ZONE columns.
@@ -69,6 +70,12 @@ builder.Services.AddHttpClient("gateway", c =>
     c.BaseAddress = new Uri(builder.Configuration["Gateway:BaseUrl"] ?? "http://localhost:5000");
     c.Timeout = TimeSpan.FromSeconds(
         Math.Clamp(builder.Configuration.GetValue("Gateway:TimeoutSeconds", 10), 3, 60));
+});
+builder.Services.AddHttpClient("financialledger", c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["FinancialLedger:BaseUrl"] ?? "http://localhost:5097");
+    c.Timeout = TimeSpan.FromSeconds(
+        Math.Clamp(builder.Configuration.GetValue("FinancialLedger:TimeoutSeconds", 5), 2, 30));
 });
 
 builder.Services.AddSingleton<PriceReferenceRepository>();
@@ -342,23 +349,11 @@ app.MapGet("/api/trading/session/positions", (
 
 // ── Trading Control (close-all / shutdown) endpoints ─────────────────────
 
-// ── Budget Management endpoints ───────────────────────────────────────────
-
-app.MapGet("/api/trading/budget/status", async (
-    [FromServices] BudgetRepository budget,
-    CancellationToken ct) =>
-{
-    var status = await budget.GetBudgetStatusAsync(ct);
-    return status is null
-        ? Results.NotFound(new { error = "No active trading account found. Run the capital ledger migration." })
-        : Results.Ok(status);
-});
-
 app.MapGet("/api/trading/balance/effective", async (
+    [FromServices] IHttpClientFactory httpClientFactory,
     [FromServices] IOptions<BinanceSettings> binanceOpts,
     [FromServices] IOptions<TradingSettings> tradingOpts,
     [FromServices] CashBalanceStateService cashBalanceState,
-    [FromServices] BudgetRepository budget,
     CancellationToken ct) =>
 {
     var useTestnet = binanceOpts.Value.UseTestnet;
@@ -366,18 +361,49 @@ app.MapGet("/api/trading/balance/effective", async (
 
     if (useTestnet)
     {
-        var budgetStatus = await budget.GetBudgetStatusAsync(ct);
+        var detail = "Testnet effective balance fallback is active.";
+        try
+        {
+            var client = httpClientFactory.CreateClient("financialledger");
+            var response = await client.GetAsync("/api/ledger/balance/effective?environment=TESTNET&baseCurrency=USDT", ct);
+            if (response.IsSuccessStatusCode)
+            {
+                var payload = await response.Content.ReadFromJsonAsync<FinancialLedgerEffectiveBalanceResponse>(cancellationToken: ct);
+                if (payload is not null && payload.Available && payload.Balance.HasValue)
+                {
+                    return Results.Ok(new
+                    {
+                        environment,
+                        source = "FINANCIAL_LEDGER",
+                        available = true,
+                        balance = Math.Max(0m, payload.Balance.Value),
+                        asOfUtc = payload.AsOfUtc ?? DateTime.UtcNow,
+                        stale = false,
+                        detail = "Testnet effective balance resolved from FinancialLedger."
+                    });
+                }
+
+                detail = payload?.Detail ?? "FinancialLedger returned unavailable balance payload.";
+            }
+            else
+            {
+                detail = $"FinancialLedger returned HTTP {(int)response.StatusCode}.";
+            }
+        }
+        catch (Exception ex)
+        {
+            detail = $"FinancialLedger lookup failed: {ex.Message}";
+        }
+
         return Results.Ok(new
         {
             environment,
-            source = "FINANCIAL_LEDGER",
-            available = budgetStatus is not null,
-            balance = budgetStatus?.CurrentCashBalance,
-            asOfUtc = budgetStatus?.LastUpdatedUtc,
-            stale = false,
-            detail = budgetStatus is null
-                ? "Testnet budget snapshot is unavailable; RiskGuard should query FinancialLedger as primary source."
-                : "Testnet is active; RiskGuard should use FinancialLedger effective balance source."
+            source = "FINANCIAL_LEDGER_FALLBACK",
+            available = true,
+            balance = 100m,
+            asOfUtc = DateTime.UtcNow,
+            stale = true,
+            detail = $"{detail} Fallback balance 100 USDT applied."
         });
     }
 
@@ -413,62 +439,6 @@ app.MapGet("/api/trading/balance/effective", async (
     });
 });
 
-app.MapGet("/api/trading/budget/ledger", async (
-    [FromServices] BudgetRepository budget,
-    [FromQuery] string? from,
-    [FromQuery] string? to,
-    [FromQuery] int? limit,
-    [FromQuery] int? offset,
-    CancellationToken ct) =>
-{
-    var fromDate = DateTime.TryParse(from, out var pFrom) ? (DateTime?)pFrom : null;
-    var toDate   = DateTime.TryParse(to,   out var pTo)   ? (DateTime?)pTo.AddDays(1) : null;
-    var (transactions, total) = await budget.GetLedgerAsync(fromDate, toDate, limit ?? 100, offset ?? 0, ct);
-    return Results.Ok(new { transactions, totalCount = total });
-});
-
-app.MapPost("/api/trading/budget/deposit", async (
-    [FromServices] BudgetRepository budget,
-    HttpRequest request,
-    CancellationToken ct) =>
-{
-    var body = await request.ReadFromJsonAsync<BudgetOperationRequest>(ct);
-    if (body is null || body.Amount <= 0)
-        return Results.BadRequest(new { error = "amount must be a positive number." });
-
-    var (success, error, txId, newBalance) = await budget.DepositAsync(body.Amount, body.Description, body.RequestedBy, ct);
-    return success
-        ? Results.Ok(new { success = true, transactionId = txId, newBalance, recordedAt = DateTime.UtcNow })
-        : Results.BadRequest(new { success = false, error });
-});
-
-app.MapPost("/api/trading/budget/withdraw", async (
-    [FromServices] BudgetRepository budget,
-    HttpRequest request,
-    CancellationToken ct) =>
-{
-    var body = await request.ReadFromJsonAsync<BudgetOperationRequest>(ct);
-    if (body is null || body.Amount <= 0)
-        return Results.BadRequest(new { error = "amount must be a positive number." });
-
-    var (success, error, txId, newBalance) = await budget.WithdrawAsync(body.Amount, body.Description, body.RequestedBy, ct);
-    return success
-        ? Results.Ok(new { success = true, transactionId = txId, newBalance, recordedAt = DateTime.UtcNow })
-        : Results.BadRequest(new { success = false, error });
-});
-
-app.MapGet("/api/trading/budget/equity-curve", async (
-    [FromServices] BudgetRepository budget,
-    [FromQuery] string? from,
-    [FromQuery] string? to,
-    CancellationToken ct) =>
-{
-    var fromDate = DateTime.TryParse(from, out var pFrom) ? (DateTime?)pFrom : null;
-    var toDate   = DateTime.TryParse(to,   out var pTo)   ? (DateTime?)pTo.AddDays(1) : null;
-    var points = await budget.GetEquityCurveAsync(fromDate, toDate, ct);
-    return Results.Ok(points);
-});
-
 app.MapGet("/api/trading/report/capital-flow", async (
     [FromServices] BudgetRepository budget,
     [FromQuery] string? from,
@@ -481,21 +451,6 @@ app.MapGet("/api/trading/report/capital-flow", async (
     var tradingMode = mode is "testnet" ? "testnet" : "live";
     var events = await budget.GetCapitalFlowAsync(fromDate, toDate, tradingMode, ct);
     return Results.Ok(events);
-});
-
-app.MapPost("/api/trading/budget/reset", async (
-    [FromServices] BudgetRepository budget,
-    HttpRequest request,
-    CancellationToken ct) =>
-{
-    var body = await request.ReadFromJsonAsync<BudgetResetRequest>(ct);
-    if (body is null || body.NewInitialCapital <= 0)
-        return Results.BadRequest(new { error = "newInitialCapital must be a positive number." });
-
-    var (success, error, newBalance, previousBalance) = await budget.ResetAsync(body.NewInitialCapital, body.Description, body.RequestedBy, ct);
-    return success
-        ? Results.Ok(new { success = true, newBalance, previousBalance, resetAt = DateTime.UtcNow })
-        : Results.BadRequest(new { success = false, error });
 });
 
 app.MapPost("/api/trading/control/close-all", async (
@@ -763,8 +718,13 @@ app.MapPost("/api/trading/validate-exchange", async (
 
 app.Run();
 
-record BudgetOperationRequest(decimal Amount, string? Description, string? RequestedBy);
-record BudgetResetRequest(decimal NewInitialCapital, string? Description, string? RequestedBy);
+file sealed class FinancialLedgerEffectiveBalanceResponse
+{
+    public bool Available { get; set; }
+    public decimal? Balance { get; set; }
+    public DateTime? AsOfUtc { get; set; }
+    public string? Detail { get; set; }
+}
 
 record CloseAllRequest(
     string? Reason,

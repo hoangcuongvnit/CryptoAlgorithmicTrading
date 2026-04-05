@@ -5,7 +5,7 @@ import { SentimentGauge } from '../components/SentimentGauge.jsx'
 import { SafetyLight } from '../components/SafetyLight.jsx'
 import { EventTimeline } from '../components/EventTimeline.jsx'
 import { PriceChangeChart } from '../components/PriceChangeChart.jsx'
-import { useRiskStats, useRiskConfig, useNotifierStats, useLatestReconciliationDrift } from '../hooks/useDashboard.js'
+import { useRiskStats, useRiskConfig, useNotifierStats, useLatestReconciliationDrift, useEffectiveBalance } from '../hooks/useDashboard.js'
 import { formatPnl, pnlColorClass } from '../utils/indicators.js'
 import { useSettings } from '../context/SettingsContext.jsx'
 
@@ -101,6 +101,7 @@ export function OverviewPage() {
   const { data: config } = useRiskConfig()
   const { data: notifier, lastUpdated } = useNotifierStats()
   const { data: driftReport } = useLatestReconciliationDrift()
+  const { data: effectiveBalance } = useEffectiveBalance()
 
   const { tradingMode } = useSettings()
   const symbols = config?.allowedSymbols?.length > 0 ? config.allowedSymbols : DEFAULT_SYMBOLS
@@ -110,6 +111,21 @@ export function OverviewPage() {
   const driftLabel = driftReport?.found
     ? `${driftReport.totalDrifts} ${t('reconciliation.driftCount')}`
     : t('reconciliation.noDrift')
+
+  const effectiveSource = effectiveBalance?.source ?? 'UNKNOWN'
+  const isTestnetMode = tradingMode === 'testnet'
+  const isTestnetLedgerDisconnected = isTestnetMode && (
+    !effectiveBalance?.available ||
+    effectiveBalance?.stale ||
+    effectiveSource.includes('FALLBACK')
+  )
+
+  const effectiveBalanceValue = typeof effectiveBalance?.balance === 'number'
+    ? `$${Number(effectiveBalance.balance).toFixed(2)}`
+    : '—'
+  const effectiveBalanceSubtitle = effectiveBalance
+    ? `${effectiveSource}${effectiveBalance?.stale ? ` · ${t('balance.stale')}` : ''}`
+    : t('balance.unavailable')
 
   return (
     <div className="space-y-6">
@@ -141,9 +157,29 @@ export function OverviewPage() {
       {/* Safety Banner */}
       <SafetyLight riskStats={risk} riskConfig={config} />
 
+      {isTestnetLedgerDisconnected && (
+        <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+          <div className="text-sm font-semibold text-red-700">{t('balance.testnetWarningTitle')}</div>
+          <div className="mt-1 text-sm text-red-700">
+            {effectiveBalance?.detail ?? t('balance.testnetWarningBody')}
+          </div>
+        </div>
+      )}
+
       {/* Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <SessionCountdown />
+        <StatCard
+          title={t('balance.title')}
+          value={effectiveBalanceValue}
+          subtitle={effectiveBalanceSubtitle}
+          icon="🏦"
+          colorClass={
+            isTestnetLedgerDisconnected
+              ? 'text-red-600'
+              : 'text-gray-800'
+          }
+        />
         <StatCard
           title={t('common:todayPnl')}
           value={risk ? formatPnl(risk.dailyPnl) : '—'}

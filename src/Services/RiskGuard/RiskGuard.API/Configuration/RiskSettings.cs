@@ -12,7 +12,7 @@ public sealed class RiskSettings
     public decimal MaxPositionSizePercent { get; set; } = 2.0m;
 
     /// <summary>Virtual account size in USDT used for position-size and drawdown calculations.</summary>
-    public decimal VirtualAccountBalance { get; set; } = 10_000m;
+    public decimal VirtualAccountBalance { get; set; } = 100m;
 
     /// <summary>
     /// Temporary compatibility switch during migration. When true and live balance lookup fails,

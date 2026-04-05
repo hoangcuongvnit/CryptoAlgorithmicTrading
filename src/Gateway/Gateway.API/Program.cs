@@ -675,6 +675,21 @@ tradingGroup.MapGet("/reconciliation/latest", async (IHttpClientFactory factory,
     }
 });
 
+tradingGroup.MapGet("/balance/effective", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var response = await client.GetAsync("/api/trading/balance/effective", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 tradingGroup.MapGet("/orders", async (
     IHttpClientFactory factory,
     [Microsoft.AspNetCore.Mvc.FromQuery] string? symbol,
@@ -859,121 +874,6 @@ tradingGroup.MapGet("/report/sessions/{sessionId}/symbols", async (
         var url = $"/api/trading/report/sessions/{Uri.EscapeDataString(sessionId)}/symbols";
         if (!string.IsNullOrEmpty(mode)) url += $"?mode={Uri.EscapeDataString(mode)}";
         var response = await client.GetAsync(url, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
-    }
-});
-
-// ── Budget Management proxy endpoints ─────────────────────────────────────
-
-var budgetGroup = app.MapGroup("/api/trading/budget");
-
-budgetGroup.MapGet("/status", async (IHttpClientFactory factory, CancellationToken ct) =>
-{
-    var client = factory.CreateClient("executor");
-    try
-    {
-        var response = await client.GetAsync("/api/trading/budget/status", ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
-    }
-});
-
-budgetGroup.MapGet("/ledger", async (
-    IHttpClientFactory factory,
-    [Microsoft.AspNetCore.Mvc.FromQuery] string? from,
-    [Microsoft.AspNetCore.Mvc.FromQuery] string? to,
-    [Microsoft.AspNetCore.Mvc.FromQuery] int? limit,
-    [Microsoft.AspNetCore.Mvc.FromQuery] int? offset,
-    CancellationToken ct) =>
-{
-    var client = factory.CreateClient("executor");
-    try
-    {
-        var qs = new System.Text.StringBuilder("/api/trading/budget/ledger?");
-        if (!string.IsNullOrEmpty(from))   qs.Append($"from={Uri.EscapeDataString(from)}&");
-        if (!string.IsNullOrEmpty(to))     qs.Append($"to={Uri.EscapeDataString(to)}&");
-        if (limit.HasValue)                qs.Append($"limit={limit.Value}&");
-        if (offset.HasValue)               qs.Append($"offset={offset.Value}&");
-        var response = await client.GetAsync(qs.ToString().TrimEnd('?', '&'), ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
-    }
-});
-
-budgetGroup.MapPost("/deposit", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
-{
-    var client = factory.CreateClient("executor");
-    try
-    {
-        var body = await req.ReadFromJsonAsync<object>(ct);
-        var response = await client.PostAsJsonAsync("/api/trading/budget/deposit", body, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
-        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
-    }
-});
-
-budgetGroup.MapPost("/withdraw", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
-{
-    var client = factory.CreateClient("executor");
-    try
-    {
-        var body = await req.ReadFromJsonAsync<object>(ct);
-        var response = await client.PostAsJsonAsync("/api/trading/budget/withdraw", body, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
-        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
-    }
-});
-
-budgetGroup.MapPost("/reset", async (IHttpClientFactory factory, HttpRequest req, CancellationToken ct) =>
-{
-    var client = factory.CreateClient("executor");
-    try
-    {
-        var body = await req.ReadFromJsonAsync<object>(ct);
-        var response = await client.PostAsJsonAsync("/api/trading/budget/reset", body, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
-        return Results.Content(responseBody, "application/json", statusCode: (int)response.StatusCode);
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
-    }
-});
-
-budgetGroup.MapGet("/equity-curve", async (
-    IHttpClientFactory factory,
-    [Microsoft.AspNetCore.Mvc.FromQuery] string? from,
-    [Microsoft.AspNetCore.Mvc.FromQuery] string? to,
-    CancellationToken ct) =>
-{
-    var client = factory.CreateClient("executor");
-    try
-    {
-        var qs = new System.Text.StringBuilder("/api/trading/budget/equity-curve?");
-        if (!string.IsNullOrEmpty(from)) qs.Append($"from={Uri.EscapeDataString(from)}&");
-        if (!string.IsNullOrEmpty(to))   qs.Append($"to={Uri.EscapeDataString(to)}&");
-        var response = await client.GetAsync(qs.ToString().TrimEnd('?', '&'), ct);
         var body = await response.Content.ReadAsStringAsync(ct);
         return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
     }

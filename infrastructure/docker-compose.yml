@@ -116,6 +116,7 @@ services:
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
       - Gateway__BaseUrl=http://trading_gateway:5000
+      - FinancialLedger__BaseUrl=http://trading_financialledger:5097
     ports:
       - "5014:5014"
       - "5094:5094"
@@ -153,7 +154,7 @@ services:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
-      - Ledger__DefaultInitialBalance=${FINANCIAL_LEDGER_DEFAULT_INITIAL_BALANCE:-10000}
+      - Ledger__DefaultInitialBalance=${FINANCIAL_LEDGER_DEFAULT_INITIAL_BALANCE:-100}
       - Ledger__RedisEventsStreamKey=${FINANCIAL_LEDGER_REDIS_STREAM_KEY:-ledger:events}
       - Ledger__RedisConsumerGroup=${FINANCIAL_LEDGER_REDIS_CONSUMER_GROUP:-financial-ledger}
       - Ledger__ExecutorUrl=http://trading_executor:5094

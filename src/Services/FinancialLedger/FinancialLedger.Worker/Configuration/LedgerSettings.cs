@@ -2,7 +2,7 @@ namespace FinancialLedger.Worker.Configuration;
 
 public sealed class LedgerSettings
 {
-    public int DefaultInitialBalance { get; set; } = 10000;
+    public int DefaultInitialBalance { get; set; } = 100;
     public int RedisReadBlockMs { get; set; } = 3000;
     public int RedisReadBatchSize { get; set; } = 100;
     public string RedisEventsStreamKey { get; set; } = "ledger:events";

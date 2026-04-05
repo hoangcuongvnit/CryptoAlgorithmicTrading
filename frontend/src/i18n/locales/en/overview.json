@@ -23,6 +23,13 @@
     "drawdownUsed": "Drawdown Used",
     "drawdownOf": "of ${{max}} max"
   },
+  "balance": {
+    "title": "Effective Balance",
+    "stale": "Stale",
+    "unavailable": "Unavailable",
+    "testnetWarningTitle": "TESTNET WARNING: Financial Ledger connection lost",
+    "testnetWarningBody": "Unable to sync balance from Financial Ledger. The system is currently using fallback balance and ledger connectivity should be checked immediately."
+  },
   "session": {
     "title": "Current Session",
     "sessionLabel": "Session #{{number}}",

@@ -2,6 +2,7 @@ using CryptoTrading.Shared.DTOs;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Json;
 
 namespace Executor.API.Services;
 
@@ -16,20 +17,21 @@ public sealed record BuyBudgetGuardResult(
 
 public sealed class BuyBudgetGuardService
 {
-    private readonly BudgetRepository _budgetRepository;
+    private const decimal TestnetFallbackBalance = 100m;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly CashBalanceStateService _cashBalanceState;
     private readonly BinanceSettings _binanceSettings;
     private readonly ReconciliationSettings _reconciliationSettings;
     private readonly ILogger<BuyBudgetGuardService> _logger;
 
     public BuyBudgetGuardService(
-        BudgetRepository budgetRepository,
+        IHttpClientFactory httpClientFactory,
         CashBalanceStateService cashBalanceState,
         IOptions<BinanceSettings> binanceSettings,
         IOptions<TradingSettings> tradingSettings,
         ILogger<BuyBudgetGuardService> logger)
     {
-        _budgetRepository = budgetRepository;
+        _httpClientFactory = httpClientFactory;
         _cashBalanceState = cashBalanceState;
         _binanceSettings = binanceSettings.Value;
         _reconciliationSettings = tradingSettings.Value.Reconciliation;
@@ -56,21 +58,42 @@ public sealed class BuyBudgetGuardService
 
         if (_binanceSettings.UseTestnet)
         {
-            var budget = await _budgetRepository.GetBudgetStatusAsync(ct);
-            if (budget is null)
+            var availableCash = TestnetFallbackBalance;
+            var source = "FINANCIAL_LEDGER_FALLBACK";
+            DateTime? snapshotUpdatedAt = DateTime.UtcNow;
+
+            try
             {
-                return new BuyBudgetGuardResult(false, "Testnet budget is unavailable.", TradingErrorCode.CashBalanceSnapshotUnavailable, requiredCash, 0m, "TESTNET_LEDGER", null);
+                var client = _httpClientFactory.CreateClient("financialledger");
+                var response = await client.GetAsync("/api/ledger/balance/effective?environment=TESTNET&baseCurrency=USDT", ct);
+                if (response.IsSuccessStatusCode)
+                {
+                    var payload = await response.Content.ReadFromJsonAsync<FinancialLedgerEffectiveBalanceResponse>(cancellationToken: ct);
+                    if (payload is not null && payload.Available && payload.Balance.HasValue)
+                    {
+                        availableCash = Math.Max(0m, payload.Balance.Value);
+                        source = "FINANCIAL_LEDGER";
+                        snapshotUpdatedAt = payload.AsOfUtc ?? DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("FinancialLedger effective balance lookup returned HTTP {StatusCode}. Applying fallback {FallbackBalance:F2}.", (int)response.StatusCode, TestnetFallbackBalance);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch TESTNET effective balance from FinancialLedger. Applying fallback {FallbackBalance:F2}.", TestnetFallbackBalance);
             }
 
-            var availableCash = budget.CurrentCashBalance;
             if (availableCash + 0.00000001m < requiredCash)
             {
-                var errorMessage = $"Buy blocked: required cash {requiredCash:F8} exceeds testnet budget {availableCash:F8}.";
+                var errorMessage = $"Buy blocked: required cash {requiredCash:F8} exceeds testnet cash {availableCash:F8} (source={source}).";
                 _logger.LogWarning(errorMessage);
-                return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.InsufficientCashBalance, requiredCash, availableCash, "TESTNET_LEDGER", budget.LastUpdatedUtc);
+                return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.InsufficientCashBalance, requiredCash, availableCash, source, snapshotUpdatedAt);
             }
 
-            return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, requiredCash, availableCash, "TESTNET_LEDGER", budget.LastUpdatedUtc);
+            return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, requiredCash, availableCash, source, snapshotUpdatedAt);
         }
 
         if (!_cashBalanceState.TryGetMainnetSnapshot(out var snapshot))
@@ -96,5 +119,12 @@ public sealed class BuyBudgetGuardService
         }
 
         return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, requiredCash, mainnetCash, snapshot.Source, snapshot.UpdatedAtUtc);
+    }
+
+    private sealed class FinancialLedgerEffectiveBalanceResponse
+    {
+        public bool Available { get; set; }
+        public decimal? Balance { get; set; }
+        public DateTime? AsOfUtc { get; set; }
     }
 }
