@@ -15,5 +15,6 @@ public enum SystemEventType
     LiquidationStarted,
     ForcedFlatten,
     SessionFlat,
-    SessionNotFlat
+    SessionNotFlat,
+    ReconciliationDrift
 }

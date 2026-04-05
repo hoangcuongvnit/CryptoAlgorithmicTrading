@@ -67,21 +67,21 @@ $$RealTimeEquity = CurrentBalance + UnrealizedPnL$$
 ## 5. Core Workflows
 
 ### 5.1. Data Ingestion & Reconciliation Sync
-1.  The **Executor** consumes Binance User Data Stream events (ORDER_TRADE_UPDATE, ACCOUNT_UPDATE) from WebSocket.
-2.  Executor forwards normalized events to a **reliable broker** (Redis Streams or RabbitMQ/MassTransit).
-3.  Ledger consumes events with acknowledgements and retry semantics (at-least-once delivery).
-4.  Ledger applies idempotency using `BinanceTransactionId` (or equivalent unique event key).
-5.  Ledger maps event payloads into `LedgerEntries.Type` and executes immutable INSERT operations.
-6.  Ledger emits real-time SignalR updates after durable persistence is confirmed.
+1.  The **Executor** publishes normalized accounting events to Redis Stream `ledger:events` immediately after successful trade execution.
+2.  For close-side executions, Executor emits ledger-safe deltas (for example `REALIZED_PNL`, `COMMISSION`) instead of gross notional buy/sell values.
+3.  FinancialLedger consumes `ledger:events` via consumer group with acknowledgement and retry semantics (at-least-once delivery).
+4.  FinancialLedger applies idempotency using `BinanceTransactionId` or an equivalent unique transaction key from the stream event.
+5.  FinancialLedger maps each event into immutable `LedgerEntries` inserts.
+6.  FinancialLedger emits SignalR updates only after durable persistence succeeds.
 
 ### 5.2. Session Reset Workflow
 This feature safely resets the testing environment while archiving historical data for future benchmarking, avoiding destructive hard deletes.
 1.  Receive an HTTP POST request to `/api/ledger/sessions/reset` with payload: `AccountId`, `NewInitialBalance`, `AlgorithmName`.
-2.  Ledger starts a **Saga** and emits `Halt_And_Close_All` command to the Trading Engine via broker.
-3.  Trading Engine closes all open positions and cancels all pending orders.
-4.  Trading Engine emits `Clear_Confirmed` response to the broker.
-5.  Ledger consumes `Clear_Confirmed`, archives the old `TestSessions` record, and creates a new ACTIVE session.
-6.  Ledger inserts INITIAL_FUNDING entry for the new session and completes saga.
+2.  FinancialLedger checks current open positions from Executor.
+3.  If open positions exist and request does not include explicit confirmation, API returns `409 Conflict` with `requiresConfirmation=true` and current `openPositions`.
+4.  After user confirmation, FinancialLedger requests close-all from Executor and waits for operation completion by polling close-all status endpoint until success/failure/timeout.
+5.  Only when close-all is confirmed successful does FinancialLedger archive the previous `TestSessions` row and create a new `ACTIVE` session.
+6.  FinancialLedger inserts an `INITIAL_FUNDING` ledger entry for the new session and completes the reset workflow.
 
 ### 5.3. Real-time Unrealized PnL & Equity Workflow
 1.  Trading Engine publishes live markPrice and open position snapshots.

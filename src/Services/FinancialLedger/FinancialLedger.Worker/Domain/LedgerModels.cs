@@ -37,4 +37,9 @@ public sealed record LedgerEntryDto(
 
 public sealed record PnlBreakdown(decimal RealizedPnl, decimal Commission, decimal FundingFee, decimal NetPnl);
 
-public sealed record ResetSessionRequest(string AccountId, decimal NewInitialBalance, string AlgorithmName);
+public sealed record ResetSessionRequest(
+    string AccountId,
+    decimal NewInitialBalance,
+    string AlgorithmName,
+    bool ConfirmCloseAll = false,
+    string? RequestedBy = null);

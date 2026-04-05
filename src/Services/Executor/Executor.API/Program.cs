@@ -75,6 +75,7 @@ builder.Services.AddSingleton<PriceReferenceRepository>();
 builder.Services.AddSingleton<OrderRepository>();
 builder.Services.AddSingleton<BudgetRepository>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
+builder.Services.AddSingleton<LedgerEventPublisher>();
 builder.Services.AddSingleton<SystemEventPublisher>();
 builder.Services.AddSingleton<OrderWriteQueue>();
 builder.Services.AddSingleton<Executor.API.Infrastructure.BinanceOrderClient>();
@@ -97,6 +98,7 @@ builder.Services.AddSingleton<RecoveryStateService>();
 builder.Services.AddHostedService<OrderPersistenceWorker>();
 builder.Services.AddHostedService<CredentialSyncService>();
 builder.Services.AddHostedService<StartupReconciliationService>();
+builder.Services.AddHostedService<PeriodicReconciliationService>();
 builder.Services.AddHostedService<LiquidationOrchestrator>();
 builder.Services.AddHostedService<PartialTpMonitorService>();
 

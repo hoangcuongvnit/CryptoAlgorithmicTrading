@@ -183,7 +183,34 @@ app.MapPost("/api/ledger/sessions/reset", async (
 		return Results.NotFound("Account not found");
 	}
 
-	await sagaService.RequestHaltAndCloseAllAsync(parsedAccountId, ct);
+	var openPositions = await sagaService.GetOpenPositionsCountAsync(ct);
+	if (openPositions > 0 && !request.ConfirmCloseAll)
+	{
+		return Results.Conflict(new
+		{
+			requiresConfirmation = true,
+			openPositions,
+			message = "Open positions detected. Confirm close-all to start a clean ledger session."
+		});
+	}
+
+	if (openPositions > 0)
+	{
+		var requestedBy = string.IsNullOrWhiteSpace(request.RequestedBy) ? "ledger" : request.RequestedBy;
+		var closeAllResult = await sagaService.RequestCloseAllAndWaitAsync(parsedAccountId, requestedBy!, ct);
+		if (!closeAllResult.Success)
+		{
+			return Results.Conflict(new
+			{
+				requiresConfirmation = false,
+				openPositions,
+				closeAllFailed = true,
+				message = closeAllResult.Message,
+				closedCount = closeAllResult.ClosedCount
+			});
+		}
+	}
+
 	var newSessionId = await sessionService.ResetSessionAsync(
 		parsedAccountId,
 		request.NewInitialBalance,
@@ -193,6 +220,7 @@ app.MapPost("/api/ledger/sessions/reset", async (
 	{
 		AccountId = parsedAccountId,
 		NewSessionId = newSessionId,
+		OpenPositionsClosed = openPositions,
 		request.NewInitialBalance,
 	});
 });

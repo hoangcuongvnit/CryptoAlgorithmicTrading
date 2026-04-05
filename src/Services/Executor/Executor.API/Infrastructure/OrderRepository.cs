@@ -882,6 +882,110 @@ public sealed class OrderRepository
         public decimal NetQty => BoughtQty - SoldQty;
     }
 
+    public sealed record StateDriftLogInput(
+        string DriftType,
+        string? Symbol,
+        decimal BinanceValue,
+        decimal LocalValue,
+        string Severity,
+        string RecoveryAction,
+        string RecoveryDetail,
+        bool RecoveryAttempted,
+        bool RecoverySuccess);
+
+    public async Task InsertStateDriftLogsAsync(
+        Guid reconciliationId,
+        DateTime reconciliationUtc,
+        string environment,
+        IReadOnlyList<StateDriftLogInput> drifts,
+        CancellationToken cancellationToken)
+    {
+        if (drifts.Count == 0)
+            return;
+
+        const string sql = """
+            INSERT INTO public.state_drift_logs (
+                id,
+                reconciliation_id,
+                reconciliation_utc,
+                symbol,
+                drift_type,
+                environment,
+                binance_value,
+                local_value,
+                recovery_action,
+                recovery_detail,
+                severity,
+                recovery_attempted,
+                recovery_success,
+                created_at
+            ) VALUES (
+                @Id,
+                @ReconciliationId,
+                @ReconciliationUtc,
+                @Symbol,
+                @DriftType,
+                @Environment,
+                @BinanceValue,
+                @LocalValue,
+                @RecoveryAction,
+                @RecoveryDetail,
+                @Severity,
+                @RecoveryAttempted,
+                @RecoverySuccess,
+                @CreatedAt
+            );
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+            foreach (var drift in drifts)
+            {
+                var parameters = new
+                {
+                    Id = Guid.NewGuid(),
+                    ReconciliationId = reconciliationId,
+                    ReconciliationUtc = reconciliationUtc,
+                    drift.Symbol,
+                    drift.DriftType,
+                    Environment = environment,
+                    drift.BinanceValue,
+                    drift.LocalValue,
+                    drift.RecoveryAction,
+                    drift.RecoveryDetail,
+                    drift.Severity,
+                    drift.RecoveryAttempted,
+                    drift.RecoverySuccess,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await connection.ExecuteAsync(new CommandDefinition(
+                    sql,
+                    parameters,
+                    transaction,
+                    cancellationToken: cancellationToken));
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (PostgresException ex) when (ex.SqlState == "42P01")
+        {
+            _logger.LogWarning(
+                "state_drift_logs table does not exist yet; skipping drift persistence for reconciliation {ReconciliationId}",
+                reconciliationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to persist state drift logs for reconciliation {ReconciliationId}",
+                reconciliationId);
+        }
+    }
+
     // ── Budget / Capital Tracking ─────────────────────────────────────────────
 
     public async Task<decimal> GetSessionRealizedPnLAsync(string sessionId, CancellationToken cancellationToken)

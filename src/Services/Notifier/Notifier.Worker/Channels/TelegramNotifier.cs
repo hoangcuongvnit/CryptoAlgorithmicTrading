@@ -77,6 +77,8 @@ public sealed class TelegramNotifier
             $"🚫 ORDER REJECTED [{evt.ErrorCode?.ToString() ?? "UNKNOWN"}]" +
             (evt.Symbol is not null ? $" {evt.Symbol}" : string.Empty) +
             $"\n{evt.ServiceName}: {evt.Message}",
+        SystemEventType.ReconciliationDrift =>
+            $"🔎 RECONCILIATION DRIFT\n{evt.ServiceName}: {evt.Message}",
         _                                  => $"ℹ️ {evt.ServiceName}: {evt.Message}"
     };
 

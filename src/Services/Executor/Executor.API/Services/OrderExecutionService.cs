@@ -21,6 +21,7 @@ public sealed class OrderExecutionService
     private readonly PriceConsensusService _consensus;
     private readonly OrderWriteQueue _orderWriteQueue;
     private readonly AuditStreamPublisher _auditStreamPublisher;
+    private readonly LedgerEventPublisher _ledgerEventPublisher;
     private readonly SystemEventPublisher _systemEvents;
     private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionMetrics _metrics;
@@ -37,6 +38,7 @@ public sealed class OrderExecutionService
         PriceConsensusService consensus,
         OrderWriteQueue orderWriteQueue,
         AuditStreamPublisher auditStreamPublisher,
+        LedgerEventPublisher ledgerEventPublisher,
         SystemEventPublisher systemEvents,
         PositionTracker positionTracker,
         OrderExecutionMetrics metrics,
@@ -52,6 +54,7 @@ public sealed class OrderExecutionService
         _consensus = consensus;
         _orderWriteQueue = orderWriteQueue;
         _auditStreamPublisher = auditStreamPublisher;
+        _ledgerEventPublisher = ledgerEventPublisher;
         _systemEvents = systemEvents;
         _positionTracker = positionTracker;
         _metrics = metrics;
@@ -186,10 +189,28 @@ public sealed class OrderExecutionService
         stopwatch.Stop();
         _metrics.RecordOrderLatency(stopwatch.Elapsed.TotalMilliseconds, orderRequest.Symbol);
 
+        PositionTracker.OpenPosition? positionBeforeFill = null;
+        if (orderResult.Success && orderRequest.Side == OrderSide.Sell)
+        {
+            positionBeforeFill = _positionTracker
+                .GetRawPositions()
+                .FirstOrDefault(p => string.Equals(p.Symbol, orderRequest.Symbol, StringComparison.OrdinalIgnoreCase));
+        }
+
         if (orderResult.Success)
         {
             _metrics.RecordOrderFilled(orderRequest.Symbol, orderResult.FilledQty, orderResult.FilledPrice);
             _positionTracker.OnOrderFilled(orderRequest, orderResult);
+
+            _ = _ledgerEventPublisher
+                .PublishFromSuccessfulExecutionAsync(orderRequest, orderResult, positionBeforeFill, CancellationToken.None)
+                .ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                    {
+                        _logger.LogError(t.Exception, "Ledger event publish failed for {Symbol}", orderRequest.Symbol);
+                    }
+                }, TaskScheduler.Default);
 
             if (orderRequest.Price > 0 && orderResult.FilledPrice > 0)
             {

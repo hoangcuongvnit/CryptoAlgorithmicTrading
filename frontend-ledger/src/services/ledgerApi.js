@@ -1,9 +1,32 @@
 const BASE = ''  // proxied by Vite to http://localhost:5097
 
+export class ApiError extends Error {
+  constructor(status, message, body = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
 async function json(res) {
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText)
-    throw new Error(`${res.status}: ${text}`)
+    let body = null
+    let text = ''
+    try {
+      text = await res.text()
+      body = text ? JSON.parse(text) : null
+    } catch {
+      body = null
+    }
+
+    const message =
+      (body && typeof body.message === 'string' && body.message) ||
+      text ||
+      res.statusText ||
+      'Request failed'
+
+    throw new ApiError(res.status, `${res.status}: ${message}`, body)
   }
   return res.json()
 }
@@ -44,11 +67,17 @@ export const ledgerApi = {
   },
 
   // POST reset session (archive old, create new)
-  resetSession(accountId, newInitialBalance, algorithmName) {
+  resetSession(accountId, newInitialBalance, algorithmName, options = {}) {
     return fetch(`${BASE}/api/ledger/sessions/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId, newInitialBalance, algorithmName }),
+      body: JSON.stringify({
+        accountId,
+        newInitialBalance,
+        algorithmName,
+        confirmCloseAll: options.confirmCloseAll ?? false,
+        requestedBy: options.requestedBy,
+      }),
     }).then(json)
   },
 }

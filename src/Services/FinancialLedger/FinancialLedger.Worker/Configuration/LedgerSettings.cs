@@ -11,6 +11,11 @@ public sealed class LedgerSettings
     public string DefaultEnvironment { get; set; } = "TESTNET";
     public string DefaultAlgorithmName { get; set; } = "DEFAULT";
 
+    // Session reset orchestration
+    public int CloseAllTimeoutSeconds { get; set; } = 180;
+    public int CloseAllPollIntervalMs { get; set; } = 2000;
+    public string CloseAllConfirmationToken { get; set; } = "CLOSE ALL";
+
     // EquityProjectionWorker
     public string ExecutorUrl { get; set; } = "";
     public int EquityProjectionIntervalMs { get; set; } = 5000;

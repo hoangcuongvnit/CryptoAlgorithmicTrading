@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ledgerApi } from '../services/ledgerApi'
+import { ApiError, ledgerApi } from '../services/ledgerApi'
 
 function fmt(n) {
   return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -40,11 +40,35 @@ export default function SessionsPage() {
     if (!bal || bal <= 0) { alert(t('sessions.invalidBalance')); return }
     setResetting(true)
     try {
-      await ledgerApi.resetSession(accountId, bal, resetForm.name || 'DEFAULT')
+      await ledgerApi.resetSession(accountId, bal, resetForm.name || 'DEFAULT', {
+        confirmCloseAll: false,
+        requestedBy: 'frontend-ledger',
+      })
       setResetForm({ balance: '', name: '' })
       reloadSessions()
     } catch (err) {
-      alert(err.message)
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.body?.requiresConfirmation
+      ) {
+        const openPositions = err.body?.openPositions ?? 0
+        const confirmed = window.confirm(
+          t('sessions.confirmCloseAllPrompt', { count: openPositions })
+        )
+
+        if (confirmed) {
+          await ledgerApi.resetSession(accountId, bal, resetForm.name || 'DEFAULT', {
+            confirmCloseAll: true,
+            requestedBy: 'frontend-ledger',
+          })
+          setResetForm({ balance: '', name: '' })
+          reloadSessions()
+          alert(t('sessions.resetWithCloseAllSuccess'))
+        }
+      } else {
+        alert(err.message)
+      }
     } finally {
       setResetting(false)
     }

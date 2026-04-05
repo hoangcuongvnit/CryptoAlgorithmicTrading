@@ -64,6 +64,8 @@
     "algorithmName": "Algorithm name",
     "resetBtn": "Reset Session",
     "resetting": "Resetting...",
+    "confirmCloseAllPrompt": "There are {{count}} open positions. Confirm close-all and wait for completion before starting a new ledger session?",
+    "resetWithCloseAllSuccess": "Session reset completed after close-all.",
     "col": {
       "algorithm": "Algorithm",
       "status": "Status",

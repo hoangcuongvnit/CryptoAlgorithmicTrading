@@ -64,6 +64,8 @@
     "algorithmName": "Tên chiến lược",
     "resetBtn": "Đặt lại phiên",
     "resetting": "Đang đặt lại...",
+    "confirmCloseAllPrompt": "Hiện có {{count}} vị thế đang mở. Xác nhận đóng toàn bộ và chờ hoàn tất trước khi tạo phiên sổ cái mới?",
+    "resetWithCloseAllSuccess": "Đặt lại phiên thành công sau khi đóng toàn bộ vị thế.",
     "col": {
       "algorithm": "Chiến lược",
       "status": "Trạng thái",

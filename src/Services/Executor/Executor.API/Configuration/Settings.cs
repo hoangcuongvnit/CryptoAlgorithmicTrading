@@ -9,6 +9,17 @@ public sealed class TradingSettings
     public SpreadFilterSettings SpreadFilter { get; set; } = new();
     public PartialTpSettings PartialTp { get; set; } = new();
     public ConsensusPricingSettings ConsensusPricing { get; set; } = new();
+    public ReconciliationSettings Reconciliation { get; set; } = new();
+}
+
+public sealed class ReconciliationSettings
+{
+    public bool Enabled { get; set; } = false;
+    public int IntervalSeconds { get; set; } = 300;
+    public decimal PositionQuantityTolerance { get; set; } = 0.00000001m;
+    public decimal BalanceDriftTolerance { get; set; } = 0.01m;
+    public string QuoteAsset { get; set; } = "USDT";
+    public int AlertMaxSymbols { get; set; } = 10;
 }
 
 public sealed class SpreadFilterSettings
