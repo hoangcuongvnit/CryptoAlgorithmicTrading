@@ -2,6 +2,21 @@
   "title": "Trading Overview",
   "marketSentiment": "Market Sentiment",
   "recentActivity": "Recent Activity",
+  "reconciliation": {
+    "title": "Latest Reconciliation Drift",
+    "subtitle": "Most recent spot-state drift captured by the executor",
+    "empty": "No reconciliation drift logs found yet.",
+    "balance": "BALANCE",
+    "driftCount": "drifts",
+    "recovered": "Recovered",
+    "pending": "Pending",
+    "summary": {
+      "total": "Total",
+      "recovered": "Recovered",
+      "pending": "Pending Review",
+      "environment": "Environment"
+    }
+  },
   "stats": {
     "tradesTotal": "Trades Today",
     "approved": "{{count}} approved",

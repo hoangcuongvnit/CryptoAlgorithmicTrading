@@ -66,6 +66,8 @@ services:
       - DOTNET_ENVIRONMENT=Production
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
+      - Executor__BaseUrl=http://trading_executor:5094
+      - FinancialLedger__BaseUrl=http://trading_financialledger:5097
       - Risk__MinRiskReward=${MIN_RISK_REWARD:-2.0}
       - Risk__MaxPositionSizePercent=${MAX_POSITION_SIZE_PERCENT:-2.0}
       - Risk__VirtualAccountBalance=${INITIAL_BALANCE:-10000}

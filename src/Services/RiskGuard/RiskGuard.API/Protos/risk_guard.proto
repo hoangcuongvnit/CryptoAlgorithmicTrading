@@ -16,6 +16,7 @@ message ValidateOrderRequest {
   string session_id    = 7;
   string session_phase = 8;
   bool   is_reduce_only = 9;
+  string environment   = 10;
 }
 
 message ValidateOrderReply {

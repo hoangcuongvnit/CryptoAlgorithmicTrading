@@ -16,6 +16,7 @@ public sealed class OrderExecutionService
 {
     private readonly TradingSettings _tradingSettings;
     private readonly OrderAmountLimitValidator _orderAmountValidator;
+    private readonly BuyBudgetGuardService _buyBudgetGuard;
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly SpreadFilterService _spreadFilter;
     private readonly PriceConsensusService _consensus;
@@ -33,6 +34,7 @@ public sealed class OrderExecutionService
     public OrderExecutionService(
         IOptions<TradingSettings> tradingSettings,
         OrderAmountLimitValidator orderAmountValidator,
+        BuyBudgetGuardService buyBudgetGuard,
         BinanceOrderClient binanceOrderClient,
         SpreadFilterService spreadFilter,
         PriceConsensusService consensus,
@@ -49,6 +51,7 @@ public sealed class OrderExecutionService
     {
         _tradingSettings = tradingSettings.Value;
         _orderAmountValidator = orderAmountValidator;
+        _buyBudgetGuard = buyBudgetGuard;
         _binanceOrderClient = binanceOrderClient;
         _spreadFilter = spreadFilter;
         _consensus = consensus;
@@ -89,6 +92,46 @@ public sealed class OrderExecutionService
                 IsPaperTrade = false,
                 SessionId = orderRequest.SessionId
             };
+        }
+
+        if (orderRequest.Side == OrderSide.Sell &&
+            !orderRequest.IsReduceOnly &&
+            !_positionTracker.TryValidateSellQuantity(orderRequest.Symbol, orderRequest.Quantity, out var availableQuantity, out var sellGuardError))
+        {
+            return new OrderResult
+            {
+                OrderId = Guid.NewGuid().ToString("N"),
+                Symbol = orderRequest.Symbol,
+                Side = orderRequest.Side,
+                Success = false,
+                ErrorMessage = string.IsNullOrWhiteSpace(sellGuardError)
+                    ? $"Sell blocked: local quantity is lower than requested quantity. Available={availableQuantity}, Requested={orderRequest.Quantity}."
+                    : sellGuardError,
+                ErrorCode = TradingErrorCode.InsufficientPositionQuantity,
+                Timestamp = DateTime.UtcNow,
+                IsPaperTrade = false,
+                SessionId = orderRequest.SessionId
+            };
+        }
+
+        if (orderRequest.Side == OrderSide.Buy)
+        {
+            var buyBudget = await _buyBudgetGuard.ValidateAsync(orderRequest, amountValidation.EffectivePrice, ct);
+            if (!buyBudget.Passed)
+            {
+                return new OrderResult
+                {
+                    OrderId = Guid.NewGuid().ToString("N"),
+                    Symbol = orderRequest.Symbol,
+                    Side = orderRequest.Side,
+                    Success = false,
+                    ErrorMessage = buyBudget.ErrorMessage,
+                    ErrorCode = buyBudget.ErrorCode,
+                    Timestamp = DateTime.UtcNow,
+                    IsPaperTrade = false,
+                    SessionId = orderRequest.SessionId
+                };
+            }
         }
 
         var (consensusPassed, _, consensusReason) = await _consensus.ValidateAsync(orderRequest.Symbol, ct);

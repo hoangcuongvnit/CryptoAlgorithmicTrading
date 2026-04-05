@@ -86,7 +86,7 @@
     "maxPositionSize": {
       "label": "Max Position Size",
       "configSuffix": "% per order",
-      "meaning": "No single order can use more than this percentage of the virtual account balance.",
+      "meaning": "No single order can use more than this percentage of the effective balance.",
       "currentValue": "Enforced on each order",
       "impact": "Oversized orders are rejected before reaching the exchange."
     },

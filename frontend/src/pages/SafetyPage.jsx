@@ -440,7 +440,18 @@ export function SafetyPage() {
     { label: t('riskConfig.maxOrderValue'), value: `$${config.maxOrderNotional}` },
     { label: t('riskConfig.maxDailyLoss'), value: `${config.maxDrawdownPercent}%` },
     { label: t('riskConfig.cooldownPeriod'), value: `${config.cooldownSeconds}s` },
-    { label: t('riskConfig.virtualBalance'), value: `$${Number(config.virtualAccountBalance).toLocaleString()}` },
+    {
+      label: t('riskConfig.effectiveBalance'),
+      value: config.effectiveBalance?.isAvailable
+        ? `$${Number(config.effectiveBalance.amount).toLocaleString()}`
+        : '—'
+    },
+    {
+      label: t('riskConfig.balanceSource'),
+      value: config.effectiveBalance?.source
+        ? `${config.effectiveBalance.source} (${config.effectiveBalance.environment ?? 'n/a'})`
+        : 'N/A'
+    },
   ] : []
 
   return (

@@ -15,7 +15,8 @@
     "maxOrderValue": "Max Order Value",
     "maxDailyLoss": "Max Daily Loss",
     "cooldownPeriod": "Cooldown Period",
-    "virtualBalance": "Virtual Balance",
+    "effectiveBalance": "Effective Balance",
+    "balanceSource": "Balance Source",
     "allowedPairs": "Allowed Trading Pairs"
   },
   "validationHistory": {

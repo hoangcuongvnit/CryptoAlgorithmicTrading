@@ -13,6 +13,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
 {
     private readonly TradingSettings _tradingSettings;
     private readonly OrderAmountLimitValidator _orderAmountValidator;
+    private readonly BuyBudgetGuardService _buyBudgetGuard;
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly OrderWriteQueue _orderWriteQueue;
     private readonly AuditStreamPublisher _auditStreamPublisher;
@@ -29,6 +30,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     public OrderExecutorGrpcService(
         IOptions<TradingSettings> tradingSettings,
         OrderAmountLimitValidator orderAmountValidator,
+        BuyBudgetGuardService buyBudgetGuard,
         BinanceOrderClient binanceOrderClient,
         OrderWriteQueue orderWriteQueue,
         AuditStreamPublisher auditStreamPublisher,
@@ -44,6 +46,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
     {
         _tradingSettings = tradingSettings.Value;
         _orderAmountValidator = orderAmountValidator;
+        _buyBudgetGuard = buyBudgetGuard;
         _binanceOrderClient = binanceOrderClient;
         _orderWriteQueue = orderWriteQueue;
         _auditStreamPublisher = auditStreamPublisher;
@@ -143,6 +146,31 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
                 amountValidation.ErrorMessage ?? "Order amount validation failed.",
                 amountValidation.ErrorCode);
             return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+        }
+
+        if (orderRequest.Side == OrderSide.Sell &&
+            !orderRequest.IsReduceOnly &&
+            !_positionTracker.TryValidateSellQuantity(orderRequest.Symbol, orderRequest.Quantity, out var availableQuantity, out var sellGuardError))
+        {
+            _metrics.RecordOrderRejected(orderRequest.Symbol, "Sell guard: local quantity insufficient");
+            orderResult = BuildFailureResult(
+                orderRequest.Symbol,
+                string.IsNullOrWhiteSpace(sellGuardError)
+                    ? $"Sell blocked: local quantity is lower than requested quantity. Available={availableQuantity}, Requested={orderRequest.Quantity}."
+                    : sellGuardError,
+                TradingErrorCode.InsufficientPositionQuantity);
+            return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+        }
+
+        if (orderRequest.Side == OrderSide.Buy)
+        {
+            var buyBudget = await _buyBudgetGuard.ValidateAsync(orderRequest, amountValidation.EffectivePrice, context.CancellationToken);
+            if (!buyBudget.Passed)
+            {
+                _metrics.RecordOrderRejected(orderRequest.Symbol, buyBudget.ErrorMessage);
+                orderResult = BuildFailureResult(orderRequest.Symbol, buyBudget.ErrorMessage, buyBudget.ErrorCode);
+                return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+            }
         }
 
         _metrics.RecordOrderPlaced(orderRequest.Symbol, orderRequest.Side.ToString(), orderRequest.Quantity);

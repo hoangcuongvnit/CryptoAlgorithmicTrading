@@ -74,6 +74,7 @@ builder.Services.AddHttpClient("gateway", c =>
 builder.Services.AddSingleton<PriceReferenceRepository>();
 builder.Services.AddSingleton<OrderRepository>();
 builder.Services.AddSingleton<BudgetRepository>();
+builder.Services.AddSingleton<CashBalanceStateService>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
 builder.Services.AddSingleton<LedgerEventPublisher>();
 builder.Services.AddSingleton<SystemEventPublisher>();
@@ -81,6 +82,7 @@ builder.Services.AddSingleton<OrderWriteQueue>();
 builder.Services.AddSingleton<Executor.API.Infrastructure.BinanceOrderClient>();
 builder.Services.AddSingleton<SpreadFilterService>();
 builder.Services.AddSingleton<PriceConsensusService>();
+builder.Services.AddSingleton<BuyBudgetGuardService>();
 builder.Services.AddSingleton<PositionTracker>();
 builder.Services.AddSingleton(metrics);
 builder.Services.AddSingleton(sessionMetrics);
@@ -89,6 +91,8 @@ builder.Services.AddSingleton(sessionMetrics);
 builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
 builder.Services.AddSingleton<SessionClock>();
 builder.Services.AddSingleton<SessionTradingPolicy>();
+builder.Services.AddSingleton<SessionBoundaryValidator>();
+builder.Services.AddSingleton<ReconciliationMetrics>();
 builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 builder.Services.AddSingleton<PositionLifecycleManager>();
 builder.Services.AddSingleton<Executor.API.Services.OrderExecutionService>();
@@ -104,6 +108,7 @@ builder.Services.AddHostedService<PartialTpMonitorService>();
 
 // Shutdown/close-all services
 builder.Services.AddSingleton<ShutdownOperationService>();
+builder.Services.AddSingleton<CloseAllDiscoveryService>();
 builder.Services.AddSingleton<CloseAllExecutorService>();
 builder.Services.AddHostedService<CloseAllSchedulerService>();
 builder.Services.AddHostedService<SessionExitOnlyMonitorService>();
@@ -113,6 +118,60 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.MapGrpcService<Executor.API.Services.OrderExecutorGrpcService>();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Executor.API" }));
+app.MapGet("/api/trading/reconciliation/health", ([FromServices] ReconciliationMetrics metrics, [FromServices] IOptions<TradingSettings> tradingSettings) =>
+{
+    var snapshot = metrics.Snapshot();
+    return Results.Ok(new
+    {
+        enabled = tradingSettings.Value.Reconciliation.Enabled,
+        snapshot
+    });
+});
+
+app.MapGet("/api/trading/reconciliation/latest", async ([FromServices] OrderRepository repo, CancellationToken ct) =>
+{
+    var drifts = await repo.GetLatestStateDriftLogsAsync(ct);
+    if (drifts.Count == 0)
+    {
+        return Results.Ok(new
+        {
+            found = false,
+            message = "No reconciliation drift logs found."
+        });
+    }
+
+    var latest = drifts[0];
+    var total = drifts.Count;
+    var recovered = drifts.Count(x => x.RecoverySuccess);
+    var pendingReview = drifts.Count(x => !x.RecoverySuccess && x.RecoveryAttempted == false);
+
+    return Results.Ok(new
+    {
+        found = true,
+        reconciliationId = latest.ReconciliationId,
+        reconciliationUtc = latest.ReconciliationUtc,
+        environment = latest.Environment,
+        totalDrifts = total,
+        recoveredDrifts = recovered,
+        pendingReviewDrifts = pendingReview,
+        drifts = drifts.Select(d => new
+        {
+            d.Id,
+            d.Symbol,
+            d.DriftType,
+            d.Severity,
+            d.Environment,
+            d.BinanceValue,
+            d.LocalValue,
+            d.RecoveryAction,
+            d.RecoveryDetail,
+            d.RecoveryAttempted,
+            d.RecoverySuccess,
+            d.CreatedAt
+        })
+    });
+});
+
 app.MapGet("/metrics", () => "Prometheus metrics endpoint. Configure Prometheus to scrape http://localhost:9091/metrics");
 app.MapGet("/", () => "Order Executor gRPC service is running.");
 
@@ -293,6 +352,65 @@ app.MapGet("/api/trading/budget/status", async (
     return status is null
         ? Results.NotFound(new { error = "No active trading account found. Run the capital ledger migration." })
         : Results.Ok(status);
+});
+
+app.MapGet("/api/trading/balance/effective", async (
+    [FromServices] IOptions<BinanceSettings> binanceOpts,
+    [FromServices] IOptions<TradingSettings> tradingOpts,
+    [FromServices] CashBalanceStateService cashBalanceState,
+    [FromServices] BudgetRepository budget,
+    CancellationToken ct) =>
+{
+    var useTestnet = binanceOpts.Value.UseTestnet;
+    var environment = useTestnet ? "TESTNET" : "MAINNET";
+
+    if (useTestnet)
+    {
+        var budgetStatus = await budget.GetBudgetStatusAsync(ct);
+        return Results.Ok(new
+        {
+            environment,
+            source = "FINANCIAL_LEDGER",
+            available = budgetStatus is not null,
+            balance = budgetStatus?.CurrentCashBalance,
+            asOfUtc = budgetStatus?.LastUpdatedUtc,
+            stale = false,
+            detail = budgetStatus is null
+                ? "Testnet budget snapshot is unavailable; RiskGuard should query FinancialLedger as primary source."
+                : "Testnet is active; RiskGuard should use FinancialLedger effective balance source."
+        });
+    }
+
+    if (!cashBalanceState.TryGetMainnetSnapshot(out var snapshot))
+    {
+        return Results.Ok(new
+        {
+            environment,
+            source = "MAINNET_RECONCILED",
+            available = false,
+            balance = (decimal?)null,
+            asOfUtc = (DateTime?)null,
+            stale = true,
+            detail = "Mainnet reconciled cash snapshot is unavailable."
+        });
+    }
+
+    var maxAgeMinutes = Math.Max(1, tradingOpts.Value.Reconciliation.CashSnapshotMaxAgeMinutes);
+    var snapshotAge = DateTime.UtcNow - snapshot.UpdatedAtUtc;
+    var isStale = snapshotAge > TimeSpan.FromMinutes(maxAgeMinutes);
+
+    return Results.Ok(new
+    {
+        environment,
+        source = "MAINNET_RECONCILED",
+        available = true,
+        balance = snapshot.CashBalance,
+        asOfUtc = snapshot.UpdatedAtUtc,
+        stale = isStale,
+        detail = snapshot.Source,
+        snapshotAgeMinutes = Math.Round(snapshotAge.TotalMinutes, 2),
+        snapshotMaxAgeMinutes = maxAgeMinutes
+    });
 });
 
 app.MapGet("/api/trading/budget/ledger", async (
@@ -492,6 +610,10 @@ app.MapGet("/api/trading/control/close-all/status", ([FromServices] ShutdownOper
         completedAtUtc = op.CompletedAtUtc,
         shutdownReady = op.ShutdownReady,
         positionsClosedCount = op.PositionsClosedCount,
+        discoveredCandidatesCount = op.DiscoveredCandidatesCount,
+        attemptedCloseCount = op.AttemptedCloseCount,
+        verifiedAtUtc = op.VerifiedAtUtc,
+        leftovers = op.Leftovers,
         openPositionsRemaining = tracker.GetOpenPositions().Count,
         exitOnlyMode = shutdownOp.IsExitOnlyMode,
         tradingMode = shutdownOp.TradingMode,

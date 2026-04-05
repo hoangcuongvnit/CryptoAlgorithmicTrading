@@ -13,6 +13,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 builder.Services.Configure<RiskSettings>(builder.Configuration.GetSection("Risk"));
 
+builder.Services.AddHttpClient("executor", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Executor:BaseUrl"] ?? "http://localhost:5094");
+    client.Timeout = TimeSpan.FromSeconds(2);
+});
+
+builder.Services.AddHttpClient("financialledger", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["FinancialLedger:BaseUrl"] ?? "http://localhost:5097");
+    client.Timeout = TimeSpan.FromSeconds(2);
+});
+
 // Infrastructure
 var redisConnection = builder.Configuration.GetValue<string>("Redis:Connection") ?? "localhost:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
@@ -27,6 +39,7 @@ builder.Services.AddSingleton<SystemEventPublisher>();
 builder.Services.AddSingleton<IRedisPersistenceService, RedisPersistenceService>();
 builder.Services.AddSingleton<ValidationHistory>();
 builder.Services.AddSingleton<IRiskEvaluationRepository, RiskEvaluationRepository>();
+builder.Services.AddSingleton<IEffectiveBalanceProvider, EffectiveBalanceProvider>();
 
 // Session services
 builder.Services.Configure<SessionSettings>(builder.Configuration.GetSection("Trading:Session"));
@@ -55,15 +68,30 @@ app.MapGrpcService<RiskGuardGrpcService>();
 
 // ── REST management endpoints (HTTP/1.1 on Health port 5093) ──────────────
 
-app.MapGet("/api/risk/config", (IOptions<RiskSettings> opts) =>
+app.MapGet("/api/risk/config", async (IOptions<RiskSettings> opts, IEffectiveBalanceProvider balanceProvider, CancellationToken ct) =>
 {
     var s = opts.Value;
+    var effectiveBalance = await balanceProvider.GetEffectiveBalanceAsync(ct: ct);
+
     return Results.Ok(new
     {
         minRiskReward = s.MinRiskReward,
         maxOrderNotional = s.MaxOrderNotional,
         maxPositionSizePercent = s.MaxPositionSizePercent,
-        virtualAccountBalance = s.VirtualAccountBalance,
+        allowVirtualBalanceFallback = s.AllowVirtualBalanceFallback,
+        balanceCacheTtlSeconds = s.BalanceCacheTtlSeconds,
+        balanceLookupTimeoutMs = s.BalanceLookupTimeoutMs,
+        effectiveBalance = new
+        {
+            amount = effectiveBalance.Balance,
+            environment = effectiveBalance.Environment,
+            source = effectiveBalance.Source,
+            asOfUtc = effectiveBalance.AsOfUtc,
+            isAvailable = effectiveBalance.IsAvailable,
+            isStale = effectiveBalance.IsStale,
+            isFallback = effectiveBalance.IsFallback,
+            error = effectiveBalance.Error
+        },
         maxDrawdownPercent = s.MaxDrawdownPercent,
         cooldownSeconds = s.CooldownSeconds,
         allowedSymbols = s.AllowedSymbols
@@ -86,6 +114,7 @@ app.MapPost("/api/risk/reload-config", (IOptions<RiskSettings> opts, HttpRequest
 
 app.MapGet("/api/risk/stats", async (
     IOptions<RiskSettings> opts,
+    IEffectiveBalanceProvider balanceProvider,
     OrderStatsRepository statsRepo,
     ValidationHistory history,
     CooldownRule cooldownRule,
@@ -97,7 +126,9 @@ app.MapGet("/api/risk/stats", async (
     try { dailyPnl = await statsRepo.GetDailyNetPnlAsync(ct); }
     catch { /* DB unavailable — return zero, never block */ }
 
-    var maxLoss = s.MaxDrawdownPercent / 100m * s.VirtualAccountBalance;
+    var effectiveBalance = await balanceProvider.GetEffectiveBalanceAsync(ct: ct);
+    var drawdownBase = effectiveBalance.IsAvailable ? effectiveBalance.Balance : s.VirtualAccountBalance;
+    var maxLoss = s.MaxDrawdownPercent / 100m * drawdownBase;
     var drawdownUsedPercent = maxLoss > 0
         ? Math.Min(100m, Math.Round(-dailyPnl / maxLoss * 100m, 1))
         : 0m;
@@ -111,6 +142,18 @@ app.MapGet("/api/risk/stats", async (
         dailyPnl,
         drawdownUsedPercent,
         maxDrawdownUsd = maxLoss,
+        drawdownBaseUsd = drawdownBase,
+        effectiveBalance = new
+        {
+            amount = effectiveBalance.Balance,
+            environment = effectiveBalance.Environment,
+            source = effectiveBalance.Source,
+            asOfUtc = effectiveBalance.AsOfUtc,
+            isAvailable = effectiveBalance.IsAvailable,
+            isStale = effectiveBalance.IsStale,
+            isFallback = effectiveBalance.IsFallback,
+            error = effectiveBalance.Error
+        },
         todayApproved = approved,
         todayRejected = rejected,
         cooldownSeconds = s.CooldownSeconds,

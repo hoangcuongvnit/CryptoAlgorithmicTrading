@@ -2,6 +2,21 @@
   "title": "Tổng quan giao dịch",
   "marketSentiment": "Tâm lý thị trường",
   "recentActivity": "Hoạt động gần đây",
+  "reconciliation": {
+    "title": "Drift đối soát gần nhất",
+    "subtitle": "Lệch trạng thái Spot mới nhất được Executor ghi nhận",
+    "empty": "Chưa có log drift đối soát nào.",
+    "balance": "SỐ DƯ",
+    "driftCount": "drift",
+    "recovered": "Đã khôi phục",
+    "pending": "Chờ xử lý",
+    "summary": {
+      "total": "Tổng số",
+      "recovered": "Đã khôi phục",
+      "pending": "Chờ duyệt",
+      "environment": "Môi trường"
+    }
+  },
   "stats": {
     "tradesTotal": "Giao dịch hôm nay",
     "approved": "{{count}} đã duyệt",

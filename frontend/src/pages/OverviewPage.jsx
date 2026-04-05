@@ -5,7 +5,7 @@ import { SentimentGauge } from '../components/SentimentGauge.jsx'
 import { SafetyLight } from '../components/SafetyLight.jsx'
 import { EventTimeline } from '../components/EventTimeline.jsx'
 import { PriceChangeChart } from '../components/PriceChangeChart.jsx'
-import { useRiskStats, useRiskConfig, useNotifierStats } from '../hooks/useDashboard.js'
+import { useRiskStats, useRiskConfig, useNotifierStats, useLatestReconciliationDrift } from '../hooks/useDashboard.js'
 import { formatPnl, pnlColorClass } from '../utils/indicators.js'
 import { useSettings } from '../context/SettingsContext.jsx'
 
@@ -100,11 +100,16 @@ export function OverviewPage() {
   const { data: risk } = useRiskStats()
   const { data: config } = useRiskConfig()
   const { data: notifier, lastUpdated } = useNotifierStats()
+  const { data: driftReport } = useLatestReconciliationDrift()
 
   const { tradingMode } = useSettings()
   const symbols = config?.allowedSymbols?.length > 0 ? config.allowedSymbols : DEFAULT_SYMBOLS
 
   const totalOrders = (risk?.todayApproved ?? 0) + (risk?.todayRejected ?? 0)
+  const driftItems = driftReport?.found ? driftReport.drifts ?? [] : []
+  const driftLabel = driftReport?.found
+    ? `${driftReport.totalDrifts} ${t('reconciliation.driftCount')}`
+    : t('reconciliation.noDrift')
 
   return (
     <div className="space-y-6">
@@ -172,6 +177,77 @@ export function OverviewPage() {
           icon="🔔"
           colorClass="text-gray-800"
         />
+      </div>
+
+      {/* Latest Reconciliation Drift */}
+      <div className="rounded-2xl border bg-white/90 shadow-sm p-4 lg:p-5">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold" style={{ color: '#0f172a' }}>{t('reconciliation.title')}</h2>
+            <p className="text-sm text-gray-500">{t('reconciliation.subtitle')}</p>
+          </div>
+          <div className="text-right">
+            <div className="text-sm font-medium text-gray-900">{driftLabel}</div>
+            {driftReport?.found && (
+              <div className="text-xs text-gray-500">
+                {new Date(driftReport.reconciliationUtc).toLocaleString('en-US', {
+                  timeZone: systemTimezone,
+                  hour12: false,
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {!driftReport?.found ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+            {t('reconciliation.empty')}
+          </div>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-2">
+              {driftItems.slice(0, 4).map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900 truncate">
+                      {item.symbol ?? t('reconciliation.balance')}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {item.driftType} · {item.recoveryAction}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-gray-600">
+                    <div className="font-semibold" style={{ color: item.recoverySuccess ? '#15803d' : '#b45309' }}>
+                      {item.recoverySuccess ? t('reconciliation.recovered') : t('reconciliation.pending')}
+                    </div>
+                    <div>
+                      B {Number(item.binanceValue).toFixed(8)} / L {Number(item.localValue).toFixed(8)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-gray-100 bg-slate-50 p-3">
+                <div className="text-xs uppercase tracking-wide text-gray-500">{t('reconciliation.summary.total')}</div>
+                <div className="mt-1 text-2xl font-bold text-slate-900">{driftReport.totalDrifts}</div>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-emerald-50 p-3">
+                <div className="text-xs uppercase tracking-wide text-emerald-700">{t('reconciliation.summary.recovered')}</div>
+                <div className="mt-1 text-2xl font-bold text-emerald-700">{driftReport.recoveredDrifts}</div>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-amber-50 p-3">
+                <div className="text-xs uppercase tracking-wide text-amber-700">{t('reconciliation.summary.pending')}</div>
+                <div className="mt-1 text-2xl font-bold text-amber-700">{driftReport.pendingReviewDrifts}</div>
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-sky-50 p-3">
+                <div className="text-xs uppercase tracking-wide text-sky-700">{t('reconciliation.summary.environment')}</div>
+                <div className="mt-1 text-2xl font-bold text-sky-700">{driftReport.environment}</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Market Sentiment Gauges */}

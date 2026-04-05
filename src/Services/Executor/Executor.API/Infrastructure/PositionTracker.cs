@@ -89,6 +89,64 @@ public sealed class PositionTracker
         _positions[symbol] = pos;
     }
 
+    /// <summary>
+    /// Corrects the quantity of an existing open position to match Binance spot truth.
+    /// Called by periodic reconciliation after drift is detected.
+    /// - newQty &lt;= 0  → removes the position entirely.
+    /// - newQty &gt; 0, position exists  → updates quantity only; preserves AvgEntryPrice,
+    ///   OpenedAt, and SessionId so trade history is not corrupted.
+    /// - newQty &gt; 0, position absent  → no-op.
+    /// Thread-safe: relies solely on atomic ConcurrentDictionary operations.
+    /// </summary>
+    public void CorrectPosition(string symbol, decimal newQty)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+            return;
+
+        if (newQty <= 0m)
+        {
+            _positions.TryRemove(symbol, out _);
+            return;
+        }
+
+        if (_positions.TryGetValue(symbol, out var existing))
+            _positions[symbol] = existing with { Quantity = newQty };
+    }
+
+    public bool TryValidateSellQuantity(string symbol, decimal requestedQuantity, out decimal availableQuantity, out string errorMessage)
+    {
+        availableQuantity = 0m;
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            errorMessage = "Symbol is required.";
+            return false;
+        }
+
+        if (requestedQuantity <= 0m)
+        {
+            errorMessage = "Requested quantity must be greater than zero.";
+            return false;
+        }
+
+        if (!_positions.TryGetValue(symbol, out var position) || position.Quantity <= 0m)
+        {
+            errorMessage = $"Sell blocked: no local position tracked for {symbol}.";
+            return false;
+        }
+
+        availableQuantity = position.Quantity;
+
+        if (requestedQuantity > availableQuantity)
+        {
+            errorMessage = $"Sell blocked: requested {requestedQuantity} exceeds local position {availableQuantity} for {symbol}.";
+            return false;
+        }
+
+        return true;
+    }
+
     public bool HasOpenPositions() => !_positions.IsEmpty;
 
     public IReadOnlyList<OpenPosition> GetRawPositions() => _positions.Values.ToList();

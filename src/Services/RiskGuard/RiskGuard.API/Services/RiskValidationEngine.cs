@@ -41,7 +41,8 @@ public sealed class RiskValidationEngine
         CancellationToken ct = default,
         string? sessionId = null,
         string? sessionPhase = null,
-        bool isReduceOnly = false)
+        bool isReduceOnly = false,
+        string? environment = null)
     {
         var totalSw = Stopwatch.StartNew();
         var effectiveQty = quantity;
@@ -51,7 +52,7 @@ public sealed class RiskValidationEngine
         {
             var rule = _rules[i];
             var context = new RiskContext(symbol, side, effectiveQty, entryPrice, stopLoss, takeProfit,
-                sessionId, sessionPhase, isReduceOnly);
+                sessionId, sessionPhase, isReduceOnly, environment);
 
             var ruleStart = Stopwatch.GetTimestamp();
             var result = await rule.EvaluateAsync(context, ct);

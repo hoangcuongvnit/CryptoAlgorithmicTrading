@@ -660,6 +660,21 @@ tradingGroup.MapGet("/positions", async (IHttpClientFactory factory, Cancellatio
     }
 });
 
+tradingGroup.MapGet("/reconciliation/latest", async (IHttpClientFactory factory, CancellationToken ct) =>
+{
+    var client = factory.CreateClient("executor");
+    try
+    {
+        var response = await client.GetAsync("/api/trading/reconciliation/latest", ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Executor unreachable: {ex.Message}", statusCode: 503);
+    }
+});
+
 tradingGroup.MapGet("/orders", async (
     IHttpClientFactory factory,
     [Microsoft.AspNetCore.Mvc.FromQuery] string? symbol,

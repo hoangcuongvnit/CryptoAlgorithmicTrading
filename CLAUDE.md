@@ -41,6 +41,52 @@ cd infrastructure && docker compose -f docker-compose-observability.yml up -d
 
 ---
 
+## LATEST UPDATES (2026-04-05)
+
+### Effective Balance Migration (Env-Aware)
+
+- `RiskGuard` no longer depends solely on static `VirtualAccountBalance` for core sizing/drawdown decisions.
+- New provider: `IEffectiveBalanceProvider` + `EffectiveBalanceProvider`.
+- Source routing by environment:
+     - `TESTNET` → `FinancialLedger` (`/api/ledger/balance/effective`)
+     - `MAINNET` → `Executor` reconciled snapshot (`/api/trading/balance/effective`)
+- Compatibility switch retained: `Risk:AllowVirtualBalanceFallback` for safe rollout.
+- `ValidateOrderRequest` now carries `environment` (proto + Strategy sender + RiskGuard receiver).
+
+### Close-All Hardening (Executor)
+
+- Added pre-close discovery and merge flow via `CloseAllDiscoveryService`:
+     - Discover spot assets by notional threshold.
+     - Map assets to canonical `BASEUSDT` close targets.
+     - Merge discovered targets with locally tracked positions.
+- Added post-close verification of leftovers and reasons (`NO_USDT_PAIR`, valuation unavailable, still present after close, etc.).
+- Close-all status now exposes richer operation telemetry:
+     - `discoveredCandidatesCount`, `attemptedCloseCount`, `verifiedAtUtc`, `leftovers`.
+
+### Reconciliation + Runtime Safety (Executor)
+
+- Added Binance↔local state synchronization in two phases:
+     - Startup sync (`StartupReconciliationService`): rehydrate local positions and seed mainnet cash snapshot from Binance.
+     - Periodic sync (`PeriodicReconciliationService`): detect drift between Binance Spot balances and local tracker, log drift rows, and auto-correct by policy.
+- Added periodic reconciliation observability endpoints:
+     - `GET /api/trading/reconciliation/health`
+     - `GET /api/trading/reconciliation/latest`
+- Added `ReconciliationMetrics` and cycle health snapshot.
+- Added `CashBalanceStateService` for mainnet cash snapshot state.
+- Added pre-check guards before order execution in both REST and gRPC paths:
+     - Notional/amount validation (`OrderAmountLimitValidator`).
+     - Spread and consensus validation (`SpreadFilterService`, `PriceConsensusService`).
+     - Sell pre-check: local tracked quantity must be sufficient.
+     - Buy pre-check: cash/budget must be sufficient (`BuyBudgetGuardService`).
+
+### Container Networking Fix (Important)
+
+- In Docker Compose, `RiskGuard` must call service DNS names, not `localhost`, for effective-balance lookup:
+     - `Executor__BaseUrl=http://trading_executor:5094`
+     - `FinancialLedger__BaseUrl=http://trading_financialledger:5097`
+
+---
+
 ## ARCHITECTURE OVERVIEW
 
 ### Data Flow (End-to-End)
@@ -190,6 +236,7 @@ trading-engine:commands # Redis Pub/Sub: control commands (e.g. HALT_AND_CLOSE_A
 | `Program.cs` | Rule registration order (critical!) |
 | `Services/RiskGuardGrpcService.cs` | gRPC endpoint |
 | `Services/RiskValidationEngine.cs` | Runs rule chain, short-circuits on reject |
+| `Services/EffectiveBalanceProvider.cs` | **CORE LOGIC**: Environment-aware effective balance lookup with cache/fallback |
 | `Rules/IRiskRule.cs` | Rule interface |
 | `Infrastructure/OrderStatsRepository.cs` | Daily P&L queries |
 | `Infrastructure/RiskEvaluationRepository.cs` | Audit trail (all evaluations) |
@@ -215,8 +262,10 @@ trading-engine:commands # Redis Pub/Sub: control commands (e.g. HALT_AND_CLOSE_A
 **HTTP endpoints** (5093):
 ```
 GET  /api/risk/config                   # Current thresholds
+                                      # Includes effectiveBalance metadata (amount/source/env/stale/fallback)
 POST /api/risk/reload-config            # Hot-swap settings
 GET  /api/risk/stats                    # Today's validations, drawdown
+                                      # Drawdown base now uses effective balance source
 GET  /api/risk/persistence-status       # Redis cooldown state
 GET  /api/risk-evaluations              # Paged evaluation history
 GET  /api/risk-evaluations/{id}         # Single evaluation
@@ -235,19 +284,25 @@ GET  /health
 |------|---------|
 | `Program.cs` | OpenTelemetry, gRPC, REST, Npgsql legacy timestamp |
 | `Services/OrderExecutorGrpcService.cs` | gRPC PlaceOrder endpoint |
-| `Services/OrderExecutionService.cs` | **CORE LOGIC**: Routes to Live or Testnet BinanceOrderClient (no paper mode) |
+| `Services/OrderExecutionService.cs` | **CORE LOGIC**: Pre-check pipeline + execution routing to Live/Testnet BinanceOrderClient |
 | `Services/LiquidationOrchestrator.cs` | Closes positions at session end (8-hour session boundary) |
 | `Services/PartialTpMonitorService.cs` | Multi-stage take-profit management |
-| `Services/StartupReconciliationService.cs` | Syncs memory↔DB on startup |
+| `Services/StartupReconciliationService.cs` | Startup reconciliation: sync local tracker with Binance and seed cash snapshot |
 | `Services/ShutdownOperationService.cs` | Tracks close-all, exit-only mode |
 | `Services/CloseAllExecutorService.cs` | Parallel order cancellation |
+| `Services/CloseAllDiscoveryService.cs` | **CORE LOGIC**: Discovery→merge→verify flow for complete close-all coverage |
+| `Services/PeriodicReconciliationService.cs` | Periodic Binance↔local drift detection/recovery + drift logging |
 | `Services/SessionExitOnlyMonitorService.cs` | Enforces exit-only in final 30 minutes of 8-hour session |
 | `Services/RecoveryStateService.cs` | Tracks post-drawdown recovery window |
+| `Services/BuyBudgetGuardService.cs` | Buy-side pre-check cash validation (testnet ledger / mainnet reconciled snapshot) |
 | `Infrastructure/BinanceOrderClient.cs` | Binance REST API integration (live or testnet via `BINANCE_USE_TESTNET`) |
 | `Infrastructure/BinanceRestClientProvider.cs` | Hot-swappable Binance client configuration |
+| `Infrastructure/CashBalanceStateService.cs` | Mainnet reconciled cash snapshot cache |
 | `Infrastructure/PositionTracker.cs` | In-memory open positions |
 | `Infrastructure/PositionLifecycleManager.cs` | Entry→TP/SL→Close state machine per session |
 | `Infrastructure/OrderRepository.cs` | **All SQL queries**: orders, reports (8h sessions), analytics |
+| `Infrastructure/ReconciliationMetrics.cs` | Reconciliation cycle metrics and gauges |
+| `Infrastructure/SessionBoundaryValidator.cs` | Session-boundary correction gating logic |
 | `Infrastructure/BudgetRepository.cs` | Capital ledger (deposits, withdrawals, P&L) |
 | `Infrastructure/AuditStreamPublisher.cs` | Publishes to Redis Streams `trades:audit` |
 | `Infrastructure/OrderExecutionMetrics.cs` | OpenTelemetry metrics (phase 5: Prometheus) |
@@ -288,9 +343,18 @@ POST /api/trading/budget/reset                 # Reset to new balance
 POST /api/trading/control/close-all            # Immediate close-all (requires token)
 POST /api/trading/control/close-all/schedule   # Schedule for future UTC time
 POST /api/trading/control/close-all/cancel     # Cancel scheduled
-GET  /api/trading/control/close-all/status     # Current operation status
+GET  /api/trading/control/close-all/status     # Current operation status (+discovery/attempt/verification/leftovers)
 GET  /api/trading/control/close-all/history    # Past operations
 POST /api/trading/control/resume               # Exit exit-only mode
+
+# Reconciliation & Effective Balance
+GET  /api/trading/reconciliation/health        # Reconciliation metrics health snapshot
+GET  /api/trading/reconciliation/latest        # Latest reconciliation cycle drift details
+GET  /api/trading/balance/effective            # Env-aware effective balance source payload
+
+# Order pre-check behavior (runtime)
+# REST + gRPC both enforce: amount/notional limits, spread/consensus checks,
+# local sell-quantity guard, and buy cash/budget guard before placing exchange order.
 
 # Runtime Config
 POST /api/trading/reload-exchange-config       # Hot-swap Binance API keys (live/testnet)
@@ -428,6 +492,7 @@ GET  /health
 **HTTP endpoints** (5097):
 ```
 GET  /health
+GET  /api/ledger/balance/effective            # Effective balance source for TESTNET consumers (RiskGuard)
 GET  /api/ledger/account/{accountId}     # Balance, NetPnL, ROE% for active session
 GET  /api/ledger/entries                 # Paginated entries (sessionId, fromDate, toDate, symbol, type, page, pageSize)
 GET  /api/ledger/sessions/{accountId}    # All sessions for account (optional ?status=)
@@ -465,6 +530,7 @@ RealTimeEquity       → { unrealizedPnl, realTimeEquity, positions: [{ symbol, 
 GET /api/dashboard/overview            # Aggregated candles across symbols
 GET /api/dashboard/candles             # OHLCV with downsampling
 GET /api/dashboard/quality/coverage    # Data quality metrics
+GET /api/trading/reconciliation/latest # Proxy to Executor reconciliation latest
 ```
 
 ---
@@ -488,6 +554,7 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 | `DTOs/RiskValidationResult.cs` | Rule evaluation result |
 | `DTOs/RiskEvaluationDto.cs` | Audit trail for evaluations |
 | `DTOs/RecoveryState.cs` | Recovery window state |
+| `DTOs/TradingErrorCode.cs` | Extended error codes (includes insufficient position/cash and snapshot unavailable) |
 
 ### Session Management (8-hour Sessions)
 
@@ -507,7 +574,7 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 | `Database/PriceTicksTableHelper.cs` | Partition mapping SQL |
 | `Json/TradingJsonContext.cs` | Source-generated JSON context |
 | `ProtoFiles/order_executor.proto` | PlaceOrder RPC definition |
-| `ProtoFiles/risk_guard.proto` | ValidateOrder RPC definition |
+| `ProtoFiles/risk_guard.proto` | ValidateOrder RPC definition (`environment` added in request) |
 
 ---
 
@@ -567,6 +634,10 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 | housekeeper | — | postgres |
 
 **Observability** (optional): `infrastructure/docker-compose-observability.yml` — Prometheus (5090), Grafana (3000)
+
+**Important Docker wiring for RiskGuard effective balance**:
+- `Executor__BaseUrl=http://trading_executor:5094`
+- `FinancialLedger__BaseUrl=http://trading_financialledger:5097`
 
 ---
 

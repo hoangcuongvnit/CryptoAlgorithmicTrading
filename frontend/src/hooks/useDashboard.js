@@ -40,6 +40,11 @@ export function useTradingStats() {
   return usePolling(fn, 10000)
 }
 
+export function useLatestReconciliationDrift() {
+  const fn = useCallback(() => fetchJson('/api/trading/reconciliation/latest'), [])
+  return usePolling(fn, 15000)
+}
+
 export function useOpenPositions() {
   const fn = useCallback(() => fetchJson('/api/trading/positions'), [])
   return usePolling(fn, 5000)

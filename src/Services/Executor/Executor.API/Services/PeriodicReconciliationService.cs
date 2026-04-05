@@ -1,7 +1,9 @@
 using CryptoTrading.Shared.DTOs;
+using CryptoTrading.Shared.Session;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
+using System.Diagnostics;
 
 namespace Executor.API.Services;
 
@@ -17,8 +19,14 @@ public sealed class PeriodicReconciliationService : BackgroundService
     private readonly BinanceSettings _binanceSettings;
     private readonly BinanceRestClientProvider _clientProvider;
     private readonly PositionTracker _positionTracker;
+    private readonly CashBalanceStateService _cashBalanceState;
     private readonly BudgetRepository _budgetRepository;
     private readonly OrderRepository _orderRepository;
+    private readonly SessionClock _sessionClock;
+    private readonly SessionSettings _sessionSettings;
+    private readonly SessionTradingPolicy _sessionPolicy;
+    private readonly SessionBoundaryValidator _sessionBoundaryValidator;
+    private readonly ReconciliationMetrics _metrics;
     private readonly SystemEventPublisher _systemEvents;
     private readonly ILogger<PeriodicReconciliationService> _logger;
     private readonly SemaphoreSlim _cycleLock = new(1, 1);
@@ -28,8 +36,14 @@ public sealed class PeriodicReconciliationService : BackgroundService
         IOptions<BinanceSettings> binanceSettings,
         BinanceRestClientProvider clientProvider,
         PositionTracker positionTracker,
+        CashBalanceStateService cashBalanceState,
         BudgetRepository budgetRepository,
         OrderRepository orderRepository,
+        SessionClock sessionClock,
+        IOptions<SessionSettings> sessionSettings,
+        SessionTradingPolicy sessionPolicy,
+        SessionBoundaryValidator sessionBoundaryValidator,
+        ReconciliationMetrics metrics,
         SystemEventPublisher systemEvents,
         ILogger<PeriodicReconciliationService> logger)
     {
@@ -37,8 +51,14 @@ public sealed class PeriodicReconciliationService : BackgroundService
         _binanceSettings = binanceSettings.Value;
         _clientProvider = clientProvider;
         _positionTracker = positionTracker;
+        _cashBalanceState = cashBalanceState;
         _budgetRepository = budgetRepository;
         _orderRepository = orderRepository;
+        _sessionClock = sessionClock;
+        _sessionSettings = sessionSettings.Value;
+        _sessionPolicy = sessionPolicy;
+        _sessionBoundaryValidator = sessionBoundaryValidator;
+        _metrics = metrics;
         _systemEvents = systemEvents;
         _logger = logger;
     }
@@ -78,15 +98,24 @@ public sealed class PeriodicReconciliationService : BackgroundService
 
     private async Task RunCycleSafeAsync(CancellationToken ct)
     {
+        var stopwatch = Stopwatch.StartNew();
+        _metrics.RecordCycleStart();
+
         if (!await _cycleLock.WaitAsync(0, ct))
         {
             _logger.LogWarning("Periodic reconciliation skipped because previous cycle is still running.");
+            stopwatch.Stop();
+            _metrics.RecordCycleComplete(stopwatch.Elapsed, success: false);
             return;
         }
 
+        var success = false;
         try
         {
-            await RunCycleAsync(ct);
+            var result = await RunCycleAsync(ct);
+            _metrics.RecordDrifts(result.Detected);
+            _metrics.RecordRecovered(result.Recovered);
+            success = true;
         }
         catch (Exception ex)
         {
@@ -94,15 +123,21 @@ public sealed class PeriodicReconciliationService : BackgroundService
         }
         finally
         {
+            stopwatch.Stop();
+            _metrics.RecordCycleComplete(stopwatch.Elapsed, success);
             _cycleLock.Release();
         }
     }
 
-    private async Task RunCycleAsync(CancellationToken ct)
+    private async Task<(int Detected, int Recovered)> RunCycleAsync(CancellationToken ct)
     {
         var reconciliationId = Guid.NewGuid();
         var reconciliationUtc = DateTime.UtcNow;
-        var drifts = new List<OrderRepository.StateDriftLogInput>();
+        var candidates = new List<DriftCandidate>();
+
+        var currentSession = _sessionSettings.Enabled
+            ? _sessionClock.GetCurrentSession()
+            : null;
 
         var accountInfoResult = await _clientProvider.Current.SpotApi.Account.GetAccountInfoAsync(ct: ct);
         if (!accountInfoResult.Success || accountInfoResult.Data is null)
@@ -110,7 +145,7 @@ public sealed class PeriodicReconciliationService : BackgroundService
             _logger.LogWarning("Reconciliation {ReconciliationId}: failed to fetch Spot account info: {Error}",
                 reconciliationId,
                 accountInfoResult.Error?.Message);
-            return;
+            return (0, 0);
         }
 
         var balancesByAsset = BuildBalancesByAsset(accountInfoResult.Data.Balances);
@@ -127,16 +162,12 @@ public sealed class PeriodicReconciliationService : BackgroundService
             if (Math.Abs(binanceQty - pos.Quantity) <= positionTolerance)
                 continue;
 
-            drifts.Add(new OrderRepository.StateDriftLogInput(
+            candidates.Add(new DriftCandidate(
                 DriftType: "POSITION",
                 Symbol: pos.Symbol,
                 BinanceValue: binanceQty,
                 LocalValue: pos.Quantity,
-                Severity: "WARNING",
-                RecoveryAction: "NONE",
-                RecoveryDetail: "Drift detected by periodic spot reconciliation.",
-                RecoveryAttempted: false,
-                RecoverySuccess: false));
+                Severity: "WARNING"));
         }
 
         // Mainnet only: informational balance drift against virtual cash balance.
@@ -147,57 +178,151 @@ public sealed class PeriodicReconciliationService : BackgroundService
                 : _tradingSettings.Reconciliation.QuoteAsset.Trim().ToUpperInvariant();
 
             var binanceBalance = balancesByAsset.GetValueOrDefault(quoteAsset, 0m);
+            _cashBalanceState.UpdateMainnetSnapshot(binanceBalance, reconciliationUtc, "reconciliation");
             var localBudget = await _budgetRepository.GetBudgetStatusAsync(ct);
             var localBalance = localBudget?.CurrentCashBalance ?? 0m;
             var balanceTolerance = _tradingSettings.Reconciliation.BalanceDriftTolerance;
 
             if (Math.Abs(binanceBalance - localBalance) > balanceTolerance)
             {
-                drifts.Add(new OrderRepository.StateDriftLogInput(
+                candidates.Add(new DriftCandidate(
                     DriftType: "BALANCE",
                     Symbol: null,
                     BinanceValue: binanceBalance,
                     LocalValue: localBalance,
-                    Severity: "INFO",
-                    RecoveryAction: "NONE",
-                    RecoveryDetail: "Virtual budget drift observed vs exchange quote asset balance.",
-                    RecoveryAttempted: false,
-                    RecoverySuccess: false));
+                    Severity: "INFO"));
             }
         }
 
-        if (drifts.Count == 0)
+        if (candidates.Count == 0)
         {
             _logger.LogDebug("Reconciliation {ReconciliationId}: no drift detected.", reconciliationId);
-            return;
+            return (0, 0);
         }
 
+        var lockdown = candidates.Count > _tradingSettings.Reconciliation.MaxDriftsPerCycleLockdown;
         var environment = _binanceSettings.UseTestnet ? "TESTNET" : "LIVE";
+        var drifts = new List<OrderRepository.StateDriftLogInput>(candidates.Count);
+        var recoveredCount = 0;
+        var pendingReviewCount = 0;
+
+        foreach (var candidate in candidates)
+        {
+            var policy = RecoveryPolicyResolver.Resolve(_tradingSettings.Reconciliation, candidate.DriftType, currentSession, Math.Abs(candidate.BinanceValue - candidate.LocalValue));
+            var recoveryAttempted = false;
+            var recoverySuccess = false;
+            var recoveryAction = policy.RecoveryAction;
+            var recoveryDetail = candidate.DriftType == "POSITION"
+                ? $"Local qty {candidate.LocalValue:F8} → Binance qty {candidate.BinanceValue:F8}."
+                : $"Local balance {candidate.LocalValue:F2} → Binance balance {candidate.BinanceValue:F2}.";
+
+            if (candidate.DriftType == "POSITION" && !lockdown && policy.ShouldAutoCorrect)
+            {
+                if (currentSession is not null && _sessionPolicy.IsReduceOnlyWindow(currentSession))
+                {
+                    recoveryAction = "POSITION_DEFERRED_REDUCE_ONLY_WINDOW";
+                    recoveryDetail = "Drift detected but correction deferred because the session is in a reduce-only window.";
+                    pendingReviewCount++;
+                }
+                else if (_sessionBoundaryValidator.CanApplyCorrection(
+                        currentSession,
+                        policy.AllowsSessionBoundaryCrossing,
+                        _tradingSettings.Reconciliation.SessionBoundaryLockMinutes))
+                {
+                    _positionTracker.CorrectPosition(candidate.Symbol!, candidate.BinanceValue);
+                    recoveryAttempted = true;
+                    recoverySuccess = true;
+                    recoveredCount++;
+                    recoveryAction = candidate.BinanceValue <= 0m ? "POSITION_REMOVED" : "POSITION_CORRECTED";
+                    recoveryDetail = $"Auto-corrected by periodic spot reconciliation. Local qty {candidate.LocalValue:F8} → Binance qty {candidate.BinanceValue:F8}.";
+                }
+                else
+                {
+                    recoveryAction = "POSITION_DEFERRED_SESSION_BOUNDARY";
+                    recoveryDetail = "Drift detected but correction deferred because the session boundary lock is active.";
+                    pendingReviewCount++;
+                }
+            }
+            else if (candidate.DriftType == "POSITION" && lockdown)
+            {
+                recoveryAction = "POSITION_LOCKDOWN";
+                recoveryDetail = "Drift detected but auto-correction was blocked because the cycle exceeded the drift lockdown threshold.";
+                pendingReviewCount++;
+            }
+            else if (candidate.DriftType == "BALANCE")
+            {
+                recoveryAction = _tradingSettings.Reconciliation.BalancePolicy == BalanceDriftPolicy.RequireApproval
+                    ? "BALANCE_PENDING_REVIEW"
+                    : "BALANCE_LOGGED";
+                pendingReviewCount++;
+            }
+
+            drifts.Add(new OrderRepository.StateDriftLogInput(
+                DriftType: candidate.DriftType,
+                Symbol: candidate.Symbol,
+                BinanceValue: candidate.BinanceValue,
+                LocalValue: candidate.LocalValue,
+                Severity: candidate.Severity,
+                RecoveryAction: recoveryAction,
+                RecoveryDetail: recoveryDetail,
+                RecoveryAttempted: recoveryAttempted,
+                RecoverySuccess: recoverySuccess));
+        }
+
         await _orderRepository.InsertStateDriftLogsAsync(reconciliationId, reconciliationUtc, environment, drifts, ct);
 
-        var symbolCount = drifts.Count(d => !string.IsNullOrWhiteSpace(d.Symbol));
-        var preview = string.Join(", ",
-            drifts.Where(d => !string.IsNullOrWhiteSpace(d.Symbol))
-                .Select(d => d.Symbol)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(Math.Max(1, _tradingSettings.Reconciliation.AlertMaxSymbols)));
+        // Build rich alert message — constructed inside drift branch (memory optimization per spec §6.3)
+        var positionDrifts = drifts.Where(d => d.DriftType == "POSITION").ToList();
+        var balanceDrift   = drifts.FirstOrDefault(d => d.DriftType == "BALANCE");
+        var shortId        = reconciliationId.ToString("N")[..8];
 
-        var summary =
-            $"ReconciliationId={reconciliationId}, drifts={drifts.Count}, symbols={symbolCount}, env={environment}" +
-            (string.IsNullOrEmpty(preview) ? string.Empty : $", sample=[{preview}]");
+        var sb = new System.Text.StringBuilder();
+
+        sb.Append($"🔎 STATE DRIFT [{environment}]\n");
+        sb.Append($"• Detected: {drifts.Count} | Recovered: {recoveredCount} | Pending review: {pendingReviewCount}\n");
+        if (lockdown)
+            sb.Append($"• Lockdown: triggered because drift count exceeded {_tradingSettings.Reconciliation.MaxDriftsPerCycleLockdown}\n");
+
+        if (positionDrifts.Count > 0)
+            sb.Append($"• Position drifts: {positionDrifts.Count}\n");
+
+        foreach (var d in positionDrifts)
+        {
+            sb.Append($"  - {d.Symbol}: {d.LocalValue:F8} → {d.BinanceValue:F8} [{d.RecoveryAction}]\n");
+        }
+
+        if (balanceDrift is not null)
+        {
+            var quoteLabel = string.IsNullOrWhiteSpace(_tradingSettings.Reconciliation.QuoteAsset)
+                ? "USDT"
+                : _tradingSettings.Reconciliation.QuoteAsset.Trim().ToUpperInvariant();
+            sb.Append($"• Balance drift: Local={balanceDrift.LocalValue:F2} → Binance={balanceDrift.BinanceValue:F2} {quoteLabel} [{balanceDrift.RecoveryAction}]\n");
+        }
+
+        sb.Append($"ID: {shortId}");
+
+        var alertMessage = sb.ToString();
 
         await _systemEvents.PublishAsync(new SystemEvent
         {
-            Type = SystemEventType.ReconciliationDrift,
+            Type        = SystemEventType.ReconciliationDrift,
             ServiceName = "Executor",
-            Message = summary,
-            Timestamp = DateTime.UtcNow,
-            ErrorCode = null,
-            Symbol = null
+            Message     = alertMessage,
+            Timestamp   = DateTime.UtcNow,
+            ErrorCode   = null,
+            Symbol      = null
         }, ct);
 
-        _logger.LogWarning("{Summary}", summary);
+        _logger.LogWarning("{AlertMessage}", alertMessage);
+        return (drifts.Count, recoveredCount);
     }
+
+    private sealed record DriftCandidate(
+        string DriftType,
+        string? Symbol,
+        decimal BinanceValue,
+        decimal LocalValue,
+        string Severity);
 
     private static Dictionary<string, decimal> BuildBalancesByAsset(IEnumerable<object> balances)
     {

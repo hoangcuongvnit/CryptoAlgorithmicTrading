@@ -153,7 +153,7 @@
     "minRiskReward": "Tỷ lệ Risk/Reward tối thiểu",
     "minRiskRewardHint": "Từ chối lệnh có tỷ lệ R:R thấp hơn ngưỡng này (0.5 – 10).",
     "maxPositionSizePercent": "Kích thước vị thế tối đa (%)",
-    "maxPositionSizeHint": "Giá trị lệnh tối đa tính theo % số dư ảo (0.1 – 100).",
+    "maxPositionSizeHint": "Giá trị lệnh tối đa tính theo % số dư hiệu dụng — số dư Binance (Live) hoặc FinancialLedger (Testnet). Phạm vi: 0.1 – 100.",
     "cooldownSeconds": "Thời gian chờ (giây)",
     "cooldownHint": "Số giây tối thiểu giữa hai lệnh liên tiếp trên cùng cặp tiền (0 – 3600).",
     "save": "Lưu cài đặt rủi ro",

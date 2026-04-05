@@ -2,12 +2,13 @@ using CryptoTrading.Shared.DTOs;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
 using RiskGuard.API.Infrastructure;
+using RiskGuard.API.Services;
 
 namespace RiskGuard.API.Rules;
 
 /// <summary>
 /// Halts all trading for the day when the session's net P&amp;L loss exceeds a configured
-/// percentage of the virtual account balance.
+/// percentage of the effective balance.
 ///
 /// P&amp;L is approximated as: Σ(sell revenue) − Σ(buy cost) for today's successful orders.
 /// A DB query failure never blocks trading — it is logged and the rule passes.
@@ -19,6 +20,7 @@ public sealed class MaxDrawdownRule : IRiskRule
     private readonly RiskSettings _settings;
     private readonly OrderStatsRepository _repository;
     private readonly SystemEventPublisher _eventPublisher;
+    private readonly IEffectiveBalanceProvider _balanceProvider;
     private readonly ILogger<MaxDrawdownRule> _logger;
 
     private DateOnly _breachNotifiedDate = DateOnly.MinValue;
@@ -30,30 +32,42 @@ public sealed class MaxDrawdownRule : IRiskRule
         IOptions<RiskSettings> settings,
         OrderStatsRepository repository,
         SystemEventPublisher eventPublisher,
+        IEffectiveBalanceProvider balanceProvider,
         ILogger<MaxDrawdownRule> logger)
     {
         _settings = settings.Value;
         _repository = repository;
         _eventPublisher = eventPublisher;
+        _balanceProvider = balanceProvider;
         _logger = logger;
     }
 
     public async ValueTask<RuleResult> EvaluateAsync(RiskContext context, CancellationToken ct = default)
     {
-        if (_settings.MaxDrawdownPercent <= 0 || _settings.VirtualAccountBalance <= 0)
+        if (_settings.MaxDrawdownPercent <= 0)
             return RuleResult.Pass();
 
         try
         {
+            var effectiveBalance = await _balanceProvider.GetEffectiveBalanceAsync(context.Environment, ct);
+            if (!effectiveBalance.IsAvailable || effectiveBalance.Balance <= 0)
+            {
+                _logger.LogWarning(
+                    "MaxDrawdown skipped: effective balance unavailable. Source={Source}, Error={Error}",
+                    effectiveBalance.Source,
+                    effectiveBalance.Error ?? "n/a");
+                return RuleResult.Pass();
+            }
+
             var dailyPnl = await _repository.GetDailyNetPnlAsync(ct);
 
-            var maxLoss = -(_settings.MaxDrawdownPercent / 100m * _settings.VirtualAccountBalance);
+            var maxLoss = -(_settings.MaxDrawdownPercent / 100m * effectiveBalance.Balance);
 
             if (dailyPnl < maxLoss)
             {
                 _logger.LogWarning(
-                    "MaxDrawdown breached: daily P&L {PnL:F2} USDT is below limit {Limit:F2} USDT",
-                    dailyPnl, maxLoss);
+                    "MaxDrawdown breached: daily P&L {PnL:F2} USDT is below limit {Limit:F2} USDT (source={Source}, env={Environment}, fallback={Fallback})",
+                    dailyPnl, maxLoss, effectiveBalance.Source, effectiveBalance.Environment, effectiveBalance.IsFallback);
 
                 NotifyBreachOnce(dailyPnl, maxLoss);
 

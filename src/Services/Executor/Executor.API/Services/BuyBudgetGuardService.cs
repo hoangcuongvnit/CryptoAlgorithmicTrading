@@ -1,0 +1,100 @@
+using CryptoTrading.Shared.DTOs;
+using Executor.API.Configuration;
+using Executor.API.Infrastructure;
+using Microsoft.Extensions.Options;
+
+namespace Executor.API.Services;
+
+public sealed record BuyBudgetGuardResult(
+    bool Passed,
+    string ErrorMessage,
+    TradingErrorCode ErrorCode,
+    decimal RequiredCash,
+    decimal AvailableCash,
+    string Source,
+    DateTime? SnapshotUpdatedAtUtc);
+
+public sealed class BuyBudgetGuardService
+{
+    private readonly BudgetRepository _budgetRepository;
+    private readonly CashBalanceStateService _cashBalanceState;
+    private readonly BinanceSettings _binanceSettings;
+    private readonly ReconciliationSettings _reconciliationSettings;
+    private readonly ILogger<BuyBudgetGuardService> _logger;
+
+    public BuyBudgetGuardService(
+        BudgetRepository budgetRepository,
+        CashBalanceStateService cashBalanceState,
+        IOptions<BinanceSettings> binanceSettings,
+        IOptions<TradingSettings> tradingSettings,
+        ILogger<BuyBudgetGuardService> logger)
+    {
+        _budgetRepository = budgetRepository;
+        _cashBalanceState = cashBalanceState;
+        _binanceSettings = binanceSettings.Value;
+        _reconciliationSettings = tradingSettings.Value.Reconciliation;
+        _logger = logger;
+    }
+
+    public async Task<BuyBudgetGuardResult> ValidateAsync(OrderRequest orderRequest, decimal effectivePrice, CancellationToken ct)
+    {
+        if (orderRequest.Side != OrderSide.Buy)
+        {
+            return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, 0m, 0m, string.Empty, null);
+        }
+
+        if (effectivePrice <= 0m)
+        {
+            return new BuyBudgetGuardResult(false, $"Unable to resolve a reference price for {orderRequest.Symbol}.", TradingErrorCode.NoReferencePrice, 0m, 0m, string.Empty, null);
+        }
+
+        var requiredCash = decimal.Round(orderRequest.Quantity * effectivePrice, 8);
+        if (requiredCash <= 0m)
+        {
+            return new BuyBudgetGuardResult(false, $"Unable to calculate required cash for {orderRequest.Symbol}.", TradingErrorCode.InvalidOrderParameters, requiredCash, 0m, string.Empty, null);
+        }
+
+        if (_binanceSettings.UseTestnet)
+        {
+            var budget = await _budgetRepository.GetBudgetStatusAsync(ct);
+            if (budget is null)
+            {
+                return new BuyBudgetGuardResult(false, "Testnet budget is unavailable.", TradingErrorCode.CashBalanceSnapshotUnavailable, requiredCash, 0m, "TESTNET_LEDGER", null);
+            }
+
+            var availableCash = budget.CurrentCashBalance;
+            if (availableCash + 0.00000001m < requiredCash)
+            {
+                var errorMessage = $"Buy blocked: required cash {requiredCash:F8} exceeds testnet budget {availableCash:F8}.";
+                _logger.LogWarning(errorMessage);
+                return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.InsufficientCashBalance, requiredCash, availableCash, "TESTNET_LEDGER", budget.LastUpdatedUtc);
+            }
+
+            return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, requiredCash, availableCash, "TESTNET_LEDGER", budget.LastUpdatedUtc);
+        }
+
+        if (!_cashBalanceState.TryGetMainnetSnapshot(out var snapshot))
+        {
+            return new BuyBudgetGuardResult(false, "Mainnet cash snapshot is unavailable. Wait for reconciliation to sync cash balance.", TradingErrorCode.CashBalanceSnapshotUnavailable, requiredCash, 0m, "MAINNET_RECONCILED", null);
+        }
+
+        var snapshotAge = DateTime.UtcNow - snapshot.UpdatedAtUtc;
+        var maxAge = TimeSpan.FromMinutes(Math.Max(1, _reconciliationSettings.CashSnapshotMaxAgeMinutes));
+        if (snapshotAge > maxAge)
+        {
+            var errorMessage = $"Mainnet cash snapshot is stale ({snapshotAge.TotalMinutes:F1}m old). Wait for reconciliation to refresh the synced balance.";
+            _logger.LogWarning(errorMessage);
+            return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.CashBalanceSnapshotUnavailable, requiredCash, snapshot.CashBalance, snapshot.Source, snapshot.UpdatedAtUtc);
+        }
+
+        var mainnetCash = snapshot.CashBalance;
+        if (mainnetCash + 0.00000001m < requiredCash)
+        {
+            var errorMessage = $"Buy blocked: required cash {requiredCash:F8} exceeds reconciled mainnet cash {mainnetCash:F8}.";
+            _logger.LogWarning(errorMessage);
+            return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.InsufficientCashBalance, requiredCash, mainnetCash, snapshot.Source, snapshot.UpdatedAtUtc);
+        }
+
+        return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, requiredCash, mainnetCash, snapshot.Source, snapshot.UpdatedAtUtc);
+    }
+}

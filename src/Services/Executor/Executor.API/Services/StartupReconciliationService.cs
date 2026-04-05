@@ -26,10 +26,12 @@ public sealed class StartupReconciliationService : BackgroundService
     private readonly OrderRepository _orderRepository;
     private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionService _executionService;
+    private readonly CashBalanceStateService _cashBalanceState;
     private readonly SessionClock _sessionClock;
     private readonly SessionTradingPolicy _sessionPolicy;
     private readonly SessionSettings _sessionSettings;
     private readonly TradingSettings _tradingSettings;
+    private readonly BinanceSettings _binanceSettings;
     private readonly BinanceRestClientProvider _clientProvider;
     private readonly CredentialSyncGate _credentialSyncGate;
     private readonly ILogger<StartupReconciliationService> _logger;
@@ -42,10 +44,12 @@ public sealed class StartupReconciliationService : BackgroundService
         OrderRepository orderRepository,
         PositionTracker positionTracker,
         OrderExecutionService executionService,
+        CashBalanceStateService cashBalanceState,
         SessionClock sessionClock,
         SessionTradingPolicy sessionPolicy,
         IOptions<SessionSettings> sessionSettings,
         IOptions<TradingSettings> tradingSettings,
+        IOptions<BinanceSettings> binanceSettings,
         BinanceRestClientProvider clientProvider,
         CredentialSyncGate credentialSyncGate,
         ILogger<StartupReconciliationService> logger)
@@ -54,10 +58,12 @@ public sealed class StartupReconciliationService : BackgroundService
         _orderRepository = orderRepository;
         _positionTracker = positionTracker;
         _executionService = executionService;
+        _cashBalanceState = cashBalanceState;
         _sessionClock = sessionClock;
         _sessionPolicy = sessionPolicy;
         _sessionSettings = sessionSettings.Value;
         _tradingSettings = tradingSettings.Value;
+        _binanceSettings = binanceSettings.Value;
         _clientProvider = clientProvider;
         _credentialSyncGate = credentialSyncGate;
         _logger = logger;
@@ -130,6 +136,39 @@ public sealed class StartupReconciliationService : BackgroundService
         }
 
         _recoveryState.TransitionTo(SystemRecoveryState.RecoveryExecuting);
+
+        if (!_binanceSettings.UseTestnet)
+        {
+            try
+            {
+                var accountInfo = await _clientProvider.Current.SpotApi.Account.GetAccountInfoAsync(ct: ct);
+                if (accountInfo.Success && accountInfo.Data is not null)
+                {
+                    var quoteAsset = string.IsNullOrWhiteSpace(_tradingSettings.Reconciliation.QuoteAsset)
+                        ? "USDT"
+                        : _tradingSettings.Reconciliation.QuoteAsset.Trim().ToUpperInvariant();
+
+                    var cashBalance = accountInfo.Data.Balances
+                        .Where(b => string.Equals(b.Asset, quoteAsset, StringComparison.OrdinalIgnoreCase))
+                        .Select(b => b.Total)
+                        .FirstOrDefault();
+
+                    _cashBalanceState.UpdateMainnetSnapshot(cashBalance, DateTime.UtcNow, "startup-reconciliation");
+                    _logger.LogInformation(
+                        "Recovery: cached mainnet cash snapshot {Cash:F8} {Asset} for buy guard.",
+                        cashBalance,
+                        quoteAsset);
+                }
+                else
+                {
+                    _logger.LogWarning("Recovery: failed to seed mainnet cash snapshot: {Error}", accountInfo.Error?.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Recovery: unable to seed mainnet cash snapshot from account info.");
+            }
+        }
 
         // ── Step 3: Exchange reconciliation ───────────────────────────────────
         var mismatchesFixed = await ReconcileWithExchangeAsync(localPositions, session, ct);

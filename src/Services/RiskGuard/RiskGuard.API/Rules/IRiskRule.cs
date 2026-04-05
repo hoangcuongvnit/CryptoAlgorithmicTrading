@@ -30,7 +30,8 @@ public sealed record RiskContext(
     decimal TakeProfit,
     string? SessionId = null,
     string? SessionPhase = null,
-    bool IsReduceOnly = false);
+    bool IsReduceOnly = false,
+    string? Environment = null);
 
 public sealed record RuleResult
 {

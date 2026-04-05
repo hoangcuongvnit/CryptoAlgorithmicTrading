@@ -86,7 +86,7 @@
     "maxPositionSize": {
       "label": "Quy mô vị thế tối đa",
       "configSuffix": "% mỗi lệnh",
-      "meaning": "Không một lệnh nào được dùng nhiều hơn tỷ lệ phần trăm này của số dư tài khoản ảo.",
+      "meaning": "Không một lệnh nào được dùng nhiều hơn tỷ lệ phần trăm này của số dư hiệu dụng.",
       "currentValue": "Áp dụng cho mỗi lệnh",
       "impact": "Lệnh quá lớn bị từ chối trước khi đến sàn giao dịch."
     },

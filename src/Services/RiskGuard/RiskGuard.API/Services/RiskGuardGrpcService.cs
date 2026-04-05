@@ -33,7 +33,8 @@ public sealed class RiskGuardGrpcService : RiskGuardService.RiskGuardServiceBase
             context.CancellationToken,
             request.SessionId,
             request.SessionPhase,
-            request.IsReduceOnly);
+            request.IsReduceOnly,
+            request.Environment);
 
         if (!result.IsApproved)
         {

@@ -46,6 +46,60 @@ app.MapHub<LedgerHub>("/ledger-hub");
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "FinancialLedger.Worker" }));
 
+app.MapGet("/api/ledger/balance/effective", async (
+	string? environment,
+	string? baseCurrency,
+	VirtualAccountRepository accountRepository,
+	SessionManagementService sessionService,
+	PnlCalculationService pnlService,
+	CancellationToken ct) =>
+{
+	var env = string.IsNullOrWhiteSpace(environment)
+		? ledgerSettings.DefaultEnvironment
+		: environment.ToUpperInvariant();
+	var currency = string.IsNullOrWhiteSpace(baseCurrency)
+		? "USDT"
+		: baseCurrency.ToUpperInvariant();
+
+	var accountId = await accountRepository.GetOrCreateAccountAsync(env, currency);
+	var activeSession = await sessionService.GetActiveSessionAsync(accountId);
+
+	if (activeSession is null)
+	{
+		await sessionService.CreateSessionAsync(accountId, ledgerSettings.DefaultAlgorithmName, ledgerSettings.DefaultInitialBalance);
+		activeSession = await sessionService.GetActiveSessionAsync(accountId);
+	}
+
+	if (activeSession is null)
+	{
+		return Results.Ok(new
+		{
+			environment = env,
+			baseCurrency = currency,
+			source = "FINANCIAL_LEDGER",
+			available = false,
+			balance = (decimal?)null,
+			asOfUtc = (DateTime?)null,
+			detail = "No active session available for effective balance lookup."
+		});
+	}
+
+	var currentBalance = await pnlService.GetCurrentBalanceAsync(activeSession.Id);
+
+	return Results.Ok(new
+	{
+		environment = env,
+		baseCurrency = currency,
+		source = "FINANCIAL_LEDGER",
+		available = true,
+		balance = currentBalance,
+		asOfUtc = DateTime.UtcNow,
+		accountId,
+		sessionId = activeSession.Id,
+		activeSession.InitialBalance
+	});
+});
+
 app.MapGet("/api/ledger/account/{accountId}", async (
 	string accountId,
 	SessionManagementService sessionService,

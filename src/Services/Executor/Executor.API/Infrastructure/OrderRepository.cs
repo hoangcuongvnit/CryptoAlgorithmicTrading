@@ -893,6 +893,22 @@ public sealed class OrderRepository
         bool RecoveryAttempted,
         bool RecoverySuccess);
 
+    public sealed record StateDriftLogRow(
+        Guid Id,
+        Guid ReconciliationId,
+        DateTime ReconciliationUtc,
+        string? Symbol,
+        string DriftType,
+        string Environment,
+        decimal BinanceValue,
+        decimal LocalValue,
+        string RecoveryAction,
+        string RecoveryDetail,
+        string Severity,
+        bool RecoveryAttempted,
+        bool RecoverySuccess,
+        DateTime CreatedAt);
+
     public async Task InsertStateDriftLogsAsync(
         Guid reconciliationId,
         DateTime reconciliationUtc,
@@ -983,6 +999,50 @@ public sealed class OrderRepository
             _logger.LogError(ex,
                 "Failed to persist state drift logs for reconciliation {ReconciliationId}",
                 reconciliationId);
+        }
+    }
+
+    public async Task<IReadOnlyList<StateDriftLogRow>> GetLatestStateDriftLogsAsync(CancellationToken cancellationToken)
+    {
+        const string sql = """
+            WITH latest_cycle AS (
+                SELECT reconciliation_id
+                FROM public.state_drift_logs
+                ORDER BY reconciliation_utc DESC, created_at DESC
+                LIMIT 1
+            )
+            SELECT
+                id,
+                reconciliation_id,
+                reconciliation_utc,
+                symbol,
+                drift_type,
+                environment,
+                binance_value,
+                local_value,
+                recovery_action,
+                recovery_detail,
+                severity,
+                recovery_attempted,
+                recovery_success,
+                created_at
+            FROM public.state_drift_logs
+            WHERE reconciliation_id = (SELECT reconciliation_id FROM latest_cycle)
+            ORDER BY created_at ASC;
+            """;
+
+        try
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+            var rows = await connection.QueryAsync<StateDriftLogRow>(
+                new CommandDefinition(sql, cancellationToken: cancellationToken));
+            return rows.AsList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch latest reconciliation drift logs");
+            return [];
         }
     }
 

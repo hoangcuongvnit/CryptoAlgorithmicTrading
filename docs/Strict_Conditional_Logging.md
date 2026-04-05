@@ -29,3 +29,34 @@ During every 5-minute reconciliation cycle, the worker calculates the delta betw
 * **Decimal Precision Strictness:** When comparing Binance data and Local data in .NET, ensure all variables are strictly typed as `decimal`. Do not use `float` or `double` to prevent false positive drifts caused by floating-point precision loss (e.g., `0.10000000m == 0.1m` evaluates to true in `decimal`, which is correct for this comparison).
 * **Memory Management:** Construct the Telegram alert string and the `state_drift_logs` entity ONLY inside the `if (IsDrifted)` block to save memory allocations during the 99% of times when the states are identical.
 * **Batch Logging (Optional but Recommended):** If a single 5-minute tick detects multiple drifted symbols (e.g., 3 different coins drifted simultaneously), group them into a single Telegram message to avoid hitting Telegram API rate limits.
+
+### 6.4. Implementation Status (Spot-Only)
+Current implementation is **Spot-only** and does **not** use futures `PositionAmt`.
+
+**Implemented**
+* Periodic reconciliation loop in Executor with delta-only behavior.
+* Spot account snapshot comparison against local execution state.
+* Mainnet balance drift logging against virtual budget.
+* Testnet skips balance drift comparison.
+* `state_drift_logs` persistence for each reconciliation cycle.
+* Notifier-friendly `ReconciliationDrift` event for batch delivery.
+* Recovery policy support for `DetectOnly`, `AutoCorrect`, and `RequireApproval`.
+* Session boundary protection for auto-correction.
+* Local pre-check sell guard in Executor using `PositionTracker` only, without a fresh Binance call.
+* Pre-buy guard in Executor uses `BudgetRepository` on Testnet and reconciled cash snapshot on Mainnet.
+* Reconciliation health endpoint.
+* Latest drift report endpoint.
+
+**Current drift report endpoint**
+* `GET /api/trading/reconciliation/latest`
+* Returns the most recent reconciliation cycle from `state_drift_logs`, including counts and per-drift details.
+
+**Still configurable**
+* `Trading:Reconciliation:Enabled` defaults to `false`.
+* `Trading:Reconciliation:RecoveryMode` defaults to `DetectOnly`.
+* `Trading:Reconciliation:BalancePolicy` defaults to `LogOnly`.
+
+**Not in scope**
+* Futures reconciliation.
+* Paper trading reconciliation.
+* Auto-mirroring balance drift into exchange state.

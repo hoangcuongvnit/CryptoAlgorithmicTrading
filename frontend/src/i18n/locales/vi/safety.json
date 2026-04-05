@@ -15,7 +15,8 @@
     "maxOrderValue": "Giá trị lệnh tối đa",
     "maxDailyLoss": "Lỗ tối đa trong ngày",
     "cooldownPeriod": "Thời gian nghỉ",
-    "virtualBalance": "Số dư ảo",
+    "effectiveBalance": "Số dư hiệu dụng",
+    "balanceSource": "Nguồn số dư",
     "allowedPairs": "Cặp giao dịch được phép"
   },
   "validationHistory": {

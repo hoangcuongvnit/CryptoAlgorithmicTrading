@@ -14,6 +14,21 @@ public sealed class RiskSettings
     /// <summary>Virtual account size in USDT used for position-size and drawdown calculations.</summary>
     public decimal VirtualAccountBalance { get; set; } = 10_000m;
 
+    /// <summary>
+    /// Temporary compatibility switch during migration. When true and live balance lookup fails,
+    /// rules fall back to <see cref="VirtualAccountBalance"/>.
+    /// </summary>
+    public bool AllowVirtualBalanceFallback { get; set; } = true;
+
+    /// <summary>Cache TTL for effective balance lookups (seconds).</summary>
+    public int BalanceCacheTtlSeconds { get; set; } = 15;
+
+    /// <summary>Timeout budget for outbound effective balance lookups (milliseconds).</summary>
+    public int BalanceLookupTimeoutMs { get; set; } = 1200;
+
+    /// <summary>Base currency used when querying FinancialLedger effective balance endpoint.</summary>
+    public string BalanceBaseCurrency { get; set; } = "USDT";
+
     /// <summary>Maximum allowed daily loss as a percentage of <see cref="VirtualAccountBalance"/> (e.g. 5.0 = 5%).</summary>
     public decimal MaxDrawdownPercent { get; set; } = 5.0m;
 

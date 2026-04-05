@@ -26,6 +26,10 @@ public sealed class ShutdownOperationService
         public int PositionsClosedCount { get; init; }
         public string? LastError { get; init; }
         public string IdempotencyKey { get; init; } = string.Empty;
+        public int DiscoveredCandidatesCount { get; init; }
+        public int AttemptedCloseCount { get; init; }
+        public DateTime? VerifiedAtUtc { get; init; }
+        public IReadOnlyList<CloseAllLeftoverAsset> Leftovers { get; init; } = [];
     }
 
     private static readonly HashSet<string> ActiveStatuses =
@@ -312,7 +316,13 @@ public sealed class ShutdownOperationService
         }
     }
 
-    public void TransitionToCompleted(Guid operationId, int closedCount)
+    public void TransitionToCompleted(
+        Guid operationId,
+        int closedCount,
+        int discoveredCandidatesCount = 0,
+        int attemptedCloseCount = 0,
+        DateTime? verifiedAtUtc = null,
+        IReadOnlyList<CloseAllLeftoverAsset>? leftovers = null)
     {
         lock (_lock)
         {
@@ -322,7 +332,11 @@ public sealed class ShutdownOperationService
                 Status = "Completed",
                 CompletedAtUtc = DateTime.UtcNow,
                 ShutdownReady = true,
-                PositionsClosedCount = closedCount
+                PositionsClosedCount = closedCount,
+                DiscoveredCandidatesCount = discoveredCandidatesCount,
+                AttemptedCloseCount = attemptedCloseCount,
+                VerifiedAtUtc = verifiedAtUtc,
+                Leftovers = leftovers ?? []
             };
             _logger.LogInformation(
                 "CloseAll completed: operationId={OperationId} closedCount={Count}",
@@ -332,7 +346,14 @@ public sealed class ShutdownOperationService
         }
     }
 
-    public void TransitionToCompletedWithErrors(Guid operationId, int closedCount, string error)
+    public void TransitionToCompletedWithErrors(
+        Guid operationId,
+        int closedCount,
+        string error,
+        int discoveredCandidatesCount = 0,
+        int attemptedCloseCount = 0,
+        DateTime? verifiedAtUtc = null,
+        IReadOnlyList<CloseAllLeftoverAsset>? leftovers = null)
     {
         lock (_lock)
         {
@@ -343,7 +364,11 @@ public sealed class ShutdownOperationService
                 CompletedAtUtc = DateTime.UtcNow,
                 ShutdownReady = false,
                 PositionsClosedCount = closedCount,
-                LastError = error
+                LastError = error,
+                DiscoveredCandidatesCount = discoveredCandidatesCount,
+                AttemptedCloseCount = attemptedCloseCount,
+                VerifiedAtUtc = verifiedAtUtc,
+                Leftovers = leftovers ?? []
             };
             _logger.LogWarning(
                 "CloseAll completed with errors: operationId={OperationId} error={Error}",

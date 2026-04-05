@@ -12,17 +12,20 @@ public sealed class CloseAllExecutorService
 {
     private readonly ShutdownOperationService _shutdownOp;
     private readonly PositionTracker _positionTracker;
+    private readonly CloseAllDiscoveryService _discovery;
     private readonly OrderExecutionService _executionService;
     private readonly ILogger<CloseAllExecutorService> _logger;
 
     public CloseAllExecutorService(
         ShutdownOperationService shutdownOp,
         PositionTracker positionTracker,
+        CloseAllDiscoveryService discovery,
         OrderExecutionService executionService,
         ILogger<CloseAllExecutorService> logger)
     {
         _shutdownOp = shutdownOp;
         _positionTracker = positionTracker;
+        _discovery = discovery;
         _executionService = executionService;
         _logger = logger;
     }
@@ -32,31 +35,33 @@ public sealed class CloseAllExecutorService
         _shutdownOp.TransitionToExecuting(operationId);
         _logger.LogInformation("CloseAll execution started: operationId={OperationId}", operationId);
 
-        var positions = _positionTracker.GetOpenPositions();
-        int closedCount = 0;
-        var errors = new List<string>();
+        var localPositions = _positionTracker.GetRawPositions();
+        var plan = await _discovery.BuildClosePlanAsync(localPositions, ct);
+        var targets = plan.Targets;
 
-        foreach (var pos in positions)
+        int closedCount = 0;
+        int attemptedCloseCount = 0;
+        var errors = new List<string>();
+        var attemptedSymbols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var target in targets)
         {
             if (ct.IsCancellationRequested) break;
 
-            string? symbol = null;
             try
             {
-                symbol = pos.GetType().GetProperty("symbol")?.GetValue(pos)?.ToString();
-                var quantity = (decimal)(pos.GetType().GetProperty("quantity")?.GetValue(pos) ?? 0m);
-                var currentPrice = (decimal)(pos.GetType().GetProperty("currentPrice")?.GetValue(pos) ?? 0m);
-
-                if (string.IsNullOrEmpty(symbol) || quantity <= 0)
+                if (string.IsNullOrWhiteSpace(target.Symbol) || target.Quantity <= 0m)
                     continue;
+
+                attemptedCloseCount++;
+                attemptedSymbols.Add(target.Symbol);
 
                 var closeOrder = new OrderRequest
                 {
-                    Symbol = symbol,
+                    Symbol = target.Symbol,
                     Side = OrderSide.Sell,
                     Type = OrderType.Market,
-                    Quantity = quantity,
-                    Price = currentPrice,
+                    Quantity = target.Quantity,
                     IsReduceOnly = true,
                     StrategyName = "ShutdownControl"
                 };
@@ -67,41 +72,60 @@ public sealed class CloseAllExecutorService
                 {
                     closedCount++;
                     _logger.LogInformation(
-                        "ShutdownControl closed {Symbol}: qty={Qty} price={Price}",
-                        symbol, result.FilledQty, result.FilledPrice);
+                        "ShutdownControl closed {Symbol}: qty={Qty} price={Price} source={Source}",
+                        target.Symbol, result.FilledQty, result.FilledPrice, target.Source);
                 }
                 else
                 {
-                    errors.Add($"{symbol}: {result.ErrorMessage}");
+                    errors.Add($"{target.Symbol}: {result.ErrorMessage}");
                     _logger.LogWarning(
                         "ShutdownControl failed to close {Symbol}: {Error}",
-                        symbol, result.ErrorMessage);
+                        target.Symbol, result.ErrorMessage);
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                var label = symbol ?? "UNKNOWN";
+                var label = target.Symbol;
                 errors.Add($"{label}: {ex.Message}");
                 _logger.LogError(ex, "Error closing position {Symbol}", label);
             }
         }
 
+        var leftovers = await _discovery.VerifyLeftoversAsync(attemptedSymbols, plan.PreCloseLeftovers, ct);
+        var verifiedAtUtc = DateTime.UtcNow;
+
         // Verify final state
         var remaining = _positionTracker.GetOpenPositions();
 
-        if (remaining.Count == 0 && errors.Count == 0)
+        if (remaining.Count == 0 && errors.Count == 0 && leftovers.Count == 0)
         {
-            _shutdownOp.TransitionToCompleted(operationId, closedCount);
+            _shutdownOp.TransitionToCompleted(
+                operationId,
+                closedCount,
+                discoveredCandidatesCount: plan.DiscoveredCandidatesCount,
+                attemptedCloseCount: attemptedCloseCount,
+                verifiedAtUtc: verifiedAtUtc,
+                leftovers: leftovers);
             _logger.LogInformation(
-                "CloseAll COMPLETED: operationId={OperationId} closed={Count}. System is shutdown-ready.",
-                operationId, closedCount);
+                "CloseAll COMPLETED: operationId={OperationId} closed={Count} attempted={Attempted} discovered={Discovered}. System is shutdown-ready.",
+                operationId, closedCount, attemptedCloseCount, plan.DiscoveredCandidatesCount);
         }
         else
         {
             var errorSummary = errors.Count > 0
                 ? string.Join("; ", errors)
-                : $"{remaining.Count} position(s) still open after close attempts";
-            _shutdownOp.TransitionToCompletedWithErrors(operationId, closedCount, errorSummary);
+                : leftovers.Count > 0
+                    ? $"{leftovers.Count} leftover asset(s) remain after verification"
+                    : $"{remaining.Count} position(s) still open after close attempts";
+
+            _shutdownOp.TransitionToCompletedWithErrors(
+                operationId,
+                closedCount,
+                errorSummary,
+                discoveredCandidatesCount: plan.DiscoveredCandidatesCount,
+                attemptedCloseCount: attemptedCloseCount,
+                verifiedAtUtc: verifiedAtUtc,
+                leftovers: leftovers);
         }
     }
 }

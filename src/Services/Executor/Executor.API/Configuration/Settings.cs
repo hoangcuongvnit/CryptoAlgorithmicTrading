@@ -10,16 +10,45 @@ public sealed class TradingSettings
     public PartialTpSettings PartialTp { get; set; } = new();
     public ConsensusPricingSettings ConsensusPricing { get; set; } = new();
     public ReconciliationSettings Reconciliation { get; set; } = new();
+    public CloseAllDiscoverySettings CloseAllDiscovery { get; set; } = new();
+}
+
+public sealed class CloseAllDiscoverySettings
+{
+    public bool DiscoveryEnabled { get; set; } = false;
+    public string QuoteAsset { get; set; } = "USDT";
+    public decimal DiscoveryMinUsdtValue { get; set; } = 5m;
+    public decimal VerificationMinUsdtValue { get; set; } = 5m;
+    public List<string> ExcludedAssets { get; set; } = ["USDT", "BUSD", "FDUSD", "USDC", "TUSD"];
 }
 
 public sealed class ReconciliationSettings
 {
     public bool Enabled { get; set; } = false;
     public int IntervalSeconds { get; set; } = 300;
+    public ReconciliationRecoveryMode RecoveryMode { get; set; } = ReconciliationRecoveryMode.DetectOnly;
+    public BalanceDriftPolicy BalancePolicy { get; set; } = BalanceDriftPolicy.LogOnly;
     public decimal PositionQuantityTolerance { get; set; } = 0.00000001m;
     public decimal BalanceDriftTolerance { get; set; } = 0.01m;
     public string QuoteAsset { get; set; } = "USDT";
     public int AlertMaxSymbols { get; set; } = 10;
+    public bool AllowCrossSessionCorrection { get; set; } = false;
+    public int SessionBoundaryLockMinutes { get; set; } = 2;
+    public int MaxDriftsPerCycleLockdown { get; set; } = 10;
+    public int CashSnapshotMaxAgeMinutes { get; set; } = 10;
+}
+
+public enum ReconciliationRecoveryMode
+{
+    DetectOnly,
+    AutoCorrect,
+    RequireApproval
+}
+
+public enum BalanceDriftPolicy
+{
+    LogOnly,
+    RequireApproval
 }
 
 public sealed class SpreadFilterSettings

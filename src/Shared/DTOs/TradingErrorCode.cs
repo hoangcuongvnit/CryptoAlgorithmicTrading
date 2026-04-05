@@ -25,6 +25,9 @@ public enum TradingErrorCode
     SessionPhaseBlocked     = 3008,
     RecoveryModeBlocked     = 3009,
     ShutdownExitOnlyMode    = 3010,
+    InsufficientPositionQuantity = 3011,
+    InsufficientCashBalance = 3012,
+    CashBalanceSnapshotUnavailable = 3013,
 
     // gRPC inter-service errors (4xxx)
     RiskGuardUnavailable  = 4001,

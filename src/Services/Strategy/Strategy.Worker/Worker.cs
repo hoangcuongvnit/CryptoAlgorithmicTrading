@@ -189,6 +189,8 @@ public sealed class Worker : BackgroundService
         ValidateOrderReply riskResponse;
         try
         {
+            var tradingEnvironment = ResolveTradingEnvironment();
+
             using var riskCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             riskCts.CancelAfter(TimeSpan.FromSeconds(5));
             riskResponse = await _riskGuardClient.ValidateOrderAsync(new ValidateOrderRequest
@@ -201,7 +203,8 @@ public sealed class Worker : BackgroundService
                 TakeProfit = (double)order.TakeProfit,
                 SessionId = order.SessionId ?? string.Empty,
                 SessionPhase = order.SessionPhase?.ToString() ?? string.Empty,
-                IsReduceOnly = order.IsReduceOnly
+                IsReduceOnly = order.IsReduceOnly,
+                Environment = tradingEnvironment
             }, cancellationToken: riskCts.Token);
         }
         catch (RpcException rpcEx)
@@ -318,5 +321,14 @@ public sealed class Worker : BackgroundService
             "Order execution failed for {Symbol}: {Error}",
             order.Symbol,
             executionReply.ErrorMessage);
+    }
+
+    private static string ResolveTradingEnvironment()
+    {
+        var raw = Environment.GetEnvironmentVariable("BINANCE_USE_TESTNET");
+        if (!string.IsNullOrWhiteSpace(raw) && bool.TryParse(raw, out var useTestnet))
+            return useTestnet ? "TESTNET" : "MAINNET";
+
+        return "TESTNET";
     }
 }

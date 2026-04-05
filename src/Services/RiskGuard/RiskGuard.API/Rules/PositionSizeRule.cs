@@ -2,12 +2,13 @@ using CryptoTrading.Shared.DTOs;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
 using RiskGuard.API.Infrastructure;
+using RiskGuard.API.Services;
 using StackExchange.Redis;
 
 namespace RiskGuard.API.Rules;
 
 /// <summary>
-/// Caps a single order's notional value as a percentage of the virtual account balance.
+/// Caps a single order's notional value as a percentage of the effective balance.
 /// When the order exceeds the cap, quantity is adjusted down rather than rejecting outright.
 /// Falls back to the absolute <see cref="RiskSettings.MaxOrderNotional"/> when
 /// <see cref="RiskSettings.MaxPositionSizePercent"/> is not set.
@@ -22,6 +23,7 @@ public sealed class PositionSizeRule : IRiskRule
     private readonly RiskSettings _settings;
     private readonly OrderStatsRepository _statsRepo;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IEffectiveBalanceProvider _balanceProvider;
     private readonly ILogger<PositionSizeRule> _logger;
 
     public string Name => nameof(PositionSizeRule);
@@ -30,11 +32,13 @@ public sealed class PositionSizeRule : IRiskRule
         IOptions<RiskSettings> settings,
         OrderStatsRepository statsRepo,
         IConnectionMultiplexer redis,
+        IEffectiveBalanceProvider balanceProvider,
         ILogger<PositionSizeRule> logger)
     {
         _settings = settings.Value;
         _statsRepo = statsRepo;
         _redis = redis;
+        _balanceProvider = balanceProvider;
         _logger = logger;
     }
 
@@ -43,7 +47,7 @@ public sealed class PositionSizeRule : IRiskRule
         if (context.EntryPrice <= 0)
             return RuleResult.Pass();
 
-        var maxNotional = await ComputeMaxNotionalAsync(context.Symbol, ct);
+        var maxNotional = await ComputeMaxNotionalAsync(context.Symbol, context.Environment, ct);
         if (maxNotional <= 0)
             return RuleResult.Pass();
 
@@ -57,7 +61,7 @@ public sealed class PositionSizeRule : IRiskRule
         return RuleResult.AdjustQuantity(adjustedQty);
     }
 
-    private async Task<decimal> ComputeMaxNotionalAsync(string symbol, CancellationToken ct)
+    private async Task<decimal> ComputeMaxNotionalAsync(string symbol, string? environment, CancellationToken ct)
     {
         // Base cap: percentage-of-balance takes precedence over flat notional
         decimal basePercent = _settings.MaxPositionSizePercent > 0
@@ -98,8 +102,20 @@ public sealed class PositionSizeRule : IRiskRule
         }
         catch (Exception ex) { _logger.LogWarning(ex, "Regime lookup failed for {Symbol}; skipping regime adjustment", symbol); }
 
-        if (_settings.VirtualAccountBalance > 0)
-            return basePercent / 100m * _settings.VirtualAccountBalance;
+        var effectiveBalance = await _balanceProvider.GetEffectiveBalanceAsync(environment, ct);
+        if (effectiveBalance.IsAvailable && effectiveBalance.Balance > 0)
+        {
+            if (effectiveBalance.IsFallback)
+            {
+                _logger.LogWarning(
+                    "Position size using fallback balance {Balance:F2} ({Source}). Reason: {Reason}",
+                    effectiveBalance.Balance,
+                    effectiveBalance.Source,
+                    effectiveBalance.Error ?? "n/a");
+            }
+
+            return basePercent / 100m * effectiveBalance.Balance;
+        }
 
         return _settings.MaxOrderNotional;
     }

@@ -67,29 +67,30 @@ export default function LedgerPage() {
         </span>
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard label={t('dashboard.initialBalance')}  value={`$${fmt(account.initialBalance)}`} />
-        <StatCard label={t('dashboard.currentBalance')}  value={`$${fmt(account.currentBalance)}`} />
-        <StatCard
-          label={t('dashboard.netPnl')}
-          value={`${netPnl >= 0 ? '+' : ''}$${fmt(netPnl)}`}
-          colorClass={netPnl >= 0 ? 'text-green-400' : 'text-red-400'}
-        />
-        <StatCard
-          label={t('dashboard.unrealizedPnl')}
-          value={`${unrealized >= 0 ? '+' : ''}$${fmt(unrealized)}`}
-          colorClass={unrealized >= 0 ? 'text-green-400' : 'text-red-400'}
-        />
-        <StatCard label={t('dashboard.realTimeEquity')} value={`$${fmt(realTimeEquity)}`} colorClass="text-blue-300" />
-      </div>
+      {/* Stats + ROE row */}
+      <div className="flex flex-col xl:flex-row gap-4 xl:items-stretch">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 flex-1">
+          <StatCard label={t('dashboard.initialBalance')}  value={`$${fmt(account.initialBalance)}`} />
+          <StatCard label={t('dashboard.currentBalance')}  value={`$${fmt(account.currentBalance)}`} />
+          <StatCard
+            label={t('dashboard.netPnl')}
+            value={`${netPnl >= 0 ? '+' : ''}$${fmt(netPnl)}`}
+            colorClass={netPnl >= 0 ? 'text-green-400' : 'text-red-400'}
+          />
+          <StatCard
+            label={t('dashboard.unrealizedPnl')}
+            value={`${unrealized >= 0 ? '+' : ''}$${fmt(unrealized)}`}
+            colorClass={unrealized >= 0 ? 'text-green-400' : 'text-red-400'}
+          />
+          <StatCard label={t('dashboard.realTimeEquity')} value={`$${fmt(realTimeEquity)}`} colorClass="text-blue-300" />
+        </div>
 
-      {/* ROE */}
-      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 inline-block">
-        <p className="text-xs text-gray-400 mb-1">{t('dashboard.roe')}</p>
-        <p className={`text-3xl font-bold font-mono ${roe >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-          {roe >= 0 ? '+' : ''}{fmt(roe)}%
-        </p>
+        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 xl:min-w-[220px]">
+          <p className="text-xs text-gray-400 mb-1">{t('dashboard.roe')}</p>
+          <p className={`text-3xl font-bold font-mono ${roe >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {roe >= 0 ? '+' : ''}{fmt(roe)}%
+          </p>
+        </div>
       </div>
 
       {/* Open positions from equity update */}
