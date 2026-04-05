@@ -1039,6 +1039,11 @@ public sealed class OrderRepository
                 new CommandDefinition(sql, cancellationToken: cancellationToken));
             return rows.AsList();
         }
+        catch (PostgresException ex) when (ex.SqlState == "42P01")
+        {
+            _logger.LogWarning("state_drift_logs table does not exist yet; returning empty drift snapshot");
+            return [];
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to fetch latest reconciliation drift logs");
