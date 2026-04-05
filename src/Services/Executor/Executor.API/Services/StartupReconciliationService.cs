@@ -124,17 +124,8 @@ public sealed class StartupReconciliationService : BackgroundService
 
         _recoveryState.TransitionTo(SystemRecoveryState.RecoveryExecuting);
 
-        // ── Step 3: Exchange reconciliation (live mode only) ──────────────────
-        int mismatchesFixed = 0;
-
-        if (!_tradingSettings.PaperTradingMode)
-        {
-            mismatchesFixed = await ReconcileWithExchangeAsync(localPositions, session, ct);
-        }
-        else
-        {
-            _logger.LogInformation("Recovery: paper-trading mode — skipping Binance reconciliation");
-        }
+        // ── Step 3: Exchange reconciliation ───────────────────────────────────
+        var mismatchesFixed = await ReconcileWithExchangeAsync(localPositions, session, ct);
 
         // ── Step 4: Apply session policy ──────────────────────────────────────
         int emergencyCloses = 0;

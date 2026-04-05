@@ -416,7 +416,6 @@ timelineGroup.MapGet("/symbol", async (
                 var sl = order.TryGetProperty("stopLoss", out var slp) ? slp.GetDecimal() : (decimal?)null;
                 var tp = order.TryGetProperty("takeProfit", out var tpp) ? tpp.GetDecimal() : (decimal?)null;
                 var strategy = order.TryGetProperty("strategy", out var strat) ? strat.GetString() : null;
-                var isPaper = order.TryGetProperty("isPaperTrade", out var ip) && ip.GetBoolean();
                 var success = order.TryGetProperty("success", out var suc) && suc.GetBoolean();
                 var status = order.TryGetProperty("status", out var st) ? st.GetString() : null;
                 var errorMsg = order.TryGetProperty("errorMessage", out var em) ? em.GetString() : null;
@@ -442,7 +441,6 @@ timelineGroup.MapGet("/symbol", async (
                         stopLoss = sl,
                         takeProfit = tp,
                         strategy,
-                        isPaper,
                         status,
                         errorMessage = errorMsg
                     }));
@@ -1421,62 +1419,6 @@ settingsGroup.MapPost("/exchange/binance/validate-saved", async (
     }
 });
 
-// ── Trading Mode settings endpoints ───────────────────────────────────────
-
-// GET /api/settings/trading/mode
-settingsGroup.MapGet("/trading/mode", async (SystemSettingsRepository repo, CancellationToken ct) =>
-{
-    var cfg = await repo.GetTradingModeSettingsAsync(ct);
-    return Results.Ok(new
-    {
-        paperTradingMode = cfg.PaperTradingMode,
-        initialBalance = cfg.InitialBalance,
-        updatedBy = cfg.UpdatedBy,
-        updatedAtUtc = cfg.UpdatedAtUtc,
-    });
-});
-
-// PUT /api/settings/trading/mode
-settingsGroup.MapPut("/trading/mode", async (
-    SystemSettingsRepository repo,
-    IHttpClientFactory factory,
-    HttpRequest request,
-    CancellationToken ct) =>
-{
-    TradingModeSaveRequest? body;
-    try { body = await request.ReadFromJsonAsync<TradingModeSaveRequest>(ct); }
-    catch { return Results.BadRequest("Invalid JSON body"); }
-    if (body is null) return Results.BadRequest("Request body is required");
-
-    await repo.SaveTradingModeSettingsAsync(body.PaperTradingMode, body.InitialBalance, body.UpdatedBy, ct);
-
-    // Push to Executor
-    try
-    {
-        var client = factory.CreateClient("executor");
-        await client.PostAsJsonAsync("/api/trading/reload-trading-config",
-            new { paperTradingMode = body.PaperTradingMode, initialBalance = body.InitialBalance }, ct);
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning(ex, "Failed to push trading mode to Executor");
-    }
-
-    // Push PaperTradingOnly to RiskGuard
-    try
-    {
-        var client = factory.CreateClient("riskguard");
-        await client.PostAsJsonAsync("/api/risk/reload-config",
-            new { paperTradingOnly = body.PaperTradingMode }, ct);
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning(ex, "Failed to push trading mode to RiskGuard");
-    }
-
-    return Results.Ok(new { saved = true });
-});
-
 // ── Risk Management settings endpoints ────────────────────────────────────
 
 // GET /api/settings/risk
@@ -1799,25 +1741,6 @@ app.Lifetime.ApplicationStarted.Register(() =>
             logger.LogWarning(ex, "Failed to sync Exchange credentials to Executor on startup");
         }
 
-        // Sync Trading Mode → Executor + RiskGuard
-        try
-        {
-            var tradingCfg = await repo.GetTradingModeSettingsAsync();
-            var executorClient = factory.CreateClient("executor");
-            await executorClient.PostAsJsonAsync("/api/trading/reload-trading-config",
-                new { paperTradingMode = tradingCfg.PaperTradingMode, initialBalance = tradingCfg.InitialBalance });
-
-            var riskClient = factory.CreateClient("riskguard");
-            await riskClient.PostAsJsonAsync("/api/risk/reload-config",
-                new { paperTradingOnly = tradingCfg.PaperTradingMode });
-
-            logger.LogInformation("Trading mode synced on startup (paper={PaperTradingMode})", tradingCfg.PaperTradingMode);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to sync Trading Mode on startup");
-        }
-
         // Sync Order Amount Limits → Executor
         try
         {
@@ -1965,7 +1888,6 @@ record ExchangeSaveRequest(string? ApiKey, string? ApiSecret, string? TestnetApi
 record ExchangeValidateRequest(string ApiKey, string ApiSecret, bool UseTestnet);
 record ValidateSavedRequest(bool UseTestnet);
 record OrderAmountLimitSaveRequest(decimal? MinOrderAmount, decimal? MaxOrderAmount, string? UpdatedBy);
-record TradingModeSaveRequest(bool PaperTradingMode, decimal InitialBalance, string? UpdatedBy);
 record RiskSaveRequest(decimal MaxDrawdownPercent, decimal MinRiskReward, decimal MaxPositionSizePercent, int CooldownSeconds, string? UpdatedBy);
 record HouseKeeperSaveRequest(bool Enabled, bool DryRun, string ScheduleUtc, int RetentionOrdersDays, int RetentionGapsDays, int RetentionTicksMonths, int BatchSize, int MaxRunSeconds, string? UpdatedBy);
 record TimelineEvent(DateTime TimestampUtc, string EventType, string Outcome, string? Side, string Summary, object Details);

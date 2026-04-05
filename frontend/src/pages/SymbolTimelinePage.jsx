@@ -327,13 +327,6 @@ function OrderDetails({ details, t }) {
           {details?.status ?? '—'}
         </span>
       </div>
-      {details?.isPaper && (
-        <div className="col-span-2 sm:col-span-3">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
-            🧪 {t('paperTrade')}
-          </span>
-        </div>
-      )}
       {details?.errorMessage && (
         <div className="col-span-2 sm:col-span-3 text-red-600 bg-red-50 rounded px-3 py-2">
           <span className="font-medium">{t('reason')}: </span>{details.errorMessage}

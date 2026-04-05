@@ -193,7 +193,7 @@ public sealed class LiquidationOrchestrator : BackgroundService
             if (status is null) return;
 
             var openPositions = _positionTracker.GetOpenPositions();
-            var mode = _tradingSettings.PaperTradingMode ? "paper" : "live";
+            var mode = "live";
 
             // Holdings value: sum of open position market values (approximated as quantity × current price)
             decimal holdingsValue = openPositions.Sum(pos =>

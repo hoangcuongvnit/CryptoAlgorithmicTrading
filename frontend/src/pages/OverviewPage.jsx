@@ -115,16 +115,12 @@ export function OverviewPage() {
           {tradingMode && (
             <span className="px-3 py-1 rounded-full text-sm font-semibold border"
               style={
-                tradingMode === 'paper'
-                  ? { background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8' }
-                  : tradingMode === 'testnet'
+                tradingMode === 'testnet'
                   ? { background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d' }
                   : { background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626' }
               }
             >
-              {tradingMode === 'paper'
-                ? t('common:paperMode')
-                : tradingMode === 'testnet'
+              {tradingMode === 'testnet'
                 ? t('common:testnetMode')
                 : t('common:liveTrading')}
             </span>
@@ -146,7 +142,7 @@ export function OverviewPage() {
         <StatCard
           title={t('common:todayPnl')}
           value={risk ? formatPnl(risk.dailyPnl) : '—'}
-          subtitle={tradingMode === 'live' ? t('common:realized') : t('common:simulated')}
+          subtitle={t('common:realized')}
           icon="💵"
           colorClass={risk ? pnlColorClass(risk.dailyPnl) : 'text-gray-400'}
         />

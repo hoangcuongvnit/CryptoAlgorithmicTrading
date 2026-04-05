@@ -45,7 +45,7 @@ public sealed class MaxDrawdownRule : IRiskRule
 
         try
         {
-            var dailyPnl = await _repository.GetDailyNetPnlAsync(_settings.PaperTradingOnly, ct);
+            var dailyPnl = await _repository.GetDailyNetPnlAsync(ct);
 
             var maxLoss = -(_settings.MaxDrawdownPercent / 100m * _settings.VirtualAccountBalance);
 

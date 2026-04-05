@@ -108,7 +108,6 @@ public sealed record OrderRow(
     decimal? FilledPrice,
     decimal? FilledQty,
     bool? Success,
-    bool IsPaperTrade,
     string? ErrorMessage,
     DateTime CreatedAt);
 

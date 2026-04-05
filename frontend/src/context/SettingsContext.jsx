@@ -3,18 +3,14 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 const SettingsContext = createContext({
   systemTimezone: 'UTC',
   setSystemTimezone: () => {},
-  tradingMode: null,       // 'paper' | 'testnet' | 'live' | null (loading)
+  tradingMode: null,       // 'testnet' | 'live' | null (loading)
   refreshTradingMode: () => {},
 })
 
 async function fetchTradingMode() {
   try {
-    const [trading, exchange] = await Promise.all([
-      fetch('/api/settings/trading/mode').then(r => r.ok ? r.json() : null),
-      fetch('/api/settings/exchange/binance').then(r => r.ok ? r.json() : null),
-    ])
-    if (!trading) return null
-    if (trading.paperTradingMode) return 'paper'
+    const exchange = await fetch('/api/settings/exchange/binance').then(r => r.ok ? r.json() : null)
+    if (!exchange) return null
     if (exchange?.useTestnet) return 'testnet'
     return 'live'
   } catch {

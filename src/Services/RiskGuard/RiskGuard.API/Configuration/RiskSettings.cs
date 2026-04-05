@@ -20,9 +20,6 @@ public sealed class RiskSettings
     /// <summary>Minimum seconds between consecutive orders on the same symbol.</summary>
     public int CooldownSeconds { get; set; } = 30;
 
-    /// <summary>When true, drawdown calculations include only paper-trade orders.</summary>
-    public bool PaperTradingOnly { get; set; } = true;
-
     /// <summary>Symbols allowed to trade. Empty list means all symbols are allowed.</summary>
     public List<string> AllowedSymbols { get; set; } = [];
 

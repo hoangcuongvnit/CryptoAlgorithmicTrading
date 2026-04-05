@@ -58,7 +58,6 @@ function OrderRow({ order }) {
   const { t } = useTranslation('trading')
   const { systemTimezone } = useSettings()
   const isSuccess = order.success ?? order.filledQty > 0
-  const isPaper = order.isPaperTrade ?? order.is_paper
   const side = (order.side ?? '').toLowerCase()
   const hasPnL = order.realizedPnL != null
   const pnl = Number(order.realizedPnL ?? 0)
@@ -75,7 +74,6 @@ function OrderRow({ order }) {
           }`}>
             {(order.side ?? '').toUpperCase()}
           </span>
-          {isPaper && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">{t('order.paper')}</span>}
         </div>
       </td>
       <td className="py-3 px-4 text-sm text-gray-700 tabular-nums">${formatPrice(order.filledPrice ?? order.entryPrice)}</td>
@@ -138,7 +136,7 @@ export function TradingPage() {
           <StatCard
             title={t('stats.totalTrades')}
             value={stats.totalTrades ?? 0}
-            subtitle={t('stats.paperMode')}
+            subtitle={t('stats.realized')}
             colorClass="text-purple-600"
             icon="📊"
           />

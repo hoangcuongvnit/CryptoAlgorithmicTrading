@@ -228,7 +228,7 @@ export function useBudgetEquityCurve({ from, to } = {}) {
   return usePolling(fn, 60000)
 }
 
-export function useCapitalFlow({ from, to, mode = 'paper' } = {}) {
+export function useCapitalFlow({ from, to, mode = 'live' } = {}) {
   const fn = useCallback(() => {
     const params = new URLSearchParams({ mode })
     if (from) params.set('from', from)

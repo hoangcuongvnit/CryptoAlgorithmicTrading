@@ -70,7 +70,7 @@ public sealed class PositionSizeRule : IRiskRule
             try
             {
                 var stats = await _statsRepo.GetWinRateAsync(
-                    symbol, _settings.KellyLookbackDays, _settings.PaperTradingOnly, ct);
+                    symbol, _settings.KellyLookbackDays, ct);
 
                 if (stats.TotalTrades >= _settings.KellyMinTrades && stats.AvgLoss > 0)
                 {

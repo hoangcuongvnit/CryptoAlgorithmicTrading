@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next'
 import { TimezonePanel } from '../components/settings/TimezonePanel.jsx'
 import { TelegramPanel } from '../components/settings/TelegramPanel.jsx'
 import { ExchangePanel } from '../components/settings/ExchangePanel.jsx'
-import { TradingModePanel } from '../components/settings/TradingModePanel.jsx'
 import { RiskSettingsPanel } from '../components/settings/RiskSettingsPanel.jsx'
 import { OrderAmountLimitsPanel } from '../components/settings/OrderAmountLimitsPanel.jsx'
 import { HouseKeeperPanel } from '../components/settings/HouseKeeperPanel.jsx'
@@ -21,7 +20,6 @@ export function SettingsPage() {
         <TimezonePanel />
         <TelegramPanel />
         <ExchangePanel />
-        <TradingModePanel />
         <RiskSettingsPanel />
         <OrderAmountLimitsPanel />
         <HouseKeeperPanel />

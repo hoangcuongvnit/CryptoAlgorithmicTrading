@@ -24,7 +24,7 @@ public sealed class OrderExecutionMetrics : IDisposable
         // Counters
         _ordersPlacedCounter = _meter.CreateCounter<long>(
             "executor.orders.placed.total",
-            description: "Total number of orders placed (paper + live)");
+            description: "Total number of orders placed");
 
         _ordersRejectedCounter = _meter.CreateCounter<long>(
             "executor.orders.rejected.total",
@@ -65,13 +65,9 @@ public sealed class OrderExecutionMetrics : IDisposable
         _ordersRejectedCounter.Add(1, new KeyValuePair<string, object?>("symbol", symbol), new KeyValuePair<string, object?>("reason", reason));
     }
 
-    public void RecordOrderFilled(string symbol, decimal quantity, decimal fillPrice, bool isPaper)
+    public void RecordOrderFilled(string symbol, decimal quantity, decimal fillPrice)
     {
-        var tags = new[]
-        {
-            new KeyValuePair<string, object?>("symbol", symbol),
-            new KeyValuePair<string, object?>("is_paper", isPaper)
-        };
+        var tags = new[] { new KeyValuePair<string, object?>("symbol", symbol) };
         _ordersFilledCounter.Add(1, tags);
     }
 

@@ -129,7 +129,6 @@ CREATE TABLE IF NOT EXISTS orders (
     stop_loss    NUMERIC,
     take_profit  NUMERIC,
     strategy     TEXT,
-    is_paper     BOOLEAN     NOT NULL DEFAULT TRUE,
     success      BOOLEAN     NOT NULL DEFAULT FALSE,
     error_msg    TEXT,
     status       VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'CLOSED', 'FAILED')),
@@ -141,7 +140,6 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE INDEX IF NOT EXISTS idx_orders_time     ON orders (time DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_symbol   ON orders (symbol);
-CREATE INDEX IF NOT EXISTS idx_orders_is_paper ON orders (is_paper);
 CREATE INDEX IF NOT EXISTS idx_orders_status   ON orders (status, time DESC);
 
 CREATE OR REPLACE VIEW public.open_positions AS
@@ -183,7 +181,7 @@ INSERT INTO active_symbols (symbol, enabled) VALUES
 ON CONFLICT (symbol) DO NOTHING;
 
 -- =============================================================================
--- Account balance (paper trading starting balance)
+-- Account balance seed
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS account_balance (

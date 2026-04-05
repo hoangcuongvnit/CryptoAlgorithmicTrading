@@ -71,7 +71,6 @@ services:
       - Risk__VirtualAccountBalance=${INITIAL_BALANCE:-10000}
       - Risk__MaxDrawdownPercent=${MAX_DRAWDOWN_PERCENT:-5.0}
       - Risk__CooldownSeconds=${COOLDOWN_SECONDS:-30}
-      - Risk__PaperTradingOnly=${PAPER_TRADING_MODE:-true}
       - RISKGUARD_REDIS_ENABLED=${RISKGUARD_REDIS_ENABLED:-true}
       - RISKGUARD_REDIS_TTL_SECONDS=${RISKGUARD_REDIS_TTL_SECONDS:-86400}
       - RISKGUARD_REDIS_SYNC_INTERVAL=${RISKGUARD_REDIS_SYNC_INTERVAL:-60}
@@ -107,7 +106,6 @@ services:
         required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
-      - Trading__PaperTradingMode=${PAPER_TRADING_MODE:-true}
       - Binance__ApiKey=${BINANCE_API_KEY}
       - Binance__ApiSecret=${BINANCE_API_SECRET}
       - Binance__TestnetApiKey=${BINANCE_TESTNET_API_KEY}

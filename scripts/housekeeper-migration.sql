@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS archive.orders_history (
     stop_loss    NUMERIC,
     take_profit  NUMERIC,
     strategy     TEXT,
-    is_paper     BOOLEAN     NOT NULL DEFAULT TRUE,
     success      BOOLEAN     NOT NULL DEFAULT FALSE,
     error_msg    TEXT,
     status       VARCHAR(20) NOT NULL,

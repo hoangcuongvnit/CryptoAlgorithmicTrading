@@ -162,7 +162,7 @@ public sealed class NotifierWorker : BackgroundService
     {
         if (order.Success)
         {
-            var mode = order.IsPaperTrade ? "PAPER" : "LIVE";
+            const string mode = "LIVE";
             var side = order.Side.ToString().ToUpperInvariant();
             _history.Add("order", $"{mode} {side} {order.Symbol} @ {order.FilledPrice:F2} | qty {order.FilledQty:F6}");
         }
@@ -181,7 +181,6 @@ public sealed class NotifierWorker : BackgroundService
                 v => v.Value.ToString());
 
             _ = Enum.TryParse<OrderSide>(fields.GetValueOrDefault("side", "Buy"), ignoreCase: true, out var side);
-            _ = bool.TryParse(fields.GetValueOrDefault("is_paper", "true"), out var isPaper);
             _ = bool.TryParse(fields.GetValueOrDefault("success", "false"), out var success);
             _ = decimal.TryParse(fields.GetValueOrDefault("filled_price", "0"), out var filledPrice);
             _ = decimal.TryParse(fields.GetValueOrDefault("filled_qty", "0"), out var filledQty);
@@ -199,7 +198,7 @@ public sealed class NotifierWorker : BackgroundService
                 ErrorMessage = fields.GetValueOrDefault("error_message", string.Empty),
                 ErrorCode = errorCode,
                 Timestamp = timestamp == default ? DateTime.UtcNow : timestamp,
-                IsPaperTrade = isPaper
+                IsPaperTrade = false
             };
         }
         catch (Exception ex)

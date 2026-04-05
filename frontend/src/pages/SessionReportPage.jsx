@@ -233,7 +233,6 @@ export function SessionReportPage() {
           style={{ color: '#1e3a5f' }}
         >
           <option value="all">{t('mode.all')}</option>
-          <option value="paper">{t('mode.paper')}</option>
           <option value="live">{t('mode.live')}</option>
         </select>
         {lastUpdated && (

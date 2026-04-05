@@ -47,8 +47,8 @@ public sealed class BudgetRepository
                 a.currency,
                 a.updated_at,
                 COALESCE(SUM(sr.realized_pnl), 0) AS total_realized_pnl
-            FROM public.paper_trading_account a
-            LEFT JOIN public.session_reports sr ON sr.trading_mode = 'paper'
+            FROM public.trading_account a
+            LEFT JOIN public.session_reports sr ON sr.trading_mode = 'live'
             WHERE a.is_active = TRUE
             GROUP BY a.initial_capital, a.current_cash, a.currency, a.updated_at
             LIMIT 1;
@@ -92,12 +92,12 @@ public sealed class BudgetRepository
             SELECT id, recorded_at_utc, reference_type, reference_id,
                    cash_balance_before, cash_balance_after, adjustment_amount,
                    description, created_by
-            FROM public.paper_trading_ledger
+            FROM public.trading_ledger
             {where}
             ORDER BY recorded_at_utc DESC
             LIMIT @Limit OFFSET @Offset;
             """;
-        var countSql = $"SELECT COUNT(*) FROM public.paper_trading_ledger {where};";
+        var countSql = $"SELECT COUNT(*) FROM public.trading_ledger {where};";
 
         try
         {
@@ -146,15 +146,15 @@ public sealed class BudgetRepository
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
                 new CommandDefinition(
-                    "SELECT current_cash FROM public.paper_trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
+                    "SELECT current_cash FROM public.trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
                     transaction: tx, cancellationToken: ct));
 
             if (!before.HasValue)
-                return (false, "No active paper trading account found", null, 0);
+                return (false, "No active trading account found", null, 0);
 
             var after = before.Value + amount;
             await conn.ExecuteAsync(new CommandDefinition(
-                "UPDATE public.paper_trading_account SET current_cash = @After, updated_at = NOW() WHERE is_active = TRUE;",
+                "UPDATE public.trading_account SET current_cash = @After, updated_at = NOW() WHERE is_active = TRUE;",
                 new { After = after }, tx, cancellationToken: ct));
 
             var txId = Guid.NewGuid();
@@ -186,18 +186,18 @@ public sealed class BudgetRepository
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
                 new CommandDefinition(
-                    "SELECT current_cash FROM public.paper_trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
+                    "SELECT current_cash FROM public.trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
                     transaction: tx, cancellationToken: ct));
 
             if (!before.HasValue)
-                return (false, "No active paper trading account found", null, 0);
+                return (false, "No active trading account found", null, 0);
 
             if (amount > before.Value)
                 return (false, $"Insufficient balance. Available: {before.Value:F2}, Requested: {amount:F2}", null, 0);
 
             var after = before.Value - amount;
             await conn.ExecuteAsync(new CommandDefinition(
-                "UPDATE public.paper_trading_account SET current_cash = @After, updated_at = NOW() WHERE is_active = TRUE;",
+                "UPDATE public.trading_account SET current_cash = @After, updated_at = NOW() WHERE is_active = TRUE;",
                 new { After = after }, tx, cancellationToken: ct));
 
             var txId = Guid.NewGuid();
@@ -229,14 +229,14 @@ public sealed class BudgetRepository
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
                 new CommandDefinition(
-                    "SELECT current_cash FROM public.paper_trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
+                    "SELECT current_cash FROM public.trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
                     transaction: tx, cancellationToken: ct));
 
             if (!before.HasValue)
-                return (false, "No active paper trading account found", 0, 0);
+                return (false, "No active trading account found", 0, 0);
 
             await conn.ExecuteAsync(new CommandDefinition(
-                "UPDATE public.paper_trading_account SET current_cash = @Cap, initial_capital = @Cap, updated_at = NOW() WHERE is_active = TRUE;",
+                "UPDATE public.trading_account SET current_cash = @Cap, initial_capital = @Cap, updated_at = NOW() WHERE is_active = TRUE;",
                 new { Cap = newCapital }, tx, cancellationToken: ct));
 
             var txId = Guid.NewGuid();
@@ -283,7 +283,7 @@ public sealed class BudgetRepository
 
         var sql = $"""
             SELECT recorded_at_utc, reference_type, cash_balance_after AS cash_balance, adjustment_amount
-            FROM public.paper_trading_ledger
+            FROM public.trading_ledger
             {where}
             ORDER BY recorded_at_utc ASC;
             """;
@@ -327,7 +327,7 @@ public sealed class BudgetRepository
                 NULL::numeric    AS total_equity,
                 adjustment_amount,
                 description
-            FROM public.paper_trading_ledger
+            FROM public.trading_ledger
             WHERE recorded_at_utc >= @Start AND recorded_at_utc < @End
 
             UNION ALL
@@ -445,14 +445,14 @@ public sealed class BudgetRepository
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
                 new CommandDefinition(
-                    "SELECT current_cash FROM public.paper_trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
+                    "SELECT current_cash FROM public.trading_account WHERE is_active = TRUE LIMIT 1 FOR UPDATE;",
                     transaction: tx, cancellationToken: ct));
 
             if (!before.HasValue) { await tx.RollbackAsync(ct); return; }
 
             var after = before.Value + pnl;
             await conn.ExecuteAsync(new CommandDefinition(
-                "UPDATE public.paper_trading_account SET current_cash = @After, updated_at = NOW() WHERE is_active = TRUE;",
+                "UPDATE public.trading_account SET current_cash = @After, updated_at = NOW() WHERE is_active = TRUE;",
                 new { After = after }, tx, cancellationToken: ct));
 
             await InsertLedgerEntryAsync(conn, tx, Guid.NewGuid(), "SESSION_PNL", sessionId,
@@ -476,7 +476,7 @@ public sealed class BudgetRepository
         string? description, string? createdBy, CancellationToken ct)
     {
         const string sql = """
-            INSERT INTO public.paper_trading_ledger
+            INSERT INTO public.trading_ledger
                 (id, reference_type, reference_id, cash_balance_before, cash_balance_after,
                  adjustment_amount, description, created_by)
             VALUES

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS public.session_reports (
     id                      UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     report_date             DATE          NOT NULL,
     session_id              TEXT          NOT NULL,
-    trading_mode            TEXT          NOT NULL CHECK (trading_mode IN ('paper', 'live')),
+    trading_mode            TEXT          NOT NULL CHECK (trading_mode IN ('live', 'testnet')),
     session_start_utc       TIMESTAMPTZ   NOT NULL,
     session_end_utc         TIMESTAMPTZ   NOT NULL,
     opening_cash_balance    NUMERIC(20,8),

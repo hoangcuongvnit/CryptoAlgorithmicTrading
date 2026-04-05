@@ -4,8 +4,8 @@ using CryptoTrading.Shared.Timeline;
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
-using System.Diagnostics;
 using Polly.CircuitBreaker;
+using System.Diagnostics;
 
 namespace Executor.API.Services;
 
@@ -16,7 +16,6 @@ public sealed class OrderExecutionService
 {
     private readonly TradingSettings _tradingSettings;
     private readonly OrderAmountLimitValidator _orderAmountValidator;
-    private readonly PaperOrderSimulator _paperOrderSimulator;
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly SpreadFilterService _spreadFilter;
     private readonly PriceConsensusService _consensus;
@@ -33,7 +32,6 @@ public sealed class OrderExecutionService
     public OrderExecutionService(
         IOptions<TradingSettings> tradingSettings,
         OrderAmountLimitValidator orderAmountValidator,
-        PaperOrderSimulator paperOrderSimulator,
         BinanceOrderClient binanceOrderClient,
         SpreadFilterService spreadFilter,
         PriceConsensusService consensus,
@@ -49,7 +47,6 @@ public sealed class OrderExecutionService
     {
         _tradingSettings = tradingSettings.Value;
         _orderAmountValidator = orderAmountValidator;
-        _paperOrderSimulator = paperOrderSimulator;
         _binanceOrderClient = binanceOrderClient;
         _spreadFilter = spreadFilter;
         _consensus = consensus;
@@ -68,7 +65,6 @@ public sealed class OrderExecutionService
     {
         var stopwatch = Stopwatch.StartNew();
 
-        // Stamp session if not already set
         var session = _sessionSettings.Enabled ? _sessionClock.GetCurrentSession() : null;
         var orderRequest = request with
         {
@@ -87,51 +83,43 @@ public sealed class OrderExecutionService
                 ErrorMessage = amountValidation.ErrorMessage ?? "Order amount validation failed.",
                 ErrorCode = amountValidation.ErrorCode,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                IsPaperTrade = false,
                 SessionId = orderRequest.SessionId
             };
         }
 
-        // Phase 3.2: Consensus pricing gate (live mode only)
-        if (!_tradingSettings.PaperTradingMode)
+        var (consensusPassed, _, consensusReason) = await _consensus.ValidateAsync(orderRequest.Symbol, ct);
+        if (!consensusPassed)
         {
-            var (consensusPassed, _, consensusReason) = await _consensus.ValidateAsync(orderRequest.Symbol, ct);
-            if (!consensusPassed)
+            return new OrderResult
             {
-                return new OrderResult
-                {
-                    OrderId = Guid.NewGuid().ToString("N"),
-                    Symbol = orderRequest.Symbol,
-                    Side = orderRequest.Side,
-                    Success = false,
-                    ErrorMessage = consensusReason ?? "Price consensus check failed",
-                    ErrorCode = TradingErrorCode.PriceConsensusFailure,
-                    Timestamp = DateTime.UtcNow,
-                    IsPaperTrade = false,
-                    SessionId = orderRequest.SessionId
-                };
-            }
+                OrderId = Guid.NewGuid().ToString("N"),
+                Symbol = orderRequest.Symbol,
+                Side = orderRequest.Side,
+                Success = false,
+                ErrorMessage = consensusReason ?? "Price consensus check failed",
+                ErrorCode = TradingErrorCode.PriceConsensusFailure,
+                Timestamp = DateTime.UtcNow,
+                IsPaperTrade = false,
+                SessionId = orderRequest.SessionId
+            };
         }
 
-        // Phase 1.3: Spread pre-flight gate (live mode only)
-        if (!_tradingSettings.PaperTradingMode)
+        var (spreadPassed, spreadReason) = await _spreadFilter.CheckSpreadAsync(orderRequest.Symbol, ct);
+        if (!spreadPassed)
         {
-            var (spreadPassed, spreadReason) = await _spreadFilter.CheckSpreadAsync(orderRequest.Symbol, ct);
-            if (!spreadPassed)
+            return new OrderResult
             {
-                return new OrderResult
-                {
-                    OrderId = Guid.NewGuid().ToString("N"),
-                    Symbol = orderRequest.Symbol,
-                    Side = orderRequest.Side,
-                    Success = false,
-                    ErrorMessage = spreadReason ?? "Spread limit exceeded",
-                    ErrorCode = TradingErrorCode.SpreadLimitExceeded,
-                    Timestamp = DateTime.UtcNow,
-                    IsPaperTrade = false,
-                    SessionId = orderRequest.SessionId
-                };
-            }
+                OrderId = Guid.NewGuid().ToString("N"),
+                Symbol = orderRequest.Symbol,
+                Side = orderRequest.Side,
+                Success = false,
+                ErrorMessage = spreadReason ?? "Spread limit exceeded",
+                ErrorCode = TradingErrorCode.SpreadLimitExceeded,
+                Timestamp = DateTime.UtcNow,
+                IsPaperTrade = false,
+                SessionId = orderRequest.SessionId
+            };
         }
 
         _metrics.RecordOrderPlaced(orderRequest.Symbol, orderRequest.Side.ToString(), orderRequest.Quantity);
@@ -139,11 +127,7 @@ public sealed class OrderExecutionService
         OrderResult orderResult;
         try
         {
-            orderResult = _tradingSettings.PaperTradingMode
-                ? await _paperOrderSimulator.ExecuteAsync(orderRequest, ct)
-                : await _binanceOrderClient.PlaceOrderAsync(orderRequest, ct);
-
-            // Stamp session on result
+            orderResult = await _binanceOrderClient.PlaceOrderAsync(orderRequest, ct);
             orderResult = orderResult with
             {
                 SessionId = orderRequest.SessionId,
@@ -155,7 +139,7 @@ public sealed class OrderExecutionService
         }
         catch (BrokenCircuitException ex)
         {
-            _logger.LogError(ex, "Circuit breaker open for {Symbol} — exchange requests blocked", orderRequest.Symbol);
+            _logger.LogError(ex, "Circuit breaker open for {Symbol} - exchange requests blocked", orderRequest.Symbol);
             orderResult = new OrderResult
             {
                 OrderId = Guid.NewGuid().ToString("N"),
@@ -164,7 +148,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = "Exchange circuit breaker is open. Too many recent failures.",
                 ErrorCode = TradingErrorCode.ExchangeCircuitOpen,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                IsPaperTrade = false,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -179,7 +163,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = "Order execution timed out.",
                 ErrorCode = TradingErrorCode.ExchangeTimeout,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                IsPaperTrade = false,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -194,7 +178,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = ex.Message,
                 ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = _tradingSettings.PaperTradingMode,
+                IsPaperTrade = false,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -204,19 +188,16 @@ public sealed class OrderExecutionService
 
         if (orderResult.Success)
         {
-            _metrics.RecordOrderFilled(orderRequest.Symbol, orderResult.FilledQty, orderResult.FilledPrice, orderResult.IsPaperTrade);
+            _metrics.RecordOrderFilled(orderRequest.Symbol, orderResult.FilledQty, orderResult.FilledPrice);
             _positionTracker.OnOrderFilled(orderRequest, orderResult);
 
-            // Phase 1.3: Slippage tracking (live orders with a reference price)
-            if (!_tradingSettings.PaperTradingMode
-                && orderRequest.Price > 0
-                && orderResult.FilledPrice > 0)
+            if (orderRequest.Price > 0 && orderResult.FilledPrice > 0)
             {
                 var slippage = Math.Abs(orderResult.FilledPrice - orderRequest.Price) / orderRequest.Price;
                 if (slippage > _tradingSettings.SpreadFilter.SlippageTolerance)
                 {
                     _logger.LogWarning(
-                        "Slippage {Slippage:P3} exceeds tolerance {Tolerance:P3} — {Symbol} {Side} order {OrderId} (requested={Requested}, filled={Filled})",
+                        "Slippage {Slippage:P3} exceeds tolerance {Tolerance:P3} - {Symbol} {Side} order {OrderId} (requested={Requested}, filled={Filled})",
                         slippage,
                         _tradingSettings.SpreadFilter.SlippageTolerance,
                         orderRequest.Symbol,
@@ -228,10 +209,8 @@ public sealed class OrderExecutionService
             }
         }
 
-        // Enqueue DB write — never blocks the execution path
         _orderWriteQueue.TryEnqueue(orderRequest, orderResult);
 
-        // Audit stream is non-critical — fire-and-forget
         _ = _auditStreamPublisher.PublishAsync(orderRequest, orderResult)
             .ContinueWith(t =>
             {
@@ -269,7 +248,7 @@ public sealed class OrderExecutionService
                     ["side"] = orderRequest.Side.ToString(),
                     ["filled_qty"] = orderResult.FilledQty,
                     ["filled_price"] = orderResult.FilledPrice,
-                    ["is_paper"] = orderResult.IsPaperTrade,
+                    ["trading_mode"] = "live",
                 },
                 Tags = [orderRequest.Side.ToString().ToLowerInvariant(), "filled"],
             }, ct);

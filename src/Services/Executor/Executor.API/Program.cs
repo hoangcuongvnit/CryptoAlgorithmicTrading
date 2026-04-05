@@ -70,7 +70,6 @@ builder.Services.AddSingleton<BudgetRepository>();
 builder.Services.AddSingleton<AuditStreamPublisher>();
 builder.Services.AddSingleton<SystemEventPublisher>();
 builder.Services.AddSingleton<OrderWriteQueue>();
-builder.Services.AddSingleton<PaperOrderSimulator>();
 builder.Services.AddSingleton<Executor.API.Infrastructure.BinanceOrderClient>();
 builder.Services.AddSingleton<SpreadFilterService>();
 builder.Services.AddSingleton<PriceConsensusService>();
@@ -200,12 +199,10 @@ app.MapGet("/api/trading/report/hourly", async (
 app.MapGet("/api/trading/report/sessions/daily", async (
     [FromServices] OrderRepository repo,
     [FromQuery] string? date,
-    [FromQuery] string? mode,
     CancellationToken ct) =>
 {
     var reportDate = DateTime.TryParse(date, out var parsed) ? parsed : DateTime.UtcNow.Date;
-    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
-    var sessions = await repo.GetSessionDailyReportAsync(reportDate, isPaper, ct);
+    var sessions = await repo.GetSessionDailyReportAsync(reportDate, ct);
     return Results.Ok(sessions);
 });
 
@@ -213,24 +210,20 @@ app.MapGet("/api/trading/report/sessions/range", async (
     [FromServices] OrderRepository repo,
     [FromQuery] string? from,
     [FromQuery] string? to,
-    [FromQuery] string? mode,
     CancellationToken ct) =>
 {
     var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date.AddDays(-6);
     var toDate = DateTime.TryParse(to, out var pTo) ? pTo : DateTime.UtcNow.Date;
-    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
-    var sessions = await repo.GetSessionRangeReportAsync(fromDate, toDate, isPaper, ct);
+    var sessions = await repo.GetSessionRangeReportAsync(fromDate, toDate, ct);
     return Results.Ok(sessions);
 });
 
 app.MapGet("/api/trading/report/sessions/{sessionId}/symbols", async (
     [FromServices] OrderRepository repo,
     string sessionId,
-    [FromQuery] string? mode,
     CancellationToken ct) =>
 {
-    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
-    var symbols = await repo.GetSessionSymbolsAsync(sessionId, isPaper, ct);
+    var symbols = await repo.GetSessionSymbolsAsync(sessionId, ct);
     return Results.Ok(symbols);
 });
 
@@ -238,13 +231,11 @@ app.MapGet("/api/trading/report/sessions/equity-curve", async (
     [FromServices] OrderRepository repo,
     [FromQuery] string? from,
     [FromQuery] string? to,
-    [FromQuery] string? mode,
     CancellationToken ct) =>
 {
     var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date.AddDays(-6);
     var toDate = DateTime.TryParse(to, out var pTo) ? pTo : DateTime.UtcNow.Date;
-    bool? isPaper = mode switch { "paper" => true, "live" => false, _ => null };
-    var curve = await repo.GetSessionEquityCurveAsync(fromDate, toDate, isPaper, ct);
+    var curve = await repo.GetSessionEquityCurveAsync(fromDate, toDate, ct);
     return Results.Ok(curve);
 });
 
@@ -290,7 +281,7 @@ app.MapGet("/api/trading/budget/status", async (
 {
     var status = await budget.GetBudgetStatusAsync(ct);
     return status is null
-        ? Results.NotFound(new { error = "No active paper trading account found. Run the capital ledger migration." })
+        ? Results.NotFound(new { error = "No active trading account found. Run the capital ledger migration." })
         : Results.Ok(status);
 });
 
@@ -359,7 +350,7 @@ app.MapGet("/api/trading/report/capital-flow", async (
 {
     var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date;
     var toDate   = DateTime.TryParse(to,   out var pTo)   ? pTo   : DateTime.UtcNow.Date;
-    var tradingMode = mode is "live" ? "live" : "paper";
+    var tradingMode = mode is "testnet" ? "testnet" : "live";
     var events = await budget.GetCapitalFlowAsync(fromDate, toDate, tradingMode, ct);
     return Results.Ok(events);
 });
@@ -638,19 +629,6 @@ app.MapPost("/api/trading/validate-exchange", async (
     }
 });
 
-app.MapPost("/api/trading/reload-trading-config", (
-    [FromServices] IOptions<TradingSettings> tradingOpts,
-    HttpRequest request) =>
-{
-    var body = request.ReadFromJsonAsync<TradingModeReloadRequest>().GetAwaiter().GetResult();
-    if (body is null) return Results.BadRequest("Request body is required");
-
-    var settings = tradingOpts.Value;
-    settings.PaperTradingMode = body.PaperTradingMode;
-
-    return Results.Ok(new { reloaded = true, paperTradingMode = body.PaperTradingMode });
-});
-
 app.Run();
 
 record BudgetOperationRequest(decimal Amount, string? Description, string? RequestedBy);
@@ -675,4 +653,3 @@ record ResumeTradingRequest(string? Reason, string? RequestedBy, string Confirma
 record ExchangeReloadRequest(string ApiKey, string ApiSecret, string TestnetApiKey, string TestnetApiSecret, bool UseTestnet);
 record ValidateExchangeRequest(string ApiKey, string ApiSecret, bool UseTestnet);
 record OrderAmountLimitReloadRequest(decimal? MinOrderAmount, decimal? MaxOrderAmount);
-record TradingModeReloadRequest(bool PaperTradingMode);

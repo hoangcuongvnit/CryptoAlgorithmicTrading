@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS orders (
     stop_loss DECIMAL(18, 8),
     take_profit DECIMAL(18, 8),
     strategy VARCHAR(100),
-    is_paper BOOLEAN NOT NULL DEFAULT TRUE,
     success BOOLEAN NOT NULL,
     error_msg TEXT
 );

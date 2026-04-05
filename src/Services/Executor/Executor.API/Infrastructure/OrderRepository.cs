@@ -22,13 +22,13 @@ public sealed class OrderRepository
             INSERT INTO orders (
                 id, time, symbol, side, order_type, quantity, price,
                 filled_price, filled_qty, stop_loss, take_profit,
-                strategy, is_paper, success, error_msg, status,
+                strategy, success, error_msg, status,
                 session_id, session_phase, is_reduce_only,
                 forced_liquidation, liquidation_reason)
             VALUES (
                 @Id, @Time, @Symbol, @Side, @OrderType, @Quantity, @Price,
                 @FilledPrice, @FilledQty, @StopLoss, @TakeProfit,
-                @Strategy, @IsPaper, @Success, @ErrorMessage, @Status,
+                @Strategy, @Success, @ErrorMessage, @Status,
                 @SessionId, @SessionPhase, @IsReduceOnly,
                 @ForcedLiquidation, @LiquidationReason);
             """;
@@ -49,7 +49,6 @@ public sealed class OrderRepository
             StopLoss = request.StopLoss == 0 ? (decimal?)null : request.StopLoss,
             TakeProfit = request.TakeProfit == 0 ? (decimal?)null : request.TakeProfit,
             Strategy = request.StrategyName,
-            IsPaper = result.IsPaperTrade,
             Success = result.Success,
             ErrorMessage = string.IsNullOrWhiteSpace(result.ErrorMessage) ? null : result.ErrorMessage,
             Status = result.Success ? "OPEN" : "FAILED",
@@ -126,7 +125,6 @@ public sealed class OrderRepository
                    status       AS Status,
                    realized_pnl AS RealizedPnL,
                    roe_percent  AS RoePercent,
-                   is_paper     AS IsPaperTrade,
                    success      AS Success,
                    error_msg    AS ErrorMessage,
                    strategy     AS Strategy,
@@ -171,7 +169,6 @@ public sealed class OrderRepository
                    status       AS Status,
                    realized_pnl AS RealizedPnL,
                    roe_percent  AS RoePercent,
-                   is_paper     AS IsPaperTrade,
                    success      AS Success,
                    error_msg    AS ErrorMessage,
                    strategy     AS Strategy,
@@ -211,7 +208,6 @@ public sealed class OrderRepository
         string Status,
         decimal? RealizedPnL,
         decimal? RoePercent,
-        bool IsPaperTrade,
         bool Success,
         string? ErrorMessage,
         string? Strategy,
@@ -501,14 +497,11 @@ public sealed class OrderRepository
     /// <summary>Returns all 6 session rows for the given date, with zeros for empty sessions.</summary>
     public async Task<IReadOnlyList<SessionReportRow>> GetSessionDailyReportAsync(
         DateTime date,
-        bool? isPaper,
         CancellationToken cancellationToken)
     {
         var startUtc = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
         var endUtc = startUtc.AddDays(1);
         var dateStr = startUtc.ToString("yyyyMMdd");
-
-        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
 
         var sql = $"""
             WITH date_sessions AS (
@@ -533,7 +526,7 @@ public sealed class OrderRepository
                     COUNT(DISTINCT symbol) FILTER (WHERE success = true)                   AS distinct_symbols,
                     STRING_AGG(DISTINCT symbol, ', ') FILTER (WHERE success = true)        AS symbols_csv
                 FROM public.orders
-                WHERE time >= @Start AND time < @End{modeFilter}
+                WHERE time >= @Start AND time < @End
                 GROUP BY (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int
             )
             SELECT
@@ -562,7 +555,7 @@ public sealed class OrderRepository
             await connection.OpenAsync(cancellationToken);
             var rows = await connection.QueryAsync<dynamic>(new CommandDefinition(
                 sql,
-                new { DateStr = dateStr, Start = startUtc, End = endUtc, IsPaper = isPaper },
+                new { DateStr = dateStr, Start = startUtc, End = endUtc },
                 cancellationToken: cancellationToken));
 
             return rows.Select(r => new SessionReportRow(
@@ -593,12 +586,10 @@ public sealed class OrderRepository
     public async Task<IReadOnlyList<SessionReportRow>> GetSessionRangeReportAsync(
         DateTime from,
         DateTime to,
-        bool? isPaper,
         CancellationToken cancellationToken)
     {
         var startUtc = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
         var endUtc = DateTime.SpecifyKind(to.Date, DateTimeKind.Utc).AddDays(1);
-        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
 
         var sql = $"""
             SELECT
@@ -619,7 +610,7 @@ public sealed class OrderRepository
                 STRING_AGG(DISTINCT symbol, ', ') FILTER (WHERE success = true)                       AS symbols_csv,
                 (COUNT(*) FILTER (WHERE status = 'OPEN') = 0)                                         AS is_flat_at_close
             FROM public.orders
-            WHERE time >= @Start AND time < @End{modeFilter}
+            WHERE time >= @Start AND time < @End
             GROUP BY
                 TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int,
                 (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int,
@@ -634,7 +625,7 @@ public sealed class OrderRepository
             await connection.OpenAsync(cancellationToken);
             var rows = await connection.QueryAsync<dynamic>(new CommandDefinition(
                 sql,
-                new { Start = startUtc, End = endUtc, IsPaper = isPaper },
+                new { Start = startUtc, End = endUtc },
                 cancellationToken: cancellationToken));
 
             return rows.Select(r => new SessionReportRow(
@@ -664,7 +655,6 @@ public sealed class OrderRepository
     /// <summary>Returns per-symbol breakdown for a specific session (e.g. "20240321-S3").</summary>
     public async Task<IReadOnlyList<SessionSymbolRow>> GetSessionSymbolsAsync(
         string sessionId,
-        bool? isPaper,
         CancellationToken cancellationToken)
     {
         // Parse sessionId: "20240321-S3" → date=2024-03-21, sessionNum=3
@@ -673,8 +663,6 @@ public sealed class OrderRepository
             _logger.LogWarning("Invalid sessionId format: {SessionId}", sessionId);
             return [];
         }
-
-        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
 
         var sql = $"""
             SELECT
@@ -690,7 +678,7 @@ public sealed class OrderRepository
                 COUNT(*) FILTER (WHERE realized_pnl > 0)                                  AS win_trades,
                 COUNT(*) FILTER (WHERE realized_pnl < 0)                                  AS loss_trades
             FROM public.orders
-            WHERE time >= @Start AND time < @End{modeFilter}
+            WHERE time >= @Start AND time < @End
             GROUP BY symbol
             ORDER BY ABS(SUM(COALESCE(realized_pnl, 0))) DESC;
             """;
@@ -701,7 +689,7 @@ public sealed class OrderRepository
             await connection.OpenAsync(cancellationToken);
             var rows = await connection.QueryAsync<dynamic>(new CommandDefinition(
                 sql,
-                new { SessionId = sessionId, Start = sessionStart, End = sessionEnd, IsPaper = isPaper },
+                new { SessionId = sessionId, Start = sessionStart, End = sessionEnd },
                 cancellationToken: cancellationToken));
 
             return rows.Select(r => new SessionSymbolRow(
@@ -729,12 +717,10 @@ public sealed class OrderRepository
     public async Task<IReadOnlyList<SessionEquityPoint>> GetSessionEquityCurveAsync(
         DateTime from,
         DateTime to,
-        bool? isPaper,
         CancellationToken cancellationToken)
     {
         var startUtc = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
         var endUtc = DateTime.SpecifyKind(to.Date, DateTimeKind.Utc).AddDays(1);
-        var modeFilter = isPaper.HasValue ? " AND is_paper = @IsPaper" : "";
 
         var sql = $"""
             SELECT
@@ -744,7 +730,7 @@ public sealed class OrderRepository
                 COALESCE(SUM(realized_pnl), 0)                                                       AS session_pnl
             FROM public.orders
             WHERE time >= @Start AND time < @End
-              AND success = true{modeFilter}
+                            AND success = true
             GROUP BY
                 TO_CHAR(time, 'YYYYMMDD') || '-S' || (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int,
                 (FLOOR(EXTRACT(HOUR FROM time) / 8) + 1)::int
@@ -757,7 +743,7 @@ public sealed class OrderRepository
             await connection.OpenAsync(cancellationToken);
             var rows = (await connection.QueryAsync<dynamic>(new CommandDefinition(
                 sql,
-                new { Start = startUtc, End = endUtc, IsPaper = isPaper },
+                new { Start = startUtc, End = endUtc },
                 cancellationToken: cancellationToken))).ToList();
 
             decimal cumulative = 0m;

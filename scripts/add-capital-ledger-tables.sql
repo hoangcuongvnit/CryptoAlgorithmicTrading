@@ -1,12 +1,12 @@
 -- Migration: add-capital-ledger-tables.sql
--- Purpose: Add virtual budget and cash flow tracking for paper trading
+-- Purpose: Add budget and cash flow tracking for trading
 -- Date: 2026-03-22
 -- Spec: docs/Update_report_budget.md
 
 BEGIN;
 
--- ── 1. Paper trading account: holds current cash state ───────────────────
-CREATE TABLE IF NOT EXISTS public.paper_trading_account (
+-- ── 1. Trading account: holds current cash state ─────────────────────────
+CREATE TABLE IF NOT EXISTS public.trading_account (
     id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     current_cash    NUMERIC(20,8) NOT NULL DEFAULT 10000.00,
     initial_capital NUMERIC(20,8) NOT NULL DEFAULT 10000.00,
@@ -16,16 +16,16 @@ CREATE TABLE IF NOT EXISTS public.paper_trading_account (
     updated_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
--- Seed with default paper trading budget (only if table is empty)
-INSERT INTO public.paper_trading_account (current_cash, initial_capital, currency)
+-- Seed with default trading budget (only if table is empty)
+INSERT INTO public.trading_account (current_cash, initial_capital, currency)
 SELECT 10000.00, 10000.00, 'USDT'
-WHERE NOT EXISTS (SELECT 1 FROM public.paper_trading_account);
+WHERE NOT EXISTS (SELECT 1 FROM public.trading_account);
 
-CREATE INDEX IF NOT EXISTS idx_paper_trading_account_active
-    ON public.paper_trading_account (is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_trading_account_active
+    ON public.trading_account (is_active) WHERE is_active = TRUE;
 
 -- ── 2. Audit ledger for all capital changes ──────────────────────────────
-CREATE TABLE IF NOT EXISTS public.paper_trading_ledger (
+CREATE TABLE IF NOT EXISTS public.trading_ledger (
     id                  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     recorded_at_utc     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     reference_type      VARCHAR(30)   NOT NULL
@@ -40,20 +40,20 @@ CREATE TABLE IF NOT EXISTS public.paper_trading_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ledger_recorded_at
-    ON public.paper_trading_ledger (recorded_at_utc DESC);
+    ON public.trading_ledger (recorded_at_utc DESC);
 CREATE INDEX IF NOT EXISTS idx_ledger_type
-    ON public.paper_trading_ledger (reference_type);
+    ON public.trading_ledger (reference_type);
 CREATE INDEX IF NOT EXISTS idx_ledger_reference
-    ON public.paper_trading_ledger (reference_id);
+    ON public.trading_ledger (reference_id);
 
 -- ── 3. Seed initial ledger entry ─────────────────────────────────────────
-INSERT INTO public.paper_trading_ledger
+INSERT INTO public.trading_ledger
     (reference_type, cash_balance_before, cash_balance_after, adjustment_amount, description, created_by)
 SELECT 'INITIAL', 0, a.initial_capital, a.initial_capital,
-       'System initialization - default paper trading budget', 'SYSTEM'
-FROM public.paper_trading_account a
+             'System initialization - default trading budget', 'SYSTEM'
+FROM public.trading_account a
 WHERE a.is_active = TRUE
-  AND NOT EXISTS (SELECT 1 FROM public.paper_trading_ledger WHERE reference_type = 'INITIAL')
+    AND NOT EXISTS (SELECT 1 FROM public.trading_ledger WHERE reference_type = 'INITIAL')
 LIMIT 1;
 
 -- ── 4. Session capital snapshots ─────────────────────────────────────────
@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS public.session_capital_snapshot (
     session_date        DATE          NOT NULL,
     snapshot_type       VARCHAR(10)   NOT NULL            -- 'OPEN' or 'CLOSE'
         CHECK (snapshot_type IN ('OPEN', 'CLOSE')),
-    trading_mode        VARCHAR(10)   NOT NULL DEFAULT 'paper'
-        CHECK (trading_mode IN ('paper', 'live')),
+    trading_mode        VARCHAR(10)   NOT NULL DEFAULT 'live'
+        CHECK (trading_mode IN ('live', 'testnet')),
     cash_balance        NUMERIC(20,8) NOT NULL,
     holdings_value      NUMERIC(20,8) NOT NULL DEFAULT 0, -- mark-to-market value of open positions
     total_equity        NUMERIC(20,8) GENERATED ALWAYS AS (cash_balance + holdings_value) STORED,

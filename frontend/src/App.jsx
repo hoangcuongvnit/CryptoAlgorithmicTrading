@@ -170,14 +170,12 @@ function Layout() {
             <div className="flex items-center gap-2 px-2">
               <span className="text-xs font-semibold rounded-full px-3 py-1 w-full text-center"
                 style={
-                  tradingMode === 'paper'
-                    ? { background: '#1e3a5f', border: '1px solid #2f6fed', color: '#7fb3ff' }
-                    : tradingMode === 'testnet'
+                  tradingMode === 'testnet'
                     ? { background: '#1e3050', border: '1px solid #3b82f6', color: '#93c5fd' }
                     : { background: '#3b1c1c', border: '1px solid #ef4444', color: '#fca5a5' }
                 }
               >
-                {tradingMode === 'paper' ? '📝 Paper' : tradingMode === 'testnet' ? '🧪 TestNet' : '💰 Live'}
+                {tradingMode === 'testnet' ? '🧪 TestNet' : '💰 Live'}
               </span>
             </div>
           )}

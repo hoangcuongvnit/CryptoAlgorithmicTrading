@@ -26,12 +26,6 @@ public sealed record ExchangeSettingsRecord(
     string? UpdatedBy,
     DateTime? UpdatedAtUtc);
 
-public sealed record TradingModeSettingsRecord(
-    bool PaperTradingMode,
-    decimal InitialBalance,
-    string? UpdatedBy,
-    DateTime? UpdatedAtUtc);
-
 public sealed record RiskSettingsRecord(
     decimal MaxDrawdownPercent,
     decimal MinRiskReward,
@@ -503,81 +497,6 @@ public sealed class SystemSettingsRepository
         }
 
         _logger.LogInformation("Exchange settings saved by {UpdatedBy}", updatedBy ?? "unknown");
-    }
-
-    // ── Trading Mode ──────────────────────────────────────────────────────────
-
-    public async Task<TradingModeSettingsRecord> GetTradingModeSettingsAsync(CancellationToken ct = default)
-    {
-        await EnsureSchemaAsync(ct);
-
-        const string sql = """
-            SELECT key, value FROM public.system_settings
-            WHERE key LIKE 'trading.%';
-            """;
-        try
-        {
-            await using var conn = new NpgsqlConnection(_connectionString);
-            await conn.OpenAsync(ct);
-            var rows = await conn.QueryAsync<(string Key, string Value)>(
-                new CommandDefinition(sql, cancellationToken: ct));
-
-            var d = rows.ToDictionary(r => r.Key, r => r.Value);
-
-            bool paper = !d.TryGetValue("trading.paperTradingMode", out var pm) || pm == "true";
-            decimal balance = d.TryGetValue("trading.initialBalance", out var ib) &&
-                              decimal.TryParse(ib, System.Globalization.NumberStyles.Any,
-                                  System.Globalization.CultureInfo.InvariantCulture, out var bd)
-                              ? bd : 10000m;
-            string? updatedBy = d.TryGetValue("trading.updatedBy", out var ub) ? ub : null;
-            DateTime? updatedAtUtc = d.TryGetValue("trading.updatedAtUtc", out var ua) &&
-                                     DateTime.TryParse(ua, out var uad) ? uad : null;
-
-            return new TradingModeSettingsRecord(paper, balance, updatedBy, updatedAtUtc);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to read Trading Mode settings");
-            return new TradingModeSettingsRecord(true, 10000m, null, null);
-        }
-    }
-
-    public async Task SaveTradingModeSettingsAsync(
-        bool paperTradingMode,
-        decimal initialBalance,
-        string? updatedBy,
-        CancellationToken ct = default)
-    {
-        await EnsureSchemaAsync(ct);
-
-        var now = DateTime.UtcNow;
-        var updates = new[]
-        {
-            ("trading.paperTradingMode", paperTradingMode ? "true" : "false"),
-            ("trading.initialBalance", initialBalance.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-            ("trading.updatedBy", updatedBy ?? "system"),
-            ("trading.updatedAtUtc", now.ToString("O")),
-        };
-
-        const string sql = """
-            INSERT INTO public.system_settings (key, value, updated_at_utc, updated_by)
-            VALUES (@Key, @Value, @Now, @UpdatedBy)
-            ON CONFLICT (key) DO UPDATE
-                SET value          = EXCLUDED.value,
-                    updated_at_utc = EXCLUDED.updated_at_utc,
-                    updated_by     = EXCLUDED.updated_by;
-            """;
-
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync(ct);
-        foreach (var (key, value) in updates)
-        {
-            await conn.ExecuteAsync(new CommandDefinition(sql,
-                new { Key = key, Value = value, Now = now, UpdatedBy = updatedBy }, cancellationToken: ct));
-        }
-
-        _logger.LogInformation("Trading mode set to {Mode} by {UpdatedBy}",
-            paperTradingMode ? "Paper" : "Live", updatedBy ?? "unknown");
     }
 
     // ── Risk Settings ─────────────────────────────────────────────────────────

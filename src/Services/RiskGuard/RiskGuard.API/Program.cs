@@ -66,7 +66,6 @@ app.MapGet("/api/risk/config", (IOptions<RiskSettings> opts) =>
         virtualAccountBalance = s.VirtualAccountBalance,
         maxDrawdownPercent = s.MaxDrawdownPercent,
         cooldownSeconds = s.CooldownSeconds,
-        paperTradingOnly = s.PaperTradingOnly,
         allowedSymbols = s.AllowedSymbols
     });
 });
@@ -81,7 +80,6 @@ app.MapPost("/api/risk/reload-config", (IOptions<RiskSettings> opts, HttpRequest
     if (body.MinRiskReward.HasValue) s.MinRiskReward = body.MinRiskReward.Value;
     if (body.MaxPositionSizePercent.HasValue) s.MaxPositionSizePercent = body.MaxPositionSizePercent.Value;
     if (body.CooldownSeconds.HasValue) s.CooldownSeconds = body.CooldownSeconds.Value;
-    if (body.PaperTradingOnly.HasValue) s.PaperTradingOnly = body.PaperTradingOnly.Value;
 
     return Results.Ok(new { reloaded = true });
 });
@@ -96,7 +94,7 @@ app.MapGet("/api/risk/stats", async (
     var s = opts.Value;
 
     decimal dailyPnl = 0m;
-    try { dailyPnl = await statsRepo.GetDailyNetPnlAsync(s.PaperTradingOnly, ct); }
+    try { dailyPnl = await statsRepo.GetDailyNetPnlAsync(ct); }
     catch { /* DB unavailable — return zero, never block */ }
 
     var maxLoss = s.MaxDrawdownPercent / 100m * s.VirtualAccountBalance;
@@ -213,8 +211,7 @@ record RiskReloadRequest(
     decimal? MaxDrawdownPercent,
     decimal? MinRiskReward,
     decimal? MaxPositionSizePercent,
-    int? CooldownSeconds,
-    bool? PaperTradingOnly);
+    int? CooldownSeconds);
 
 /// <summary>Query parameters for the evaluation history endpoint.</summary>
 record EvaluationQueryParams(

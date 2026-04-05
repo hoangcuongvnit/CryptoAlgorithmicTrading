@@ -66,7 +66,6 @@ export function RuleStatusGrid({ config, riskStats }) {
   const drawdownUsed = Number(riskStats?.drawdownUsedPercent ?? 0)
   const drawdownMax = Number(config.maxDrawdownPercent ?? 10)
   const drawdownRatio = drawdownMax > 0 ? drawdownUsed / drawdownMax : 0
-  const isPaper = config.paperTradingOnly !== false
 
   const rules = [
     {
@@ -106,13 +105,13 @@ export function RuleStatusGrid({ config, riskStats }) {
       impact: t('rules.cooldown.impact'),
     },
     {
-      icon: isPaper ? '🧪' : '💰',
+      icon: '💰',
       label: t('rules.tradingMode.label'),
-      meaning: isPaper ? t('rules.tradingMode.paperMeaning') : t('rules.tradingMode.liveMeaning'),
-      configuredValue: isPaper ? t('rules.tradingMode.paperConfig') : t('rules.tradingMode.liveConfig'),
-      currentValue: isPaper ? t('rules.tradingMode.paperCurrent') : t('rules.tradingMode.liveCurrent'),
-      status: isPaper ? 'pass' : 'warning',
-      impact: isPaper ? t('rules.tradingMode.paperImpact') : t('rules.tradingMode.liveImpact'),
+      meaning: t('rules.tradingMode.liveMeaning'),
+      configuredValue: t('rules.tradingMode.liveConfig'),
+      currentValue: t('rules.tradingMode.liveCurrent'),
+      status: 'warning',
+      impact: t('rules.tradingMode.liveImpact'),
     },
     {
       icon: '💵',
