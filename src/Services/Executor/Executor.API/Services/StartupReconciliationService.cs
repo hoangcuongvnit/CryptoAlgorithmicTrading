@@ -31,6 +31,7 @@ public sealed class StartupReconciliationService : BackgroundService
     private readonly SessionSettings _sessionSettings;
     private readonly TradingSettings _tradingSettings;
     private readonly BinanceRestClientProvider _clientProvider;
+    private readonly CredentialSyncGate _credentialSyncGate;
     private readonly ILogger<StartupReconciliationService> _logger;
 
     // How far back to look for unclosed positions (covers max 2 × 4-hour sessions)
@@ -46,6 +47,7 @@ public sealed class StartupReconciliationService : BackgroundService
         IOptions<SessionSettings> sessionSettings,
         IOptions<TradingSettings> tradingSettings,
         BinanceRestClientProvider clientProvider,
+        CredentialSyncGate credentialSyncGate,
         ILogger<StartupReconciliationService> logger)
     {
         _recoveryState = recoveryState;
@@ -57,6 +59,7 @@ public sealed class StartupReconciliationService : BackgroundService
         _sessionSettings = sessionSettings.Value;
         _tradingSettings = tradingSettings.Value;
         _clientProvider = clientProvider;
+        _credentialSyncGate = credentialSyncGate;
         _logger = logger;
     }
 
@@ -64,6 +67,10 @@ public sealed class StartupReconciliationService : BackgroundService
     {
         _logger.LogInformation(
             "StartupReconciliationService starting. RunId={RunId}", _recoveryState.RecoveryRunId);
+
+        // Wait for CredentialSyncService to finish so BinanceRestClientProvider
+        // has correct credentials before any Binance API calls in reconciliation.
+        await Task.WhenAny(_credentialSyncGate.WhenComplete, Task.Delay(5000, stoppingToken));
 
         _recoveryState.TransitionTo(SystemRecoveryState.RecoveryMode);
 

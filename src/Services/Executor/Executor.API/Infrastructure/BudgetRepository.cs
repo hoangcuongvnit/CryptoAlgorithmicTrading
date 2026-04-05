@@ -7,6 +7,8 @@ public sealed class BudgetRepository
 {
     private readonly string _connectionString;
     private readonly ILogger<BudgetRepository> _logger;
+    private readonly SemaphoreSlim _schemaLock = new(1, 1);
+    private bool _budgetSchemaEnsured;
 
     public BudgetRepository(IConfiguration configuration, ILogger<BudgetRepository> logger)
     {
@@ -57,6 +59,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             var row = await conn.QuerySingleOrDefaultAsync<dynamic>(
                 new CommandDefinition(sql, cancellationToken: ct));
             if (row is null) return null;
@@ -103,6 +106,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             var p = new { From = from, To = to, Limit = limit, Offset = offset };
             var rows  = await conn.QueryAsync<dynamic>(new CommandDefinition(sql, p, cancellationToken: ct));
             var total = await conn.QuerySingleAsync<long>(new CommandDefinition(countSql, p, cancellationToken: ct));
@@ -142,6 +146,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             await using var tx = await conn.BeginTransactionAsync(ct);
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
@@ -182,6 +187,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             await using var tx = await conn.BeginTransactionAsync(ct);
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
@@ -225,6 +231,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             await using var tx = await conn.BeginTransactionAsync(ct);
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
@@ -292,6 +299,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             var rows = await conn.QueryAsync<dynamic>(
                 new CommandDefinition(sql, new { From = from, To = to }, cancellationToken: ct));
 
@@ -352,6 +360,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             var rows = await conn.QueryAsync<dynamic>(new CommandDefinition(sql, new
             {
                 Start     = startUtc,
@@ -412,6 +421,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             await conn.ExecuteAsync(new CommandDefinition(sql, new
             {
                 SessionId     = sessionId,
@@ -441,6 +451,7 @@ public sealed class BudgetRepository
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync(ct);
+            await EnsureBudgetSchemaAsync(conn, ct);
             await using var tx = await conn.BeginTransactionAsync(ct);
 
             var before = await conn.QuerySingleOrDefaultAsync<decimal?>(
@@ -488,5 +499,100 @@ public sealed class BudgetRepository
             Before = before, After = after, Adjustment = adjustment,
             Description = description, CreatedBy = createdBy
         }, tx, cancellationToken: ct));
+    }
+
+    private async Task EnsureBudgetSchemaAsync(NpgsqlConnection conn, CancellationToken ct)
+    {
+        if (_budgetSchemaEnsured)
+        {
+            return;
+        }
+
+        await _schemaLock.WaitAsync(ct);
+        try
+        {
+            if (_budgetSchemaEnsured)
+            {
+                return;
+            }
+
+            const string bootstrapSql = """
+                CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+                CREATE TABLE IF NOT EXISTS public.trading_account (
+                    id              UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+                    current_cash    NUMERIC(20,8)  NOT NULL DEFAULT 10000.00,
+                    initial_capital NUMERIC(20,8)  NOT NULL DEFAULT 10000.00,
+                    currency        VARCHAR(5)     NOT NULL DEFAULT 'USDT',
+                    is_active       BOOLEAN        NOT NULL DEFAULT TRUE,
+                    created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+                    updated_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+                );
+
+                INSERT INTO public.trading_account (current_cash, initial_capital, currency)
+                SELECT 10000.00, 10000.00, 'USDT'
+                WHERE NOT EXISTS (SELECT 1 FROM public.trading_account);
+
+                CREATE INDEX IF NOT EXISTS idx_trading_account_active
+                    ON public.trading_account (is_active) WHERE is_active = TRUE;
+
+                CREATE TABLE IF NOT EXISTS public.trading_ledger (
+                    id                  UUID           PRIMARY KEY,
+                    recorded_at_utc     TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+                    reference_type      VARCHAR(30)    NOT NULL,
+                    reference_id        TEXT,
+                    cash_balance_before NUMERIC(20,8)  NOT NULL,
+                    cash_balance_after  NUMERIC(20,8)  NOT NULL,
+                    adjustment_amount   NUMERIC(20,8)  NOT NULL,
+                    description         TEXT,
+                    created_by          VARCHAR(100),
+                    currency            VARCHAR(5)     NOT NULL DEFAULT 'USDT'
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_ledger_recorded_at
+                    ON public.trading_ledger (recorded_at_utc DESC);
+                CREATE INDEX IF NOT EXISTS idx_ledger_type
+                    ON public.trading_ledger (reference_type);
+                CREATE INDEX IF NOT EXISTS idx_ledger_reference
+                    ON public.trading_ledger (reference_id);
+
+                INSERT INTO public.trading_ledger
+                    (id, reference_type, cash_balance_before, cash_balance_after, adjustment_amount, description, created_by)
+                SELECT gen_random_uuid(), 'INITIAL', 0, a.initial_capital, a.initial_capital,
+                       'System initialization - default trading budget', 'SYSTEM'
+                FROM public.trading_account a
+                WHERE a.is_active = TRUE
+                  AND NOT EXISTS (SELECT 1 FROM public.trading_ledger WHERE reference_type = 'INITIAL')
+                LIMIT 1;
+
+                CREATE TABLE IF NOT EXISTS public.session_capital_snapshot (
+                    id                  UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
+                    session_id          VARCHAR(20)    NOT NULL,
+                    session_number      SMALLINT       NOT NULL,
+                    session_date        DATE           NOT NULL,
+                    snapshot_type       VARCHAR(10)    NOT NULL,
+                    trading_mode        VARCHAR(10)    NOT NULL DEFAULT 'live',
+                    cash_balance        NUMERIC(20,8)  NOT NULL,
+                    holdings_value      NUMERIC(20,8)  NOT NULL DEFAULT 0,
+                    total_equity        NUMERIC(20,8)  GENERATED ALWAYS AS (cash_balance + holdings_value) STORED,
+                    open_position_count SMALLINT       NOT NULL DEFAULT 0,
+                    is_flat             BOOLEAN        NOT NULL DEFAULT TRUE,
+                    recorded_at_utc     TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+                    UNIQUE (session_id, snapshot_type, trading_mode)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_session_snapshot_date
+                    ON public.session_capital_snapshot (session_date DESC);
+                CREATE INDEX IF NOT EXISTS idx_session_snapshot_session
+                    ON public.session_capital_snapshot (session_id, trading_mode);
+                """;
+
+            await conn.ExecuteAsync(new CommandDefinition(bootstrapSql, cancellationToken: ct));
+            _budgetSchemaEnsured = true;
+        }
+        finally
+        {
+            _schemaLock.Release();
+        }
     }
 }

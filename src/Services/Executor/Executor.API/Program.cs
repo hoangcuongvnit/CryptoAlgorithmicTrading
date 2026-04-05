@@ -62,7 +62,14 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 });
 
 builder.Services.AddSingleton<BinanceRestClientProvider>();
+builder.Services.AddSingleton<CredentialSyncGate>();
 builder.Services.AddHttpClient("BybitConsensus", c => c.Timeout = TimeSpan.FromMilliseconds(500));
+builder.Services.AddHttpClient("gateway", c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["Gateway:BaseUrl"] ?? "http://localhost:5000");
+    c.Timeout = TimeSpan.FromSeconds(
+        Math.Clamp(builder.Configuration.GetValue("Gateway:TimeoutSeconds", 10), 3, 60));
+});
 
 builder.Services.AddSingleton<PriceReferenceRepository>();
 builder.Services.AddSingleton<OrderRepository>();
@@ -88,6 +95,7 @@ builder.Services.AddSingleton<Executor.API.Services.OrderExecutionService>();
 // Recovery services — RecoveryStateService must be registered before hosted services that depend on it
 builder.Services.AddSingleton<RecoveryStateService>();
 builder.Services.AddHostedService<OrderPersistenceWorker>();
+builder.Services.AddHostedService<CredentialSyncService>();
 builder.Services.AddHostedService<StartupReconciliationService>();
 builder.Services.AddHostedService<LiquidationOrchestrator>();
 builder.Services.AddHostedService<PartialTpMonitorService>();

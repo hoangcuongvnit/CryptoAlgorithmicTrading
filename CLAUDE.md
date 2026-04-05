@@ -7,16 +7,25 @@
 ## QUICK COMMANDS
 
 ```bash
+# Build & Test
 dotnet build                                    # Build all
 dotnet build src/Services/Executor/Executor.API/Executor.API.csproj
 dotnet test
 dotnet test --filter "ClassName=RsiCalculatorTests"
-dotnet test --filter "FullyQualifiedName~RsiCalculatorTests.Calculate_ReturnsExpectedValue"
 dotnet test /p:CollectCoverage=true
-cd infrastructure && docker compose up -d redis postgres
-cd infrastructure && docker compose up -d
+
+# Docker & Infrastructure (all services: databases + 12 services)
+cd infrastructure && docker compose up -d redis postgres mongodb
+cd infrastructure && docker compose up -d                          # Start all services
+cd infrastructure && docker compose up -d redis postgres mongodb executor riskguard financialledger timelinelogger
+cd infrastructure && docker compose down
 cd infrastructure && docker compose build executor
 cd infrastructure && docker compose logs -f strategy
+cd infrastructure && docker compose logs -f financialledger
+cd infrastructure && docker compose logs -f timelinelogger
+
+# Observability (optional: Phase 5 stack)
+cd infrastructure && docker compose -f docker-compose-observability.yml up -d
 ```
 
 ---
@@ -89,15 +98,25 @@ trading-engine:commands # Redis Pub/Sub: control commands (e.g. HALT_AND_CLOSE_A
 | Web API workers | `WebApplication.CreateBuilder` | TimelineLogger (5096), FinancialLedger (5097) |
 | Web gateway | `WebApplication.CreateBuilder` | Gateway.API (5000) |
 
-### Binance Testnet Scope
+### Session Structure (Live Trading Only)
 
-> **Testnet chỉ áp dụng cho Executor** (đặt lệnh thực thi). Tất cả service còn lại dùng Binance **Live** API.
+> **3×8-hour sessions per day** (changed from 6×4-hour). Paper trading has been completely removed.
+
+| Session | Time (UTC) | Trading Hours |
+|---------|-----------|-----------------|
+| S1 | 00:00 → 08:00 | 7.5h (30min liquidation) |
+| S2 | 08:00 → 16:00 | 7.5h (30min liquidation) |
+| S3 | 16:00 → 24:00 | 7.5h (30min liquidation) |
+
+### Binance API Modes (Live & Testnet)
+
+> **Dual API configuration**: Live (primary) + Testnet (for safe order testing on Executor only)
 
 | Service | Binance Environment | Lý do |
 |---------|--------------------|----|
-| **Executor** | Live hoặc **Testnet** (theo `BINANCE_USE_TESTNET`) | Đặt/huỷ lệnh thực — cần testnet để test an toàn |
-| **Ingestor** | **Live** (luôn luôn) | Binance testnet không cung cấp WebSocket market data (kline/ticker) |
-| Analyzer, Strategy, RiskGuard, Notifier | Không gọi Binance trực tiếp | Chỉ dùng Redis pub/sub và gRPC nội bộ |
+| **Executor** | Live hoặc **Testnet** (via `BINANCE_USE_TESTNET` env var) | Đặt/huỷ lệnh — Testnet để test an toàn |
+| **Ingestor** | **Live** (luôn luôn) | Binance testnet không cung cấp WebSocket market data |
+| **All Others** | **Live** (Analyzer, Strategy, RiskGuard, Notifier) | Không gọi Binance trực tiếp, chỉ dùng Redis/gRPC |
 
 ---
 
@@ -216,26 +235,25 @@ GET  /health
 |------|---------|
 | `Program.cs` | OpenTelemetry, gRPC, REST, Npgsql legacy timestamp |
 | `Services/OrderExecutorGrpcService.cs` | gRPC PlaceOrder endpoint |
-| `Services/OrderExecutionService.cs` | **CORE LOGIC**: Routes to BinanceOrderClient or PaperOrderSimulator |
-| `Services/LiquidationOrchestrator.cs` | Closes positions at session end |
-| `Services/PartialTpMonitorService.cs` | Multi-stage take-profit |
+| `Services/OrderExecutionService.cs` | **CORE LOGIC**: Routes to Live or Testnet BinanceOrderClient (no paper mode) |
+| `Services/LiquidationOrchestrator.cs` | Closes positions at session end (8-hour session boundary) |
+| `Services/PartialTpMonitorService.cs` | Multi-stage take-profit management |
 | `Services/StartupReconciliationService.cs` | Syncs memory↔DB on startup |
 | `Services/ShutdownOperationService.cs` | Tracks close-all, exit-only mode |
 | `Services/CloseAllExecutorService.cs` | Parallel order cancellation |
-| `Services/SessionExitOnlyMonitorService.cs` | Enforces exit-only in final session minutes |
+| `Services/SessionExitOnlyMonitorService.cs` | Enforces exit-only in final 30 minutes of 8-hour session |
 | `Services/RecoveryStateService.cs` | Tracks post-drawdown recovery window |
-| `Infrastructure/BinanceOrderClient.cs` | Live Binance order placement (Market/Limit/StopLimit) |
-| `Infrastructure/BinanceRestClientProvider.cs` | Hot-swappable Binance client |
-| `Infrastructure/PaperOrderSimulator.cs` | Simulated fills with slippage |
+| `Infrastructure/BinanceOrderClient.cs` | Binance REST API integration (live or testnet via `BINANCE_USE_TESTNET`) |
+| `Infrastructure/BinanceRestClientProvider.cs` | Hot-swappable Binance client configuration |
 | `Infrastructure/PositionTracker.cs` | In-memory open positions |
-| `Infrastructure/PositionLifecycleManager.cs` | Entry→TP/SL→Close state machine |
-| `Infrastructure/OrderRepository.cs` | **All SQL queries**: orders, reports, sessions, analytics |
+| `Infrastructure/PositionLifecycleManager.cs` | Entry→TP/SL→Close state machine per session |
+| `Infrastructure/OrderRepository.cs` | **All SQL queries**: orders, reports (8h sessions), analytics |
 | `Infrastructure/BudgetRepository.cs` | Capital ledger (deposits, withdrawals, P&L) |
 | `Infrastructure/AuditStreamPublisher.cs` | Publishes to Redis Streams `trades:audit` |
-| `Infrastructure/OrderExecutionMetrics.cs` | OpenTelemetry metrics |
+| `Infrastructure/OrderExecutionMetrics.cs` | OpenTelemetry metrics (phase 5: Prometheus) |
 | `Infrastructure/SpreadFilterService.cs` | Rejects if bid-ask spread too wide |
 | `Infrastructure/PriceConsensusService.cs` | Optional Bybit consensus pricing |
-| `Configuration/Settings.cs` | PaperTradingMode, Session, PartialTp, ConsensusPricing |
+| `Configuration/Settings.cs` | SessionHours=8, Session phases, PartialTp, Binance API config |
 
 **HTTP endpoints** (5094):
 ```
@@ -244,16 +262,15 @@ GET  /api/trading/stats                        # Win/loss, Sharpe, drawdown
 GET  /api/trading/positions                    # Open positions
 GET  /api/trading/orders                       # Order history
 
-# Reports
+# Reports (8-hour sessions)
 GET  /api/trading/report/daily                 # Daily P&L
 GET  /api/trading/report/daily/symbols         # Symbol breakdown
 GET  /api/trading/report/time-analytics        # Holding time analysis
 GET  /api/trading/report/hourly                # Hourly buckets
-GET  /api/trading/report/sessions/daily        # 4h session daily report
+GET  /api/trading/report/sessions/daily        # 8h session daily report (3 sessions per day)
 GET  /api/trading/report/sessions/range        # Multi-day session report
 GET  /api/trading/report/sessions/{id}/symbols # Session symbols
 GET  /api/trading/report/sessions/equity-curve # Equity curve
-GET  /api/trading/report/capital-flow          # P&L live vs paper
 
 # Session
 GET  /api/trading/session                      # Current session phase/time
@@ -276,9 +293,9 @@ GET  /api/trading/control/close-all/history    # Past operations
 POST /api/trading/control/resume               # Exit exit-only mode
 
 # Runtime Config
-POST /api/trading/reload-exchange-config       # Hot-swap Binance API keys
+POST /api/trading/reload-exchange-config       # Hot-swap Binance API keys (live/testnet)
 POST /api/trading/validate-exchange            # Test Binance credentials
-POST /api/trading/reload-trading-config        # Toggle paper/live mode
+POST /api/trading/reload-trading-config        # Toggle live/testnet mode (via BINANCE_USE_TESTNET)
 
 GET  /health
 GET  /metrics                                   # Prometheus
@@ -472,14 +489,14 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 | `DTOs/RiskEvaluationDto.cs` | Audit trail for evaluations |
 | `DTOs/RecoveryState.cs` | Recovery window state |
 
-### Session Management
+### Session Management (8-hour Sessions)
 
 | File | Purpose |
 |------|---------|
-| `Session/SessionClock.cs` | 4h session timing, phase detection |
-| `Session/SessionInfo.cs` | Current session data |
-| `Session/SessionTradingPolicy.cs` | Session business rules |
-| `Session/SessionSettings.cs` | Configuration |
+| `Session/SessionClock.cs` | 8-hour session timing (S1: 00-08, S2: 08-16, S3: 16-24 UTC), phase detection |
+| `Session/SessionInfo.cs` | Current session data, metadata |
+| `Session/SessionTradingPolicy.cs` | Session business rules (liquidation, soft-unwind windows) |
+| `Session/SessionSettings.cs` | Configuration: SessionHours=8, LiquidationWindowMinutes=30 |
 
 ### Other
 
@@ -503,10 +520,12 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 | Table | Location | Purpose |
 |-------|----------|---------|
 | `price_ticks` | `y{YEAR}.price_ticks` (yearly partitions) | All OHLCV data |
-| `orders` | default schema | All order records |
+| `orders` | default schema | All order records (live/testnet, no paper) |
+| `ledger_entries` | default schema | Virtual account ledger (phase 4+) |
+| `virtual_accounts` | default schema | Account & session management |
 | `budget_ledger` | default schema | Capital deposits/withdrawals |
 | `risk_evaluations` | default schema | Rule evaluation audit trail |
-| `session_reports` | default schema | 4h session analytics |
+| `session_reports` | default schema | 8-hour session analytics (S1/S2/S3) |
 | `system_settings` | default schema | Encrypted credentials |
 | `trading_control_operations` | default schema | Close-all operation history |
 
@@ -626,7 +645,7 @@ FINANCIAL_LEDGER_REDIS_CONSUMER_GROUP=financial-ledger
 | `pages/SafetyPage.jsx` | `/safety` | Risk status, evaluations |
 | `pages/EventsPage.jsx` | `/events` | System event log |
 | `pages/ReportPage.jsx` | `/report` | Daily/hourly P&L |
-| `pages/SessionReportPage.jsx` | `/session-report` | 4h session analytics |
+| `pages/SessionReportPage.jsx` | `/session-report` | 8-hour session analytics (3 sessions/day) |
 | `pages/BudgetPage.jsx` | `/budget` | Capital ledger |
 | `pages/SettingsPage.jsx` | `/settings` | Service config panels |
 | `pages/ShutdownControlPage.jsx` | `/shutdown` | Close-all & exit-only |
@@ -640,7 +659,7 @@ FINANCIAL_LEDGER_REDIS_CONSUMER_GROUP=financial-ledger
 | `components/settings/ExchangePanel.jsx` | Binance API config |
 | `components/settings/RiskSettingsPanel.jsx` | Risk rule thresholds |
 | `components/settings/TelegramPanel.jsx` | Telegram config |
-| `components/settings/TradingModePanel.jsx` | Paper/Live toggle |
+| `components/settings/TradingModePanel.jsx` | Live/Testnet toggle (via BINANCE_USE_TESTNET env var) |
 | `components/SystemHealthPanel.jsx` | Service health status |
 | `components/SafetyLight.jsx` | Green/yellow/red indicator |
 | `hooks/useDashboard.js` | Dashboard data fetching |

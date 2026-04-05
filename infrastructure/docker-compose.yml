@@ -113,6 +113,7 @@ services:
       - Binance__UseTestnet=${BINANCE_USE_TESTNET:-true}
       - Redis__Connection=trading_redis:6379
       - ConnectionStrings__Postgres=Host=trading_postgres;Port=5432;Database=${POSTGRES_DB:-cryptotrading};Username=${POSTGRES_USER:-trader};Password=${POSTGRES_PASSWORD:-strongpassword}
+      - Gateway__BaseUrl=http://trading_gateway:5000
     ports:
       - "5014:5014"
       - "5094:5094"

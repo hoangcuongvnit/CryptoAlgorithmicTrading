@@ -1779,6 +1779,33 @@ app.Lifetime.ApplicationStarted.Register(() =>
     });
 });
 
+// ── Internal service-to-service endpoints ─────────────────────────────────
+var internalGroup = app.MapGroup("/api/internal");
+
+internalGroup.MapGet("/exchange/credentials", async (
+    SystemSettingsRepository repo,
+    CancellationToken ct) =>
+{
+    var cfg = await repo.GetExchangeSettingsAsync(ct);
+    if (!cfg.IsConfigured && !cfg.TestnetIsConfigured)
+        return Results.Ok(new { configured = false });
+
+    var apiKey           = await repo.GetDecryptedApiKeyAsync(ct);
+    var apiSecret        = await repo.GetDecryptedApiSecretAsync(ct);
+    var testnetApiKey    = await repo.GetDecryptedTestnetApiKeyAsync(ct);
+    var testnetApiSecret = await repo.GetDecryptedTestnetApiSecretAsync(ct);
+
+    return Results.Ok(new
+    {
+        configured       = true,
+        apiKey           = apiKey           ?? "",
+        apiSecret        = apiSecret        ?? "",
+        testnetApiKey    = testnetApiKey    ?? "",
+        testnetApiSecret = testnetApiSecret ?? "",
+        useTestnet       = cfg.UseTestnet
+    });
+});
+
 app.Run();
 
 static (DateTime StartUtc, DateTime EndUtc) ResolveRange(DateTime? startUtc, DateTime? endUtc, string interval, DashboardOptions options)

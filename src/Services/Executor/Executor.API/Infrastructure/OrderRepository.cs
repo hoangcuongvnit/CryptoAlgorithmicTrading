@@ -813,14 +813,20 @@ public sealed class OrderRepository
         const string sql = """
             SELECT
                 symbol                                                         AS Symbol,
-                SUM(CASE WHEN side = 'Buy'  THEN COALESCE(filled_qty, quantity) ELSE 0 END) AS BoughtQty,
-                SUM(CASE WHEN side = 'Sell' THEN COALESCE(filled_qty, quantity) ELSE 0 END) AS SoldQty,
-                SUM(CASE WHEN side = 'Buy'
-                         THEN COALESCE(filled_price, price, 0) * COALESCE(filled_qty, quantity)
-                         ELSE 0 END)
-                / NULLIF(
-                    SUM(CASE WHEN side = 'Buy' THEN COALESCE(filled_qty, quantity) ELSE 0 END),
-                    0)                                                         AS AvgBuyPrice,
+                ROUND(SUM(CASE WHEN side = 'Buy'  THEN COALESCE(filled_qty, quantity) ELSE 0 END), 8)::numeric(20,8)
+                                                                               AS BoughtQty,
+                ROUND(SUM(CASE WHEN side = 'Sell' THEN COALESCE(filled_qty, quantity) ELSE 0 END), 8)::numeric(20,8)
+                                                                               AS SoldQty,
+                CASE
+                    WHEN SUM(CASE WHEN side = 'Buy' THEN COALESCE(filled_qty, quantity) ELSE 0 END) = 0
+                    THEN NULL
+                    ELSE ROUND(
+                        SUM(CASE WHEN side = 'Buy'
+                                 THEN COALESCE(filled_price, price, 0) * COALESCE(filled_qty, quantity)
+                                 ELSE 0 END)
+                        / SUM(CASE WHEN side = 'Buy' THEN COALESCE(filled_qty, quantity) ELSE 0 END),
+                        8)::numeric(20,8)
+                END                                                            AS AvgBuyPrice,
                 MAX(CASE WHEN side = 'Buy' THEN session_id END)                AS SessionId
             FROM public.orders
             WHERE success = true
@@ -831,19 +837,39 @@ public sealed class OrderRepository
                 SUM(CASE WHEN side = 'Sell' THEN COALESCE(filled_qty, quantity) ELSE 0 END);
             """;
 
-        try
+        const int maxAttempts = 4;
+        const int retryDelayMs = 3000;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            await using var connection = new NpgsqlConnection(_connectionString);
-            await connection.OpenAsync(cancellationToken);
-            var rows = await connection.QueryAsync<RecoveredPosition>(
-                new CommandDefinition(sql, new { SinceUtc = sinceUtc }, cancellationToken: cancellationToken));
-            return rows.AsList();
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await using var connection = new NpgsqlConnection(_connectionString);
+                await connection.OpenAsync(cancellationToken);
+                var rows = await connection.QueryAsync<RecoveredPosition>(
+                    new CommandDefinition(sql, new { SinceUtc = sinceUtc }, cancellationToken: cancellationToken));
+                return rows.AsList();
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to query open position net for recovery (attempt {Attempt}/{Max}). Retrying in {Delay}ms...",
+                    attempt, maxAttempts, retryDelayMs);
+                await Task.Delay(retryDelayMs, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to query open position net for recovery after {Max} attempts", maxAttempts);
+                return [];
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to query open position net for recovery");
-            return [];
-        }
+
+        return [];
     }
 
     public sealed record RecoveredPosition(
