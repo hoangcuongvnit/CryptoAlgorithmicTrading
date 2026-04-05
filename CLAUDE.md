@@ -72,6 +72,12 @@ system:config:timezone  # Redis STRING key: active IANA timezone (e.g. "Asia/Ho_
 system:config:changed   # Redis Pub/Sub: broadcast when system config changes
                         #   Message payload = new IANA timezone string
                         #   Notifier subscribes → hot-reloads timezone without restart
+ledger:events           # Redis Stream: trade events → FinancialLedger
+                        #   Consumer group: financial-ledger
+                        #   Fields: type, amount, accountId, environment, algorithmName,
+                        #           timestamp, symbol, binanceTransactionId
+trading-engine:commands # Redis Pub/Sub: control commands (e.g. HALT_AND_CLOSE_ALL)
+                        #   Published by FinancialLedger SessionResetSagaService
 ```
 
 ### Service Types
@@ -80,7 +86,7 @@ system:config:changed   # Redis Pub/Sub: broadcast when system config changes
 |------|---------|----------|
 | BackgroundService workers | `Host.CreateApplicationBuilder` | Ingestor, Analyzer, Strategy, Notifier, HistoricalCollector, HouseKeeper |
 | gRPC API servers | `WebApplication.CreateBuilder` | RiskGuard (5013/5093), Executor (5014/5094) |
-| Web API workers | `WebApplication.CreateBuilder` | TimelineLogger (5096) |
+| Web API workers | `WebApplication.CreateBuilder` | TimelineLogger (5096), FinancialLedger (5097) |
 | Web gateway | `WebApplication.CreateBuilder` | Gateway.API (5000) |
 
 ### Binance Testnet Scope
@@ -378,6 +384,50 @@ GET  /health
 
 ---
 
+### FinancialLedger — `src/Services/FinancialLedger/FinancialLedger.Worker/`
+
+**Role**: Virtual account ledger, session P&L tracking, real-time equity projection via SignalR
+
+**Port**: HTTP=5097 + SignalR hub at `/ledger-hub`
+
+**Storage**: PostgreSQL (ledger entries, sessions, accounts) + Redis (balance cache 30s TTL)
+
+| File | Purpose |
+|------|---------|
+| `Program.cs` | WebApplication setup: SignalR, REST endpoints, bootstrap |
+| `Configuration/LedgerSettings.cs` | DefaultInitialBalance, RedisEventsStreamKey, ExecutorUrl, EquityProjectionIntervalMs |
+| `Domain/LedgerModels.cs` | DTOs: VirtualAccountDto, SessionDto, LedgerEntryDto, PnlBreakdown, ResetSessionRequest; LedgerEntryTypes enum |
+| `Hubs/LedgerHub.cs` | SignalR hub — broadcasts ReceiveLedgerEntry, ReceiveBalanceUpdate, RealTimeEquity |
+| `Infrastructure/LedgerRepository.cs` | PostgreSQL: InsertLedgerEntryAsync, GetCurrentBalanceAsync, GetLedgerEntriesAsync, GetPnlBySymbolAsync |
+| `Infrastructure/VirtualAccountRepository.cs` | Account management: GetOrCreateAccountAsync, GetAccountAsync |
+| `Services/PnlCalculationService.cs` | **CORE LOGIC**: balance caching (Redis 30s TTL), NetPnL, ROE% per session/symbol |
+| `Services/SessionManagementService.cs` | Session lifecycle: CreateSessionAsync, ResetSessionAsync, GetActiveSessionAsync |
+| `Services/SessionResetSagaService.cs` | Publishes HALT_AND_CLOSE_ALL to `trading-engine:commands` Redis channel |
+| `Workers/TradeEventConsumerWorker.cs` | **CORE LOGIC**: Consumes `ledger:events` Redis Stream, inserts entries, broadcasts SignalR |
+| `Workers/EquityProjectionWorker.cs` | Polls Executor positions + Redis mark prices every 5s, broadcasts RealTimeEquity via SignalR |
+
+**Ledger entry types**: `INITIAL_FUNDING`, `REALIZED_PNL`, `COMMISSION`, `FUNDING_FEE`, `WITHDRAWAL`
+
+**HTTP endpoints** (5097):
+```
+GET  /health
+GET  /api/ledger/account/{accountId}     # Balance, NetPnL, ROE% for active session
+GET  /api/ledger/entries                 # Paginated entries (sessionId, fromDate, toDate, symbol, type, page, pageSize)
+GET  /api/ledger/sessions/{accountId}    # All sessions for account (optional ?status=)
+GET  /api/ledger/pnl                     # P&L breakdown by symbol (sessionId, optional symbol)
+POST /api/ledger/sessions/reset          # Reset session (triggers HALT_AND_CLOSE_ALL + new session)
+POST /api/ledger/accounts/bootstrap      # Create/get account and active session
+```
+
+**SignalR messages** (hub: `/ledger-hub`):
+```
+ReceiveLedgerEntry   → { sessionId, binanceTransactionId, type, amount, symbol, timestamp }
+ReceiveBalanceUpdate → { sessionId, balance, timestamp }
+RealTimeEquity       → { unrealizedPnl, realTimeEquity, positions: [{ symbol, quantity, entryPrice, markPrice, unrealizedPnl }] }
+```
+
+---
+
 ### Gateway — `src/Gateway/Gateway.API/`
 
 **Role**: YARP reverse proxy + dashboard data + credential storage
@@ -491,6 +541,8 @@ GET /api/dashboard/quality/coverage    # Data quality metrics
 | ingestor | — | postgres, redis |
 | strategy | — | redis |
 | timelinelogger | 5096 | redis, mongodb |
+| financialledger | 5097 | postgres, redis, executor |
+| frontend-ledger | 5098→80 | financialledger |
 | gateway | 5000 | all services |
 | historicalcollector | — | postgres |
 | housekeeper | — | postgres |
@@ -549,13 +601,21 @@ HOUSEKEEPER_RETENTION_TICKS_MONTHS=12
 HISTORICAL_BACKFILL_ENABLED=false
 HISTORICAL_START_DATE=2025-01-01
 HISTORICAL_END_DATE=2026-03-01
+
+# Financial Ledger
+FINANCIAL_LEDGER_DEFAULT_INITIAL_BALANCE=10000
+FINANCIAL_LEDGER_REDIS_STREAM_KEY=ledger:events
+FINANCIAL_LEDGER_REDIS_CONSUMER_GROUP=financial-ledger
 ```
 
 ---
 
-## FRONTEND — `frontend/`
+## FRONTEND
+
+### Main Dashboard — `frontend/`
 
 **Stack**: React 18, Vite 5, Tailwind CSS 3, react-i18next 16, React Router 7
+**Served via**: Gateway (port 5000)
 
 ### Pages
 
@@ -594,6 +654,31 @@ HISTORICAL_END_DATE=2026-03-01
 - **Config**: `src/i18n/index.js`
 - **Namespaces**: `common`, `navigation`, `overview`, `trading`, `safety`, `events`, `report`, `session-report`, `settings`, `shutdown`, `budget`, `timeline`, `guidance`
 - **Locales path**: `src/i18n/locales/{vi,en}/{namespace}.json`
+
+---
+
+### Financial Ledger UI — `frontend-ledger/`
+
+**Stack**: React 18, Vite 5, Tailwind CSS 3, react-i18next, SignalR (`@microsoft/signalr`)
+**Port**: 5098 (nginx serving built assets + reverse proxy to FinancialLedger at 5097)
+
+| File | Route | Purpose |
+|------|-------|---------|
+| `pages/LedgerPage.jsx` | `/` | Dashboard: balance, PnL, ROE%, open positions (real-time via SignalR) |
+| `pages/EntriesPage.jsx` | `/entries` | Paginated ledger entries with filtering |
+| `pages/SessionsPage.jsx` | `/sessions` | All sessions for account |
+| `pages/PnLBreakdownPage.jsx` | `/pnl` | Per-symbol P&L breakdown |
+
+| File | Purpose |
+|------|---------|
+| `hooks/useLedgerSignalR.js` | SignalR hook: ReceiveLedgerEntry, ReceiveBalanceUpdate, RealTimeEquity |
+| `services/ledgerApi.js` | HTTP client for all `/api/ledger/*` endpoints |
+
+### i18n (frontend-ledger)
+
+- **Default**: Vietnamese (`vi`)
+- **Secondary**: English (`en`)
+- **Single namespace**: `ledger` (in `src/i18n/locales/{vi,en}/ledger.json`)
 
 ---
 
