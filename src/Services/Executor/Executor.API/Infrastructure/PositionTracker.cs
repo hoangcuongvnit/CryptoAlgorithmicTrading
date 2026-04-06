@@ -1,4 +1,6 @@
+using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.DTOs;
+using StackExchange.Redis;
 using System.Collections.Concurrent;
 
 namespace Executor.API.Infrastructure;
@@ -8,6 +10,33 @@ public sealed class PositionTracker
     private readonly ConcurrentDictionary<string, OpenPosition> _positions = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ClosedTrade> _closedTrades = [];
     private readonly Lock _closeLock = new();
+    private readonly IConnectionMultiplexer _redis;
+    private readonly ILogger<PositionTracker> _logger;
+
+    public PositionTracker(IConnectionMultiplexer redis, ILogger<PositionTracker> logger)
+    {
+        _redis = redis;
+        _logger = logger;
+    }
+
+    private void PublishPositionQtyFireAndForget(string symbol, decimal qty)
+    {
+        try
+        {
+            var db = _redis.GetDatabase();
+            db.StringSet(
+                RedisChannels.PositionQty(symbol),
+                qty.ToString("0.########"),
+                expiry: TimeSpan.FromHours(25),
+                flags: CommandFlags.FireAndForget);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "PositionTracker: failed to publish position qty for {Symbol} to Redis",
+                symbol);
+        }
+    }
 
     public sealed record OpenPosition(
         string Symbol,
@@ -49,6 +78,9 @@ public sealed class PositionTracker
                     var avgPrice = (existing.AvgEntryPrice * existing.Quantity + result.FilledPrice * result.FilledQty) / totalQty;
                     return existing with { Quantity = totalQty, AvgEntryPrice = avgPrice, CurrentPrice = result.FilledPrice };
                 });
+
+            var newQty = _positions.TryGetValue(result.Symbol, out var updated) ? updated.Quantity : result.FilledQty;
+            PublishPositionQtyFireAndForget(result.Symbol, newQty);
         }
         else if (request.Side == OrderSide.Sell)
         {
@@ -69,6 +101,8 @@ public sealed class PositionTracker
                 _positions.TryRemove(result.Symbol, out _);
             else
                 _positions[result.Symbol] = pos with { Quantity = remaining };
+
+            PublishPositionQtyFireAndForget(result.Symbol, remaining <= 0 ? 0m : remaining);
         }
     }
 
@@ -87,6 +121,7 @@ public sealed class PositionTracker
         if (quantity <= 0) return;
         var pos = new OpenPosition(symbol, quantity, avgEntryPrice, avgEntryPrice, DateTime.UtcNow, sessionId);
         _positions[symbol] = pos;
+        PublishPositionQtyFireAndForget(symbol, quantity);
     }
 
     /// <summary>
@@ -106,11 +141,15 @@ public sealed class PositionTracker
         if (newQty <= 0m)
         {
             _positions.TryRemove(symbol, out _);
+            PublishPositionQtyFireAndForget(symbol, 0m);
             return;
         }
 
         if (_positions.TryGetValue(symbol, out var existing))
+        {
             _positions[symbol] = existing with { Quantity = newQty };
+            PublishPositionQtyFireAndForget(symbol, newQty);
+        }
     }
 
     public bool TryValidateSellQuantity(string symbol, decimal requestedQuantity, out decimal availableQuantity, out string errorMessage)

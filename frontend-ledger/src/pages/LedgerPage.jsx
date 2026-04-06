@@ -3,6 +3,32 @@ import { useTranslation } from 'react-i18next'
 import { useLedgerSignalR } from '../hooks/useLedgerSignalR'
 import { ledgerApi } from '../services/ledgerApi'
 
+// ─── constants ────────────────────────────────────────────────────────────────
+
+const EQUITY_RELOAD_TYPES = new Set(['REALIZED_PNL', 'COMMISSION', 'INITIAL_FUNDING'])
+
+const EVENT_COLOR = {
+  SESSION_START: '#60a5fa',  // blue-400
+  BUY:           '#34d399',  // green-400
+  SELL:          '#f97316',  // orange-400
+}
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(n, digits = 2) {
+  if (n === null || n === undefined) return '—'
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+}
+
+function fmtPct(n, digits = 2) {
+  if (n === null || n === undefined) return '—'
+  const v = Number(n)
+  if (!Number.isFinite(v)) return '—'
+  return `${v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`
+}
+
+// ─── sub-components ───────────────────────────────────────────────────────────
+
 function StatCard({ label, value, colorClass = 'text-white' }) {
   return (
     <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -12,25 +38,23 @@ function StatCard({ label, value, colorClass = 'text-white' }) {
   )
 }
 
-function fmt(n, digits = 2) {
-  if (n === null || n === undefined) return '—'
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-}
+// ─── main page ────────────────────────────────────────────────────────────────
 
 export default function LedgerPage() {
   const { t } = useTranslation()
-  const [account, setAccount]   = useState(null)
-  const [equity, setEquity]     = useState(null)
-  const [accountId, setAccountId] = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
+
+  const [account, setAccount]             = useState(null)
+  const [equity, setEquity]               = useState(null)
+  const [equityTimeline, setEquityTimeline] = useState(null)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [loading, setLoading]             = useState(true)
+  const [error, setError]                 = useState(null)
 
   // Bootstrap account on mount
   useEffect(() => {
     const env = import.meta.env.VITE_DEFAULT_ENVIRONMENT ?? 'TESTNET'
     ledgerApi.bootstrap(env)
       .then((data) => {
-        setAccountId(data.accountId)
         return ledgerApi.getAccount(data.accountId)
       })
       .then(setAccount)
@@ -38,21 +62,45 @@ export default function LedgerPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const handleEquity = useCallback((data) => setEquity(data), [])
+  // Load equity timeline — depends on account.id (sessionId)
+  const loadEquityTimeline = useCallback(() => {
+    if (!account?.id) return
+    setTimelineLoading(true)
+    ledgerApi.getEquityTimeline(account.id)
+      .then(setEquityTimeline)
+      .catch(() => {}) // non-critical
+      .finally(() => setTimelineLoading(false))
+  }, [account?.id])
+
+  useEffect(() => { loadEquityTimeline() }, [loadEquityTimeline])
+
+  const handleEquity  = useCallback((data) => setEquity(data), [])
   const handleBalance = useCallback((data) => {
     setAccount((prev) => prev ? { ...prev, currentBalance: data.balance } : prev)
   }, [])
+  const handleEntry = useCallback((entry) => {
+    if (EQUITY_RELOAD_TYPES.has(entry?.type)) loadEquityTimeline()
+  }, [loadEquityTimeline])
 
-  const { isConnected } = useLedgerSignalR({ onEquity: handleEquity, onBalance: handleBalance })
+  const { isConnected } = useLedgerSignalR({
+    onEquity: handleEquity,
+    onBalance: handleBalance,
+    onEntry: handleEntry,
+  })
 
   if (loading) return <p className="text-gray-400">{t('loading')}</p>
   if (error)   return <p className="text-red-400">{t('error')}: {error}</p>
   if (!account) return <p className="text-gray-400">{t('noSession')}</p>
 
-  const netPnl = account.netPnl ?? 0
-  const roe    = account.roePercent ?? 0
-  const unrealized = equity?.unrealizedPnl ?? 0
+  const netPnl         = account.netPnl ?? 0
+  const roe            = account.roePercent ?? 0
+  const unrealized     = equity?.unrealizedPnl ?? 0
   const realTimeEquity = equity?.realTimeEquity ?? account.currentBalance
+
+  const ct = t('dashboard.equityChart', { returnObjects: true })
+  const timelinePoints = equityTimeline?.points ?? []
+  const equitySummary  = equityTimeline?.summary ?? null
+  const latestPoint    = timelinePoints.length > 0 ? timelinePoints[timelinePoints.length - 1] : null
 
   return (
     <div className="space-y-6">
@@ -84,7 +132,6 @@ export default function LedgerPage() {
           />
           <StatCard label={t('dashboard.realTimeEquity')} value={`$${fmt(realTimeEquity)}`} colorClass="text-blue-300" />
         </div>
-
         <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 xl:min-w-[220px]">
           <p className="text-xs text-gray-400 mb-1">{t('dashboard.roe')}</p>
           <p className={`text-3xl font-bold font-mono ${roe >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -93,7 +140,76 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* Open positions from equity update */}
+      {/* Equity timeline chart */}
+      <div className="space-y-3 bg-gray-800 p-4 rounded-lg border border-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-100">{ct.title}</h3>
+            <p className="text-xs text-gray-400">{ct.subtitle}</p>
+          </div>
+          <p className="text-xs text-gray-400">{ct.totalPoints}: {timelinePoints.length}</p>
+        </div>
+
+        {timelineLoading && <p className="text-gray-400 text-sm">{ct.loading}</p>}
+
+        {!timelineLoading && timelinePoints.length === 0 && (
+          <p className="text-yellow-400 text-sm">{ct.empty}</p>
+        )}
+
+        {timelinePoints.length > 0 && (
+          <>
+            {equitySummary && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.firstEquity}</p>
+                  <p className="text-gray-100 font-mono">{fmt(equitySummary.firstEquity, 4)}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.latestEquity}</p>
+                  <p className="text-gray-100 font-mono">{fmt(equitySummary.latestEquity, 4)}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.deltaValue}</p>
+                  <p className={`font-mono ${Number(equitySummary.deltaValue) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                    {Number(equitySummary.deltaValue) >= 0 ? '+' : ''}{fmt(equitySummary.deltaValue, 4)}
+                  </p>
+                </div>
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.deltaPercent}</p>
+                  <p className={`font-mono ${Number(equitySummary.deltaPercent) >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                    {Number(equitySummary.deltaPercent) >= 0 ? '+' : ''}{fmtPct(equitySummary.deltaPercent)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <EquityTimelineChart points={timelinePoints} labels={ct} />
+
+            {latestPoint && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.currentBalance}</p>
+                  <p className="text-blue-300 font-mono">{fmt(latestPoint.currentBalance, 4)}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.holdingsValue}</p>
+                  <p className="text-cyan-300 font-mono">{fmt(latestPoint.holdingsMarketValue, 4)}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.totalEquity}</p>
+                  <p className="text-green-300 font-mono">{fmt(latestPoint.totalEquity, 4)}</p>
+                </div>
+                <div className="bg-gray-900 rounded p-2 border border-gray-700">
+                  <p className="text-gray-500">{ct.lastEventAt}</p>
+                  <p className="text-gray-200">{new Date(latestPoint.snapshotTime).toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Open positions */}
       {equity?.positions?.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-300 mb-2">{t('dashboard.openPositions')}</h3>
@@ -123,6 +239,199 @@ export default function LedgerPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── chart ────────────────────────────────────────────────────────────────────
+
+function eventColor(eventType) {
+  return EVENT_COLOR[eventType] ?? EVENT_COLOR.SELL
+}
+
+function EventMarker({ cx, cy, eventType, size = 5, hovered = false }) {
+  const s = hovered ? size * 1.4 : size
+  const color = eventColor(eventType)
+
+  if (eventType === 'SESSION_START') {
+    // Diamond
+    return <polygon points={`${cx},${cy - s} ${cx + s},${cy} ${cx},${cy + s} ${cx - s},${cy}`} fill={color} />
+  }
+  if (eventType === 'BUY') {
+    // Up triangle
+    return <polygon points={`${cx},${cy - s} ${cx + s * 0.9},${cy + s * 0.6} ${cx - s * 0.9},${cy + s * 0.6}`} fill={color} />
+  }
+  // SELL — down triangle
+  return <polygon points={`${cx},${cy + s} ${cx + s * 0.9},${cy - s * 0.6} ${cx - s * 0.9},${cy - s * 0.6}`} fill={color} />
+}
+
+function EquityTimelineChart({ points, labels }) {
+  const [hoveredPoint, setHoveredPoint] = useState(null)
+
+  const width  = 900
+  const height = 260
+  const pad    = { top: 16, right: 24, bottom: 36, left: 68 }
+  const chartW = width  - pad.left - pad.right
+  const chartH = height - pad.top  - pad.bottom
+
+  const ms     = points.map((p) => new Date(p.snapshotTime).getTime())
+  const values = points.map((p) => Number(p.totalEquity))
+
+  const minX = Math.min(...ms)
+  const maxX = Math.max(...ms)
+  const xRange = Math.max(maxX - minX, 1)
+
+  const minV = Math.min(...values)
+  const maxV = Math.max(...values)
+  const span = Math.max(maxV - minV, 1)
+  const padV = span * 0.15
+  const yMin = minV - padV
+  const yMax = maxV + padV
+  const yRange = Math.max(yMax - yMin, 1)
+
+  const xAt = (timeMs) => {
+    if (points.length === 1) return pad.left + chartW / 2
+    return pad.left + ((timeMs - minX) / xRange) * chartW
+  }
+  const yAt = (value) => pad.top + (1 - ((value - yMin) / yRange)) * chartH
+
+  const chartPoints = points.map((p) => {
+    const timeMs = new Date(p.snapshotTime).getTime()
+    return { ...p, x: xAt(timeMs), y: yAt(Number(p.totalEquity)) }
+  })
+
+  const path = chartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
+  const yTicks = 4
+
+  const tooltipWidth = 320
+  const tooltipBaseH = 130
+  const tooltipLineH = 18
+  const tooltipExtra = hoveredPoint?.holdings?.length ? Math.min(5, hoveredPoint.holdings.length) * tooltipLineH : 0
+  const tooltipHeight = tooltipBaseH + tooltipExtra
+  const tooltipX = hoveredPoint
+    ? Math.min(Math.max(hoveredPoint.x + 14, pad.left), width - pad.right - tooltipWidth)
+    : 0
+  const tooltipY = hoveredPoint
+    ? Math.min(Math.max(hoveredPoint.y - 14, pad.top), height - pad.bottom - tooltipHeight)
+    : 0
+
+  const eventTypeLabel = (et) => labels?.eventType?.[et] ?? et
+
+  return (
+    <div className="w-full rounded-lg border border-gray-700 bg-gray-900/50 p-2">
+      {/* Legend */}
+      <div className="flex gap-4 px-2 pb-1 text-xs text-gray-400">
+        {['SESSION_START', 'BUY', 'SELL'].map((et) => (
+          <span key={et} className="flex items-center gap-1">
+            <svg width="14" height="14" viewBox="-7 -7 14 14">
+              <EventMarker cx={0} cy={0} eventType={et} size={5} />
+            </svg>
+            {eventTypeLabel(et)}
+          </span>
+        ))}
+      </div>
+
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+        {/* Grid + Y labels */}
+        {Array.from({ length: yTicks + 1 }, (_, i) => {
+          const ratio = i / yTicks
+          const y = pad.top + ratio * chartH
+          const value = yMax - ratio * yRange
+          return (
+            <g key={i}>
+              <line x1={pad.left} y1={y} x2={width - pad.right} y2={y} stroke="#374151" strokeDasharray="3 3" />
+              <text x={pad.left - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#9ca3af">
+                {fmt(value, 2)}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Axes */}
+        <line x1={pad.left} y1={height - pad.bottom} x2={width - pad.right} y2={height - pad.bottom} stroke="#4b5563" />
+        <line x1={pad.left} y1={pad.top} x2={pad.left} y2={height - pad.bottom} stroke="#4b5563" />
+
+        {/* X-axis time labels (first, mid, last) */}
+        {[0, Math.floor(chartPoints.length / 2), chartPoints.length - 1]
+          .filter((idx, pos, arr) => arr.indexOf(idx) === pos && chartPoints[idx])
+          .map((idx) => {
+            const p = chartPoints[idx]
+            const label = new Date(p.snapshotTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            return (
+              <text key={idx} x={p.x} y={height - pad.bottom + 14} textAnchor="middle" fontSize="9" fill="#6b7280">
+                {label}
+              </text>
+            )
+          })}
+
+        {/* Equity line */}
+        <path d={path} fill="none" stroke="#22d3ee" strokeWidth="2" />
+
+        {/* Event markers */}
+        {chartPoints.map((p) => {
+          const isHovered = hoveredPoint?.triggerTransactionId === p.triggerTransactionId
+          return (
+            <g
+              key={p.triggerTransactionId}
+              onMouseEnter={() => setHoveredPoint(p)}
+              onMouseLeave={() => setHoveredPoint(null)}
+              style={{ cursor: 'pointer' }}
+            >
+              {/* Hit area */}
+              <circle cx={p.x} cy={p.y} r={10} fill="transparent" />
+              <EventMarker cx={p.x} cy={p.y} eventType={p.eventType ?? 'SELL'} size={5} hovered={isHovered} />
+            </g>
+          )
+        })}
+
+        {/* Tooltip */}
+        {hoveredPoint && (
+          <foreignObject x={tooltipX} y={tooltipY} width={tooltipWidth} height={tooltipHeight}>
+            <div xmlns="http://www.w3.org/1999/xhtml" style={{
+              background: 'rgba(17,24,39,0.97)',
+              border: `1px solid ${eventColor(hoveredPoint.eventType ?? 'SELL')}55`,
+              borderLeft: `3px solid ${eventColor(hoveredPoint.eventType ?? 'SELL')}`,
+              borderRadius: '8px',
+              padding: '10px 12px',
+              color: '#e5e7eb',
+              fontSize: '11px',
+              lineHeight: 1.4,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+            }}>
+              <div style={{ color: eventColor(hoveredPoint.eventType ?? 'SELL'), fontWeight: 700, marginBottom: '5px', fontSize: '12px' }}>
+                {eventTypeLabel(hoveredPoint.eventType ?? 'SELL')}
+                {hoveredPoint.triggerSymbol ? ` — ${hoveredPoint.triggerSymbol}` : ''}
+              </div>
+              <div>{labels.tooltip.time}: {new Date(hoveredPoint.snapshotTime).toLocaleString()}</div>
+              <div style={{ marginTop: '4px' }}>
+                <span style={{ color: '#22d3ee' }}>{labels.totalEquity}: {fmt(hoveredPoint.totalEquity, 4)}</span>
+              </div>
+              <div>{labels.currentBalance}: {fmt(hoveredPoint.currentBalance, 4)}</div>
+              <div>{labels.holdingsValue}: {fmt(hoveredPoint.holdingsMarketValue, 4)}</div>
+              <div style={{ wordBreak: 'break-all', color: '#6b7280', marginTop: '4px', fontSize: '10px' }}>
+                {labels.tooltip.txId}: {hoveredPoint.triggerTransactionId}
+              </div>
+              {hoveredPoint.eventType !== 'SESSION_START' && (
+                <>
+                  <div style={{ marginTop: '5px', color: '#9ca3af' }}>{labels.tooltip.holdings}:</div>
+                  {hoveredPoint.holdings?.length > 0 ? (
+                    hoveredPoint.holdings.slice(0, 5).map((h) => (
+                      <div key={`${hoveredPoint.triggerTransactionId}-${h.symbol}`} style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px' }}>
+                        {h.symbol}: {fmt(h.quantity, 6)} × {fmt(h.markPrice, 4)} = {fmt(h.marketValue, 4)}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: '#9ca3af' }}>{labels.tooltip.noHoldings}</div>
+                  )}
+                  {hoveredPoint.holdings?.length > 5 && (
+                    <div style={{ color: '#9ca3af' }}>+{hoveredPoint.holdings.length - 5} more...</div>
+                  )}
+                </>
+              )}
+            </div>
+          </foreignObject>
+        )}
+      </svg>
     </div>
   )
 }

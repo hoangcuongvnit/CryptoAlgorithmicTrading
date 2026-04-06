@@ -29,11 +29,12 @@ public sealed class EquitySellSnapshotService
         _logger = logger;
     }
 
-    public async Task CaptureAfterSellAsync(
+    public async Task CaptureSnapshotAsync(
         Guid sessionId,
         string triggerTransactionId,
         string? triggerSymbol,
         DateTime snapshotTime,
+        string eventType,
         CancellationToken cancellationToken)
     {
         var currentBalance = await _pnlService.GetCurrentBalanceAsync(sessionId);
@@ -82,7 +83,8 @@ public sealed class EquitySellSnapshotService
             decimal.Round(currentBalance, 8),
             decimal.Round(holdingsMarketValue, 8),
             totalEquity,
-            holdings);
+            holdings,
+            eventType);
 
         var inserted = await _snapshotRepository.InsertSellSnapshotAsync(snapshot);
         if (!inserted)

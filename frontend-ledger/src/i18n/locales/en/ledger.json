@@ -25,7 +25,34 @@
     "unrealizedPnl": "Unrealized P&L",
     "realTimeEquity": "Real-time Equity",
     "roe": "ROE",
-    "openPositions": "Open Positions"
+    "openPositions": "Open Positions",
+    "equityChart": {
+      "title": "Session Equity Chart",
+      "subtitle": "Equity captured after each event: session start, buy, sell.",
+      "loading": "Loading equity chart...",
+      "empty": "No equity data yet for this session.",
+      "totalPoints": "Points",
+      "currentBalance": "Cash Balance",
+      "holdingsValue": "Holdings Value",
+      "totalEquity": "Total Equity",
+      "firstEquity": "First Equity",
+      "latestEquity": "Latest Equity",
+      "deltaValue": "Delta Value",
+      "deltaPercent": "Delta %",
+      "lastEventAt": "Last Event",
+      "eventType": {
+        "SESSION_START": "Session Start",
+        "BUY": "Buy",
+        "SELL": "Sell"
+      },
+      "tooltip": {
+        "time": "Time",
+        "txId": "Tx ID",
+        "symbol": "Symbol",
+        "holdings": "Holdings",
+        "noHoldings": "No open holdings"
+      }
+    }
   },
 
   "positions": {

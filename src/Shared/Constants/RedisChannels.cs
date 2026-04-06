@@ -15,6 +15,14 @@ public static class RedisChannels
     public static string Signal(string symbol) => $"signal:{symbol}";
 
     /// <summary>
+    /// Redis string key storing the current open position quantity for a symbol: position:{symbol}:qty
+    /// Value is a decimal string e.g. "0.00004000". "0" = position closed (distinct from missing key).
+    /// Missing key = never published or expired → fail-open in consumers.
+    /// Example: position:BTCUSDT:qty
+    /// </summary>
+    public static string PositionQty(string symbol) => $"position:{symbol}:qty";
+
+    /// <summary>
     /// Trades audit log channel: trades:audit
     /// </summary>
     public const string TradesAudit = "trades:audit";

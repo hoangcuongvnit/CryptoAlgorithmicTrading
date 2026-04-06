@@ -1,6 +1,7 @@
 using Dapper;
 using FinancialLedger.Worker.Domain;
 using Npgsql;
+using System.Text;
 using System.Text.Json;
 
 namespace FinancialLedger.Worker.Infrastructure;
@@ -27,7 +28,8 @@ public sealed class EquitySnapshotRepository
                 current_balance,
                 holdings_market_value,
                 total_equity,
-                holdings_json)
+                holdings_json,
+                event_type)
             VALUES (
                 @SessionId,
                 @TriggerTransactionId,
@@ -36,7 +38,8 @@ public sealed class EquitySnapshotRepository
                 @CurrentBalance,
                 @HoldingsMarketValue,
                 @TotalEquity,
-                CAST(@HoldingsJson AS jsonb))
+                CAST(@HoldingsJson AS jsonb),
+                @EventType)
             ON CONFLICT (session_id, trigger_transaction_id) DO NOTHING
             """;
 
@@ -56,6 +59,7 @@ public sealed class EquitySnapshotRepository
                 snapshot.HoldingsMarketValue,
                 snapshot.TotalEquity,
                 HoldingsJson = holdingsJson,
+                snapshot.EventType,
             });
         }
         catch (PostgresException ex) when (IsMissingSnapshotTable(ex))
@@ -73,7 +77,7 @@ public sealed class EquitySnapshotRepository
         DateTime? toDate,
         int limit)
     {
-        const string sql =
+        var sqlBuilder = new StringBuilder(
             """
             SELECT
                 session_id AS SessionId,
@@ -83,26 +87,38 @@ public sealed class EquitySnapshotRepository
                 current_balance AS CurrentBalance,
                 holdings_market_value AS HoldingsMarketValue,
                 total_equity AS TotalEquity,
-                holdings_json AS HoldingsJson
+                holdings_json AS HoldingsJson,
+                event_type AS EventType
             FROM ledger_equity_snapshots
             WHERE session_id = @SessionId
-              AND (@FromDate IS NULL OR snapshot_time >= @FromDate)
-              AND (@ToDate   IS NULL OR snapshot_time <= @ToDate)
-            ORDER BY snapshot_time ASC
-            LIMIT @Limit
-            """;
+            """);
+        sqlBuilder.AppendLine();
+
+        var parameters = new DynamicParameters();
+        parameters.Add("SessionId", sessionId);
+
+        if (fromDate.HasValue)
+        {
+            sqlBuilder.AppendLine("  AND snapshot_time >= @FromDate");
+            parameters.Add("FromDate", fromDate.Value);
+        }
+
+        if (toDate.HasValue)
+        {
+            sqlBuilder.AppendLine("  AND snapshot_time <= @ToDate");
+            parameters.Add("ToDate", toDate.Value);
+        }
+
+        sqlBuilder.AppendLine("ORDER BY snapshot_time ASC");
+        sqlBuilder.AppendLine("LIMIT @Limit");
+
+        parameters.Add("Limit", Math.Clamp(limit, 1, 5000));
 
         await using var connection = new NpgsqlConnection(_connectionString);
         IEnumerable<SellTimelineRow> rows;
         try
         {
-            rows = await connection.QueryAsync<SellTimelineRow>(sql, new
-            {
-                SessionId = sessionId,
-                FromDate = fromDate,
-                ToDate = toDate,
-                Limit = Math.Clamp(limit, 1, 5000),
-            });
+            rows = await connection.QueryAsync<SellTimelineRow>(sqlBuilder.ToString(), parameters);
         }
         catch (PostgresException ex) when (IsMissingSnapshotTable(ex))
         {
@@ -118,7 +134,8 @@ public sealed class EquitySnapshotRepository
             row.CurrentBalance,
             row.HoldingsMarketValue,
             row.TotalEquity,
-            DeserializeHoldings(row.HoldingsJson))).ToList();
+            DeserializeHoldings(row.HoldingsJson),
+            row.EventType)).ToList();
     }
 
     private static IReadOnlyList<EquityHoldingSnapshot> DeserializeHoldings(string holdingsJson)
@@ -140,7 +157,8 @@ public sealed class EquitySnapshotRepository
         decimal CurrentBalance,
         decimal HoldingsMarketValue,
         decimal TotalEquity,
-        string HoldingsJson);
+        string HoldingsJson,
+        string EventType);
 
     private static bool IsMissingSnapshotTable(PostgresException ex)
     {

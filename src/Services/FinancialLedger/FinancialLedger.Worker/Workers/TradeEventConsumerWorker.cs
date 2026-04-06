@@ -179,11 +179,33 @@ public sealed class TradeEventConsumerWorker : BackgroundService
 
         if (string.Equals(evt.Type, LedgerEntryTypes.RealizedPnl, StringComparison.Ordinal))
         {
-            await sellSnapshotService.CaptureAfterSellAsync(
+            await sellSnapshotService.CaptureSnapshotAsync(
                 sessionId,
                 evt.BinanceTransactionId ?? entry.Id.ToString(),
                 evt.Symbol,
                 evt.Timestamp,
+                EquityEventTypes.Sell,
+                ct);
+        }
+        else if (string.Equals(evt.Type, LedgerEntryTypes.Commission, StringComparison.Ordinal)
+            && (evt.BinanceTransactionId?.EndsWith(":Buy", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            await sellSnapshotService.CaptureSnapshotAsync(
+                sessionId,
+                evt.BinanceTransactionId,
+                evt.Symbol,
+                evt.Timestamp,
+                EquityEventTypes.Buy,
+                ct);
+        }
+        else if (string.Equals(evt.Type, LedgerEntryTypes.InitialFunding, StringComparison.Ordinal))
+        {
+            await sellSnapshotService.CaptureSnapshotAsync(
+                sessionId,
+                evt.BinanceTransactionId ?? entry.Id.ToString(),
+                null,
+                evt.Timestamp,
+                EquityEventTypes.SessionStart,
                 ct);
         }
 

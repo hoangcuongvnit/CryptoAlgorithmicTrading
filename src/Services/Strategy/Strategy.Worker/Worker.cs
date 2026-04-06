@@ -110,6 +110,39 @@ public sealed class Worker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Returns true when Redis confirms an open position (qty > 0), or on any error/missing key (fail-open).
+    /// Returns false ONLY when the key exists AND qty == 0 — position confirmed closed by Executor.
+    /// </summary>
+    private async Task<bool> HasOpenPositionForSellAsync(string symbol, CancellationToken ct)
+    {
+        try
+        {
+            var db = _redis.GetDatabase();
+            var raw = (string?)await db.StringGetAsync(RedisChannels.PositionQty(symbol)).WaitAsync(ct);
+
+            if (raw is null)
+                return true; // key missing = never published or expired → fail-open
+
+            if (!decimal.TryParse(raw, out var qty))
+            {
+                _logger.LogWarning(
+                    "HasOpenPositionForSellAsync: unparseable qty '{Value}' for {Symbol} — failing open",
+                    raw, symbol);
+                return true;
+            }
+
+            return qty > 0m;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "HasOpenPositionForSellAsync: Redis unavailable for {Symbol} — failing open",
+                symbol);
+            return true;
+        }
+    }
+
     private async Task OnSignalAsync(RedisValue payload, CancellationToken cancellationToken)
     {
         TradeSignal? signal;
@@ -163,6 +196,20 @@ public sealed class Worker : BackgroundService
         {
             _logger.LogDebug("Signal for {Symbol} ignored by strategy mapper", signal.Symbol);
             return;
+        }
+
+        // Position-state gate: skip SELL pipeline when Redis confirms position qty = 0.
+        // BUY always passes through. Fails open on Redis error or missing key.
+        if (order.Side == OrderSide.Sell)
+        {
+            var hasPosition = await HasOpenPositionForSellAsync(order.Symbol, cancellationToken);
+            if (!hasPosition)
+            {
+                _logger.LogInformation(
+                    "SELL signal for {Symbol} skipped: position qty = 0 confirmed by Redis. RiskGuard and Executor calls bypassed.",
+                    order.Symbol);
+                return;
+            }
         }
 
         // Fire-and-forget: timeline publish must never delay order flow

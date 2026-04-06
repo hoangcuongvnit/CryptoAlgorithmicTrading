@@ -25,7 +25,34 @@
     "unrealizedPnl": "Lợi nhuận chưa thực hiện",
     "realTimeEquity": "Vốn thực tế",
     "roe": "ROE",
-    "openPositions": "Vị thế đang mở"
+    "openPositions": "Vị thế đang mở",
+    "equityChart": {
+      "title": "Biểu đồ vốn theo phiên",
+      "subtitle": "Vốn được chụp sau mỗi sự kiện: khởi tạo phiên, mua, bán.",
+      "loading": "Đang tải biểu đồ vốn...",
+      "empty": "Phiên hiện tại chưa có dữ liệu biểu đồ.",
+      "totalPoints": "Số điểm",
+      "currentBalance": "Tiền mặt",
+      "holdingsValue": "Giá trị coin đang giữ",
+      "totalEquity": "Tổng vốn thực",
+      "firstEquity": "Vốn mốc đầu",
+      "latestEquity": "Vốn mới nhất",
+      "deltaValue": "Giá trị thay đổi",
+      "deltaPercent": "Tỷ lệ thay đổi %",
+      "lastEventAt": "Sự kiện gần nhất",
+      "eventType": {
+        "SESSION_START": "Khởi tạo phiên",
+        "BUY": "Mua",
+        "SELL": "Bán"
+      },
+      "tooltip": {
+        "time": "Thời điểm",
+        "txId": "Mã giao dịch",
+        "symbol": "Cặp",
+        "holdings": "Coin đang giữ",
+        "noHoldings": "Không có coin đang giữ"
+      }
+    }
   },
 
   "positions": {

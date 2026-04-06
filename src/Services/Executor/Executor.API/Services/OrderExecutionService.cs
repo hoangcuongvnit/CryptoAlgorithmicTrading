@@ -98,20 +98,28 @@ public sealed class OrderExecutionService
             !orderRequest.IsReduceOnly &&
             !_positionTracker.TryValidateSellQuantity(orderRequest.Symbol, orderRequest.Quantity, out var availableQuantity, out var sellGuardError))
         {
-            return new OrderResult
+            if (availableQuantity <= 0m)
             {
-                OrderId = Guid.NewGuid().ToString("N"),
-                Symbol = orderRequest.Symbol,
-                Side = orderRequest.Side,
-                Success = false,
-                ErrorMessage = string.IsNullOrWhiteSpace(sellGuardError)
-                    ? $"Sell blocked: local quantity is lower than requested quantity. Available={availableQuantity}, Requested={orderRequest.Quantity}."
-                    : sellGuardError,
-                ErrorCode = TradingErrorCode.InsufficientPositionQuantity,
-                Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
-                SessionId = orderRequest.SessionId
-            };
+                return new OrderResult
+                {
+                    OrderId = Guid.NewGuid().ToString("N"),
+                    Symbol = orderRequest.Symbol,
+                    Side = orderRequest.Side,
+                    Success = false,
+                    ErrorMessage = string.IsNullOrWhiteSpace(sellGuardError)
+                        ? $"Sell blocked: no local position tracked for {orderRequest.Symbol}."
+                        : sellGuardError,
+                    ErrorCode = TradingErrorCode.InsufficientPositionQuantity,
+                    Timestamp = DateTime.UtcNow,
+                    IsPaperTrade = false,
+                    SessionId = orderRequest.SessionId
+                };
+            }
+
+            _logger.LogWarning(
+                "Sell quantity clamped for {Symbol}: requested {Requested} exceeds tracked position {Available}. Proceeding with available quantity.",
+                orderRequest.Symbol, orderRequest.Quantity, availableQuantity);
+            orderRequest = orderRequest with { Quantity = availableQuantity };
         }
 
         if (orderRequest.Side == OrderSide.Buy)

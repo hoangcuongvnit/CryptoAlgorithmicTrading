@@ -43,6 +43,13 @@ public sealed record EquityHoldingSnapshot(
     decimal MarkPrice,
     decimal MarketValue);
 
+public static class EquityEventTypes
+{
+    public const string SessionStart = "SESSION_START";
+    public const string Buy = "BUY";
+    public const string Sell = "SELL";
+}
+
 public sealed record SellEquitySnapshot(
     Guid SessionId,
     string TriggerTransactionId,
@@ -51,7 +58,8 @@ public sealed record SellEquitySnapshot(
     decimal CurrentBalance,
     decimal HoldingsMarketValue,
     decimal TotalEquity,
-    IReadOnlyList<EquityHoldingSnapshot> Holdings);
+    IReadOnlyList<EquityHoldingSnapshot> Holdings,
+    string EventType = EquityEventTypes.Sell);
 
 public sealed record SellEquitySnapshotPoint(
     Guid SessionId,
@@ -61,7 +69,8 @@ public sealed record SellEquitySnapshotPoint(
     decimal CurrentBalance,
     decimal HoldingsMarketValue,
     decimal TotalEquity,
-    IReadOnlyList<EquityHoldingSnapshot> Holdings);
+    IReadOnlyList<EquityHoldingSnapshot> Holdings,
+    string EventType = EquityEventTypes.Sell);
 
 public sealed record ResetSessionRequest(
     string AccountId,

@@ -152,14 +152,22 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             !orderRequest.IsReduceOnly &&
             !_positionTracker.TryValidateSellQuantity(orderRequest.Symbol, orderRequest.Quantity, out var availableQuantity, out var sellGuardError))
         {
-            _metrics.RecordOrderRejected(orderRequest.Symbol, "Sell guard: local quantity insufficient");
-            orderResult = BuildFailureResult(
-                orderRequest.Symbol,
-                string.IsNullOrWhiteSpace(sellGuardError)
-                    ? $"Sell blocked: local quantity is lower than requested quantity. Available={availableQuantity}, Requested={orderRequest.Quantity}."
-                    : sellGuardError,
-                TradingErrorCode.InsufficientPositionQuantity);
-            return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+            if (availableQuantity <= 0m)
+            {
+                _metrics.RecordOrderRejected(orderRequest.Symbol, "Sell guard: no local position");
+                orderResult = BuildFailureResult(
+                    orderRequest.Symbol,
+                    string.IsNullOrWhiteSpace(sellGuardError)
+                        ? $"Sell blocked: no local position tracked for {orderRequest.Symbol}."
+                        : sellGuardError,
+                    TradingErrorCode.InsufficientPositionQuantity);
+                return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+            }
+
+            _logger.LogWarning(
+                "Sell quantity clamped for {Symbol}: requested {Requested} exceeds tracked position {Available}. Proceeding with available quantity.",
+                orderRequest.Symbol, orderRequest.Quantity, availableQuantity);
+            orderRequest = orderRequest with { Quantity = availableQuantity };
         }
 
         if (orderRequest.Side == OrderSide.Buy)
