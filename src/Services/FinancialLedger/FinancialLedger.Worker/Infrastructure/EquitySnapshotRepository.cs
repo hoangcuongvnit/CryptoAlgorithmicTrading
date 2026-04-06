@@ -43,17 +43,26 @@ public sealed class EquitySnapshotRepository
         var holdingsJson = JsonSerializer.Serialize(snapshot.Holdings);
 
         await using var connection = new NpgsqlConnection(_connectionString);
-        var affected = await connection.ExecuteAsync(sql, new
+        int affected;
+        try
         {
-            snapshot.SessionId,
-            snapshot.TriggerTransactionId,
-            snapshot.TriggerSymbol,
-            snapshot.SnapshotTime,
-            snapshot.CurrentBalance,
-            snapshot.HoldingsMarketValue,
-            snapshot.TotalEquity,
-            HoldingsJson = holdingsJson,
-        });
+            affected = await connection.ExecuteAsync(sql, new
+            {
+                snapshot.SessionId,
+                snapshot.TriggerTransactionId,
+                snapshot.TriggerSymbol,
+                snapshot.SnapshotTime,
+                snapshot.CurrentBalance,
+                snapshot.HoldingsMarketValue,
+                snapshot.TotalEquity,
+                HoldingsJson = holdingsJson,
+            });
+        }
+        catch (PostgresException ex) when (IsMissingSnapshotTable(ex))
+        {
+            // Backward compatibility: environments that have not run the equity snapshot migration yet.
+            return false;
+        }
 
         return affected > 0;
     }
@@ -84,13 +93,22 @@ public sealed class EquitySnapshotRepository
             """;
 
         await using var connection = new NpgsqlConnection(_connectionString);
-        var rows = await connection.QueryAsync<SellTimelineRow>(sql, new
+        IEnumerable<SellTimelineRow> rows;
+        try
         {
-            SessionId = sessionId,
-            FromDate = fromDate,
-            ToDate = toDate,
-            Limit = Math.Clamp(limit, 1, 5000),
-        });
+            rows = await connection.QueryAsync<SellTimelineRow>(sql, new
+            {
+                SessionId = sessionId,
+                FromDate = fromDate,
+                ToDate = toDate,
+                Limit = Math.Clamp(limit, 1, 5000),
+            });
+        }
+        catch (PostgresException ex) when (IsMissingSnapshotTable(ex))
+        {
+            // Treat as no timeline data when migration has not been applied yet.
+            return [];
+        }
 
         return rows.Select(static row => new SellEquitySnapshotPoint(
             row.SessionId,
@@ -123,4 +141,10 @@ public sealed class EquitySnapshotRepository
         decimal HoldingsMarketValue,
         decimal TotalEquity,
         string HoldingsJson);
+
+    private static bool IsMissingSnapshotTable(PostgresException ex)
+    {
+        const string undefinedTableSqlState = "42P01";
+        return string.Equals(ex.SqlState, undefinedTableSqlState, StringComparison.Ordinal);
+    }
 }
