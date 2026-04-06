@@ -152,8 +152,10 @@
     "maxDrawdownHint": "Dừng giao dịch khi lỗ trong ngày vượt quá % này so với số dư tài khoản (0.1 – 100).",
     "minRiskReward": "Tỷ lệ Risk/Reward tối thiểu",
     "minRiskRewardHint": "Từ chối lệnh có tỷ lệ R:R thấp hơn ngưỡng này (0.5 – 10).",
-    "maxPositionSizePercent": "Kích thước vị thế tối đa (%)",
-    "maxPositionSizeHint": "Giá trị lệnh tối đa tính theo % số dư hiệu dụng — số dư Binance (Live) hoặc FinancialLedger (Testnet). Phạm vi: 0.1 – 100.",
+    "minOrderNotional": "Giá trị lệnh tối thiểu (USDT)",
+    "minOrderNotionalHint": "Từ chối lệnh nếu giá trị danh nghĩa thấp hơn mức này. Ví dụ: 5 = mỗi lệnh phải >= $5.",
+    "maxOrderNotional": "Giá trị lệnh tối đa (USDT)",
+    "maxOrderNotionalHint": "Cắt giảm số lượng nếu giá trị danh nghĩa vượt quá mức này. Ví dụ: 200 = mỗi lệnh tối đa $200.",
     "cooldownSeconds": "Thời gian chờ (giây)",
     "cooldownHint": "Số giây tối thiểu giữa hai lệnh liên tiếp trên cùng cặp tiền (0 – 3600).",
     "save": "Lưu cài đặt rủi ro",
@@ -184,6 +186,25 @@
       "minRequired": "Cần nhập giá trị lệnh tối thiểu.",
       "maxRequired": "Cần nhập giá trị lệnh tối đa.",
       "rangeInvalid": "Giá trị tối thiểu phải nhỏ hơn hoặc bằng giá trị tối đa.",
+      "networkError": "Lỗi mạng. Vui lòng thử lại."
+    }
+  },
+  "strategy": {
+    "title": "Cấu hình Strategy",
+    "subtitle": "Điều chỉnh giá trị lệnh mặc định. Áp dụng ngay cho Strategy mà không cần khởi động lại.",
+    "defaultOrderNotional": "Giá trị lệnh mặc định (USDT)",
+    "defaultOrderNotionalHint": "Mỗi lệnh mua sẽ có giá trị danh nghĩa bằng số USDT này. Ví dụ: 25 = mỗi lệnh $25.",
+    "minOrderNotional": "Giá trị lệnh tối thiểu (USDT)",
+    "minOrderNotionalHint": "Nếu tính toán ra lệnh nhỏ hơn mức này thì tự động nâng lên. Phải nhỏ hơn giá trị mặc định.",
+    "activeValues": "Đang lưu trong DB",
+    "save": "Lưu cấu hình Strategy",
+    "saving": "Đang lưu...",
+    "saveSuccess": "Đã lưu và áp dụng ngay cho Strategy qua Redis.",
+    "saveFailed": "Lưu cấu hình Strategy thất bại.",
+    "errors": {
+      "defaultRequired": "Giá trị lệnh mặc định phải lớn hơn 0.",
+      "minRequired": "Giá trị lệnh tối thiểu phải >= 0.",
+      "rangeInvalid": "Giá trị tối thiểu phải nhỏ hơn giá trị mặc định.",
       "networkError": "Lỗi mạng. Vui lòng thử lại."
     }
   },

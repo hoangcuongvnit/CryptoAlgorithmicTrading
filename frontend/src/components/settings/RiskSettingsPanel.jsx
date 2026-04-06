@@ -25,7 +25,8 @@ export function RiskSettingsPanel() {
   const [active, setActive] = useState(null)
   const [maxDrawdown, setMaxDrawdown] = useState('5')
   const [minRR, setMinRR] = useState('2')
-  const [maxPosition, setMaxPosition] = useState('2')
+  const [minOrderNotional, setMinOrderNotional] = useState('5')
+  const [maxOrderNotional, setMaxOrderNotional] = useState('200')
   const [cooldown, setCooldown] = useState('30')
   const [toast, setToast] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -39,7 +40,8 @@ export function RiskSettingsPanel() {
         setSaved(data)
         setMaxDrawdown(String(data.maxDrawdownPercent))
         setMinRR(String(data.minRiskReward))
-        setMaxPosition(String(data.maxPositionSizePercent))
+        setMinOrderNotional(String(data.minOrderNotional ?? 5))
+        setMaxOrderNotional(String(data.maxOrderNotional ?? 200))
         setCooldown(String(data.cooldownSeconds))
       })
       .catch(() => {})
@@ -59,12 +61,15 @@ export function RiskSettingsPanel() {
   async function handleSave() {
     const mxd = parseFloat(maxDrawdown)
     const mrr = parseFloat(minRR)
-    const mxp = parseFloat(maxPosition)
+    const mnon = parseFloat(minOrderNotional)
+    const mxon = parseFloat(maxOrderNotional)
     const cd = parseInt(cooldown)
 
     if (isNaN(mxd) || mxd < 0.1 || mxd > 100) { showToast('error', 'Max Drawdown must be between 0.1 and 100'); return }
     if (isNaN(mrr) || mrr < 0.5 || mrr > 10) { showToast('error', 'Min Risk/Reward must be between 0.5 and 10'); return }
-    if (isNaN(mxp) || mxp < 0.1 || mxp > 100) { showToast('error', 'Max Position Size must be between 0.1 and 100'); return }
+    if (isNaN(mnon) || mnon < 0) { showToast('error', 'Min Order Value must be >= 0'); return }
+    if (isNaN(mxon) || mxon <= 0) { showToast('error', 'Max Order Value must be > 0'); return }
+    if (mnon >= mxon) { showToast('error', 'Min Order Value must be less than Max Order Value'); return }
     if (isNaN(cd) || cd < 0 || cd > 3600) { showToast('error', 'Cooldown must be between 0 and 3600'); return }
 
     setSaving(true)
@@ -75,7 +80,8 @@ export function RiskSettingsPanel() {
         body: JSON.stringify({
           maxDrawdownPercent: mxd,
           minRiskReward: mrr,
-          maxPositionSizePercent: mxp,
+          minOrderNotional: mnon,
+          maxOrderNotional: mxon,
           cooldownSeconds: cd,
           updatedBy: 'admin',
         }),
@@ -125,7 +131,8 @@ export function RiskSettingsPanel() {
           <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-gray-500">
             <span>Drawdown:</span><span className="text-blue-600">{active.maxDrawdownPercent}%</span>
             <span>R:R:</span><span className="text-blue-600">{active.minRiskReward}</span>
-            <span>Position:</span><span className="text-blue-600">{active.maxPositionSizePercent}%</span>
+            <span>Min Order:</span><span className="text-blue-600">${active.minOrderNotional ?? 5}</span>
+            <span>Max Order:</span><span className="text-blue-600">${active.maxOrderNotional ?? 200}</span>
             <span>Cooldown:</span><span className="text-blue-600">{active.cooldownSeconds}s</span>
           </div>
         </div>
@@ -148,11 +155,18 @@ export function RiskSettingsPanel() {
           min="0.5" max="10" step="0.1"
         />
         <NumericField
-          label={t('risk.maxPositionSizePercent')}
-          hint={t('risk.maxPositionSizeHint')}
-          value={maxPosition}
-          onChange={setMaxPosition}
-          min="0.1" max="100" step="0.1"
+          label={t('risk.minOrderNotional')}
+          hint={t('risk.minOrderNotionalHint')}
+          value={minOrderNotional}
+          onChange={setMinOrderNotional}
+          min="0" step="0.01"
+        />
+        <NumericField
+          label={t('risk.maxOrderNotional')}
+          hint={t('risk.maxOrderNotionalHint')}
+          value={maxOrderNotional}
+          onChange={setMaxOrderNotional}
+          min="0.01" step="0.01"
         />
         <NumericField
           label={t('risk.cooldownSeconds')}

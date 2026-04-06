@@ -5,6 +5,7 @@ import { ExchangePanel } from '../components/settings/ExchangePanel.jsx'
 import { RiskSettingsPanel } from '../components/settings/RiskSettingsPanel.jsx'
 import { OrderAmountLimitsPanel } from '../components/settings/OrderAmountLimitsPanel.jsx'
 import { HouseKeeperPanel } from '../components/settings/HouseKeeperPanel.jsx'
+import { StrategyPanel } from '../components/settings/StrategyPanel.jsx'
 
 export function SettingsPage() {
   const { t } = useTranslation('settings')
@@ -21,6 +22,7 @@ export function SettingsPage() {
         <TelegramPanel />
         <ExchangePanel />
         <RiskSettingsPanel />
+        <StrategyPanel />
         <OrderAmountLimitsPanel />
         <HouseKeeperPanel />
       </div>

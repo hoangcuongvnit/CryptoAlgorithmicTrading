@@ -2,16 +2,19 @@ using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
 using Microsoft.Extensions.Options;
 using Strategy.Worker.Configuration;
+using Strategy.Worker.Infrastructure;
 
 namespace Strategy.Worker.Services;
 
 public sealed class SignalToOrderMapper
 {
     private readonly TradingSettings _settings;
+    private readonly StrategyConfigStore _configStore;
 
-    public SignalToOrderMapper(IOptions<TradingSettings> settings)
+    public SignalToOrderMapper(IOptions<TradingSettings> settings, StrategyConfigStore configStore)
     {
         _settings = settings.Value;
+        _configStore = configStore;
     }
 
     public bool TryMap(TradeSignal signal, out OrderRequest? orderRequest, SessionInfo? session = null)
@@ -90,18 +93,16 @@ public sealed class SignalToOrderMapper
     {
         var quantity = _settings.DefaultOrderQuantity;
 
-        if (_settings.DefaultOrderNotionalUsdt > 0 && entryPrice > 0)
-        {
-            quantity = _settings.DefaultOrderNotionalUsdt / entryPrice;
-        }
+        var defaultNotional = _configStore.DefaultOrderNotionalUsdt;
+        if (defaultNotional > 0 && entryPrice > 0)
+            quantity = defaultNotional / entryPrice;
 
-        if (_settings.MinOrderNotionalUsdt > 0 && entryPrice > 0)
+        var minNotional = _configStore.MinOrderNotionalUsdt;
+        if (minNotional > 0 && entryPrice > 0)
         {
-            var minQty = _settings.MinOrderNotionalUsdt / entryPrice;
+            var minQty = minNotional / entryPrice;
             if (quantity < minQty)
-            {
                 quantity = minQty;
-            }
         }
 
         return decimal.Round(quantity, 8, MidpointRounding.AwayFromZero);

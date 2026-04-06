@@ -69,7 +69,8 @@ services:
       - Executor__BaseUrl=http://trading_executor:5094
       - FinancialLedger__BaseUrl=http://trading_financialledger:5097
       - Risk__MinRiskReward=${MIN_RISK_REWARD:-2.0}
-      - Risk__MaxPositionSizePercent=${MAX_POSITION_SIZE_PERCENT:-2.0}
+      - Risk__MinOrderNotional=${MIN_ORDER_NOTIONAL:-5.0}
+      - Risk__MaxOrderNotional=${MAX_ORDER_NOTIONAL:-200.0}
       - Risk__VirtualAccountBalance=${INITIAL_BALANCE:-10000}
       - Risk__MaxDrawdownPercent=${MAX_DRAWDOWN_PERCENT:-5.0}
       - Risk__CooldownSeconds=${COOLDOWN_SECONDS:-30}
@@ -291,6 +292,8 @@ services:
       - Redis__Connection=trading_redis:6379
       - Grpc__RiskGuardUrl=http://trading_riskguard:5013
       - Grpc__ExecutorUrl=http://trading_executor:5014
+      - Trading__DefaultOrderNotionalUsdt=${DEFAULT_ORDER_NOTIONAL_USDT:-25}
+      - Trading__MinOrderNotionalUsdt=${MIN_ORDER_NOTIONAL_USDT:-5}
     restart: unless-stopped
     networks:
       - trading_network

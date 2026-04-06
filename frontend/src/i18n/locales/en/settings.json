@@ -152,8 +152,10 @@
     "maxDrawdownHint": "Halt trading when daily loss exceeds this percentage of account balance (0.1 – 100).",
     "minRiskReward": "Min Risk/Reward Ratio",
     "minRiskRewardHint": "Reject trades with risk/reward below this ratio (0.5 – 10).",
-    "maxPositionSizePercent": "Max Position Size %",
-    "maxPositionSizeHint": "Maximum order notional as a percentage of effective balance — Binance account (Live) or FinancialLedger (Testnet). Range: 0.1 – 100.",
+    "minOrderNotional": "Min Order Value (USDT)",
+    "minOrderNotionalHint": "Reject orders whose notional is below this amount. Example: 5 = each order must be >= $5.",
+    "maxOrderNotional": "Max Order Value (USDT)",
+    "maxOrderNotionalHint": "Trim order quantity if notional exceeds this amount. Example: 200 = each order capped at $200.",
     "cooldownSeconds": "Cooldown (seconds)",
     "cooldownHint": "Minimum seconds between consecutive orders on the same symbol (0 – 3600).",
     "save": "Save Risk Settings",
@@ -184,6 +186,25 @@
       "minRequired": "Minimum order amount is required.",
       "maxRequired": "Maximum order amount is required.",
       "rangeInvalid": "Minimum order amount must be less than or equal to maximum order amount.",
+      "networkError": "Network error. Please try again."
+    }
+  },
+  "strategy": {
+    "title": "Strategy Configuration",
+    "subtitle": "Adjust default order sizing. Applied immediately to Strategy via Redis without restart.",
+    "defaultOrderNotional": "Default Order Value (USDT)",
+    "defaultOrderNotionalHint": "Each buy order will target this notional value. Example: 25 = each order is $25.",
+    "minOrderNotional": "Min Order Value (USDT)",
+    "minOrderNotionalHint": "If calculated quantity is below this, it will be raised automatically. Must be less than default.",
+    "activeValues": "Saved in DB",
+    "save": "Save Strategy Config",
+    "saving": "Saving...",
+    "saveSuccess": "Saved and applied to Strategy via Redis.",
+    "saveFailed": "Failed to save Strategy config.",
+    "errors": {
+      "defaultRequired": "Default order value must be greater than 0.",
+      "minRequired": "Min order value must be >= 0.",
+      "rangeInvalid": "Min value must be less than default value.",
       "networkError": "Network error. Please try again."
     }
   },

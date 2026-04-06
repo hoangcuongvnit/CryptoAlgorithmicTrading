@@ -8,6 +8,7 @@ using Strategy.Worker;
 using Strategy.Worker.Configuration;
 using Strategy.Worker.Infrastructure;
 using Strategy.Worker.Services;
+using Strategy.Worker.Workers;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -43,7 +44,9 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 builder.Services.AddSingleton<StrategySystemEventPublisher>();
+builder.Services.AddSingleton<StrategyConfigStore>();
 builder.Services.AddSingleton<SignalToOrderMapper>();
+builder.Services.AddHostedService<StrategyConfigWatcher>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

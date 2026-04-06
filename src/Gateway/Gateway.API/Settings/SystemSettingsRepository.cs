@@ -29,8 +29,15 @@ public sealed record ExchangeSettingsRecord(
 public sealed record RiskSettingsRecord(
     decimal MaxDrawdownPercent,
     decimal MinRiskReward,
-    decimal MaxPositionSizePercent,
+    decimal MinOrderNotional,
+    decimal MaxOrderNotional,
     int CooldownSeconds,
+    string? UpdatedBy,
+    DateTime? UpdatedAtUtc);
+
+public sealed record StrategySettingsRecord(
+    decimal DefaultOrderNotionalUsdt,
+    decimal MinOrderNotionalUsdt,
     string? UpdatedBy,
     DateTime? UpdatedAtUtc);
 
@@ -529,7 +536,8 @@ public sealed class SystemSettingsRepository
             return new RiskSettingsRecord(
                 Parse("risk.maxDrawdownPercent", 5.0m),
                 Parse("risk.minRiskReward", 2.0m),
-                Parse("risk.maxPositionSizePercent", 2.0m),
+                Parse("risk.minOrderNotional", 5.0m),
+                Parse("risk.maxOrderNotional", 200.0m),
                 ParseInt("risk.cooldownSeconds", 30),
                 d.TryGetValue("risk.updatedBy", out var ub) ? ub : null,
                 d.TryGetValue("risk.updatedAtUtc", out var ua) && DateTime.TryParse(ua, out var uad) ? uad : null);
@@ -537,14 +545,15 @@ public sealed class SystemSettingsRepository
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read Risk settings");
-            return new RiskSettingsRecord(5.0m, 2.0m, 2.0m, 30, null, null);
+            return new RiskSettingsRecord(5.0m, 2.0m, 5.0m, 200.0m, 30, null, null);
         }
     }
 
     public async Task SaveRiskSettingsAsync(
         decimal maxDrawdownPercent,
         decimal minRiskReward,
-        decimal maxPositionSizePercent,
+        decimal minOrderNotional,
+        decimal maxOrderNotional,
         int cooldownSeconds,
         string? updatedBy,
         CancellationToken ct = default)
@@ -557,7 +566,8 @@ public sealed class SystemSettingsRepository
         {
             ("risk.maxDrawdownPercent", Fmt(maxDrawdownPercent)),
             ("risk.minRiskReward", Fmt(minRiskReward)),
-            ("risk.maxPositionSizePercent", Fmt(maxPositionSizePercent)),
+            ("risk.minOrderNotional", Fmt(minOrderNotional)),
+            ("risk.maxOrderNotional", Fmt(maxOrderNotional)),
             ("risk.cooldownSeconds", cooldownSeconds.ToString()),
             ("risk.updatedBy", updatedBy ?? "system"),
             ("risk.updatedAtUtc", now.ToString("O")),
@@ -581,6 +591,78 @@ public sealed class SystemSettingsRepository
         }
 
         _logger.LogInformation("Risk settings saved by {UpdatedBy}", updatedBy ?? "unknown");
+    }
+
+    // ── Strategy Settings ───────────────────────────────────────────────────
+
+    public async Task<StrategySettingsRecord> GetStrategySettingsAsync(CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+
+        const string sql = "SELECT key, value FROM public.system_settings WHERE key LIKE 'strategy.%';";
+        try
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            var rows = await conn.QueryAsync<(string Key, string Value)>(
+                new CommandDefinition(sql, cancellationToken: ct));
+
+            var d = rows.ToDictionary(r => r.Key, r => r.Value);
+
+            decimal Parse(string key, decimal def) =>
+                d.TryGetValue(key, out var v) && decimal.TryParse(v,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : def;
+
+            return new StrategySettingsRecord(
+                Parse("strategy.defaultOrderNotionalUsdt", 25.0m),
+                Parse("strategy.minOrderNotionalUsdt", 5.0m),
+                d.TryGetValue("strategy.updatedBy", out var ub) ? ub : null,
+                d.TryGetValue("strategy.updatedAtUtc", out var ua) && DateTime.TryParse(ua, out var uad) ? uad : null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read Strategy settings");
+            return new StrategySettingsRecord(25.0m, 5.0m, null, null);
+        }
+    }
+
+    public async Task SaveStrategySettingsAsync(
+        decimal defaultOrderNotionalUsdt,
+        decimal minOrderNotionalUsdt,
+        string? updatedBy,
+        CancellationToken ct = default)
+    {
+        await EnsureSchemaAsync(ct);
+
+        var now = DateTime.UtcNow;
+        string Fmt(decimal v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var updates = new[]
+        {
+            ("strategy.defaultOrderNotionalUsdt", Fmt(defaultOrderNotionalUsdt)),
+            ("strategy.minOrderNotionalUsdt", Fmt(minOrderNotionalUsdt)),
+            ("strategy.updatedBy", updatedBy ?? "system"),
+            ("strategy.updatedAtUtc", now.ToString("O")),
+        };
+
+        const string sql = """
+            INSERT INTO public.system_settings (key, value, updated_at_utc, updated_by)
+            VALUES (@Key, @Value, @Now, @UpdatedBy)
+            ON CONFLICT (key) DO UPDATE
+                SET value          = EXCLUDED.value,
+                    updated_at_utc = EXCLUDED.updated_at_utc,
+                    updated_by     = EXCLUDED.updated_by;
+            """;
+
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+        foreach (var (key, value) in updates)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(sql,
+                new { Key = key, Value = value, Now = now, UpdatedBy = updatedBy }, cancellationToken: ct));
+        }
+
+        _logger.LogInformation("Strategy settings saved by {UpdatedBy}", updatedBy ?? "unknown");
     }
 
     // ── Order Amount Limits ─────────────────────────────────────────────────

@@ -76,8 +76,8 @@ app.MapGet("/api/risk/config", async (IOptions<RiskSettings> opts, IEffectiveBal
     return Results.Ok(new
     {
         minRiskReward = s.MinRiskReward,
+        minOrderNotional = s.MinOrderNotional,
         maxOrderNotional = s.MaxOrderNotional,
-        maxPositionSizePercent = s.MaxPositionSizePercent,
         allowVirtualBalanceFallback = s.AllowVirtualBalanceFallback,
         balanceCacheTtlSeconds = s.BalanceCacheTtlSeconds,
         balanceLookupTimeoutMs = s.BalanceLookupTimeoutMs,
@@ -106,7 +106,8 @@ app.MapPost("/api/risk/reload-config", (IOptions<RiskSettings> opts, HttpRequest
     var s = opts.Value;
     if (body.MaxDrawdownPercent.HasValue) s.MaxDrawdownPercent = body.MaxDrawdownPercent.Value;
     if (body.MinRiskReward.HasValue) s.MinRiskReward = body.MinRiskReward.Value;
-    if (body.MaxPositionSizePercent.HasValue) s.MaxPositionSizePercent = body.MaxPositionSizePercent.Value;
+    if (body.MinOrderNotional.HasValue) s.MinOrderNotional = body.MinOrderNotional.Value;
+    if (body.MaxOrderNotional.HasValue) s.MaxOrderNotional = body.MaxOrderNotional.Value;
     if (body.CooldownSeconds.HasValue) s.CooldownSeconds = body.CooldownSeconds.Value;
 
     return Results.Ok(new { reloaded = true });
@@ -253,7 +254,8 @@ app.Run();
 record RiskReloadRequest(
     decimal? MaxDrawdownPercent,
     decimal? MinRiskReward,
-    decimal? MaxPositionSizePercent,
+    decimal? MinOrderNotional,
+    decimal? MaxOrderNotional,
     int? CooldownSeconds);
 
 /// <summary>Query parameters for the evaluation history endpoint.</summary>

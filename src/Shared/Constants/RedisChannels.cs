@@ -73,4 +73,13 @@ public static class RedisChannels
     /// Message payload is the new IANA timezone string.
     /// </summary>
     public const string SystemConfigChanged = "system:config:changed";
+
+    /// <summary>Redis string key: default order notional in USDT for Strategy service.</summary>
+    public const string StrategyConfigDefaultOrderNotional = "strategy:config:defaultOrderNotionalUsdt";
+
+    /// <summary>Redis string key: minimum order notional in USDT for Strategy service.</summary>
+    public const string StrategyConfigMinOrderNotional = "strategy:config:minOrderNotionalUsdt";
+
+    /// <summary>Pub/Sub channel broadcast when strategy config changes: strategy:config:changed</summary>
+    public const string StrategyConfigChanged = "strategy:config:changed";
 }

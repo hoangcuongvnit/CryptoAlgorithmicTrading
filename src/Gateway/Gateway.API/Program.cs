@@ -1344,7 +1344,8 @@ settingsGroup.MapGet("/risk", async (SystemSettingsRepository repo, Cancellation
     {
         maxDrawdownPercent = cfg.MaxDrawdownPercent,
         minRiskReward = cfg.MinRiskReward,
-        maxPositionSizePercent = cfg.MaxPositionSizePercent,
+        minOrderNotional = cfg.MinOrderNotional,
+        maxOrderNotional = cfg.MaxOrderNotional,
         cooldownSeconds = cfg.CooldownSeconds,
         updatedBy = cfg.UpdatedBy,
         updatedAtUtc = cfg.UpdatedAtUtc,
@@ -1365,13 +1366,15 @@ settingsGroup.MapPut("/risk", async (
 
     if (body.MaxDrawdownPercent is < 0.1m or > 100m) return Results.BadRequest("maxDrawdownPercent must be between 0.1 and 100");
     if (body.MinRiskReward is < 0.5m or > 10m) return Results.BadRequest("minRiskReward must be between 0.5 and 10");
-    if (body.MaxPositionSizePercent is < 0.1m or > 100m) return Results.BadRequest("maxPositionSizePercent must be between 0.1 and 100");
+    if (body.MinOrderNotional is < 0m) return Results.BadRequest("minOrderNotional must be >= 0");
+    if (body.MaxOrderNotional is <= 0m) return Results.BadRequest("maxOrderNotional must be > 0");
+    if (body.MinOrderNotional >= body.MaxOrderNotional) return Results.BadRequest("minOrderNotional must be less than maxOrderNotional");
     if (body.CooldownSeconds is < 0 or > 3600) return Results.BadRequest("cooldownSeconds must be between 0 and 3600");
 
     await repo.SaveRiskSettingsAsync(
         body.MaxDrawdownPercent, body.MinRiskReward,
-        body.MaxPositionSizePercent, body.CooldownSeconds,
-        body.UpdatedBy, ct);
+        body.MinOrderNotional, body.MaxOrderNotional,
+        body.CooldownSeconds, body.UpdatedBy, ct);
 
     // Push to RiskGuard
     try
@@ -1381,13 +1384,67 @@ settingsGroup.MapPut("/risk", async (
         {
             maxDrawdownPercent = body.MaxDrawdownPercent,
             minRiskReward = body.MinRiskReward,
-            maxPositionSizePercent = body.MaxPositionSizePercent,
+            minOrderNotional = body.MinOrderNotional,
+            maxOrderNotional = body.MaxOrderNotional,
             cooldownSeconds = body.CooldownSeconds,
         }, ct);
     }
     catch (Exception ex)
     {
         app.Logger.LogWarning(ex, "Failed to push risk config to RiskGuard");
+    }
+
+    return Results.Ok(new { saved = true });
+});
+
+// ── Strategy settings endpoints ──────────────────────────────────────────
+
+// GET /api/settings/strategy
+settingsGroup.MapGet("/strategy", async (SystemSettingsRepository repo, CancellationToken ct) =>
+{
+    var cfg = await repo.GetStrategySettingsAsync(ct);
+    return Results.Ok(new
+    {
+        defaultOrderNotionalUsdt = cfg.DefaultOrderNotionalUsdt,
+        minOrderNotionalUsdt = cfg.MinOrderNotionalUsdt,
+        updatedBy = cfg.UpdatedBy,
+        updatedAtUtc = cfg.UpdatedAtUtc,
+    });
+});
+
+// PUT /api/settings/strategy
+settingsGroup.MapPut("/strategy", async (
+    SystemSettingsRepository repo,
+    IConnectionMultiplexer redis,
+    HttpRequest request,
+    CancellationToken ct) =>
+{
+    StrategySaveRequest? body;
+    try { body = await request.ReadFromJsonAsync<StrategySaveRequest>(ct); }
+    catch { return Results.BadRequest("Invalid JSON body"); }
+    if (body is null) return Results.BadRequest("Request body is required");
+
+    if (body.DefaultOrderNotionalUsdt <= 0) return Results.BadRequest("defaultOrderNotionalUsdt must be > 0");
+    if (body.MinOrderNotionalUsdt < 0) return Results.BadRequest("minOrderNotionalUsdt must be >= 0");
+    if (body.MinOrderNotionalUsdt >= body.DefaultOrderNotionalUsdt)
+        return Results.BadRequest("minOrderNotionalUsdt must be less than defaultOrderNotionalUsdt");
+
+    await repo.SaveStrategySettingsAsync(
+        body.DefaultOrderNotionalUsdt, body.MinOrderNotionalUsdt,
+        body.UpdatedBy, ct);
+
+    // Push to Redis so Strategy hot-reloads without restart
+    try
+    {
+        var db = redis.GetDatabase();
+        string Fmt(decimal v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await db.StringSetAsync("strategy:config:defaultOrderNotionalUsdt", Fmt(body.DefaultOrderNotionalUsdt));
+        await db.StringSetAsync("strategy:config:minOrderNotionalUsdt", Fmt(body.MinOrderNotionalUsdt));
+        await db.PublishAsync(RedisChannel.Literal("strategy:config:changed"), "updated");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to push strategy config to Redis");
     }
 
     return Results.Ok(new { saved = true });
@@ -1682,7 +1739,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
             {
                 maxDrawdownPercent = riskCfg.MaxDrawdownPercent,
                 minRiskReward = riskCfg.MinRiskReward,
-                maxPositionSizePercent = riskCfg.MaxPositionSizePercent,
+                minOrderNotional = riskCfg.MinOrderNotional,
+                maxOrderNotional = riskCfg.MaxOrderNotional,
                 cooldownSeconds = riskCfg.CooldownSeconds,
             });
             logger.LogInformation("Risk settings synced to RiskGuard on startup");
@@ -1690,6 +1748,22 @@ app.Lifetime.ApplicationStarted.Register(() =>
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to sync Risk settings to RiskGuard on startup");
+        }
+
+        // Sync Strategy settings → Redis
+        try
+        {
+            var strategyCfg = await repo.GetStrategySettingsAsync();
+            var redis = app.Services.GetRequiredService<IConnectionMultiplexer>();
+            var db = redis.GetDatabase();
+            string Fmt(decimal v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await db.StringSetAsync("strategy:config:defaultOrderNotionalUsdt", Fmt(strategyCfg.DefaultOrderNotionalUsdt));
+            await db.StringSetAsync("strategy:config:minOrderNotionalUsdt", Fmt(strategyCfg.MinOrderNotionalUsdt));
+            logger.LogInformation("Strategy settings synced to Redis on startup");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to sync Strategy settings to Redis on startup");
         }
     });
 });
@@ -1830,6 +1904,7 @@ record ExchangeSaveRequest(string? ApiKey, string? ApiSecret, string? TestnetApi
 record ExchangeValidateRequest(string ApiKey, string ApiSecret, bool UseTestnet);
 record ValidateSavedRequest(bool UseTestnet);
 record OrderAmountLimitSaveRequest(decimal? MinOrderAmount, decimal? MaxOrderAmount, string? UpdatedBy);
-record RiskSaveRequest(decimal MaxDrawdownPercent, decimal MinRiskReward, decimal MaxPositionSizePercent, int CooldownSeconds, string? UpdatedBy);
+record RiskSaveRequest(decimal MaxDrawdownPercent, decimal MinRiskReward, decimal MinOrderNotional, decimal MaxOrderNotional, int CooldownSeconds, string? UpdatedBy);
+record StrategySaveRequest(decimal DefaultOrderNotionalUsdt, decimal MinOrderNotionalUsdt, string? UpdatedBy);
 record HouseKeeperSaveRequest(bool Enabled, bool DryRun, string ScheduleUtc, int RetentionOrdersDays, int RetentionGapsDays, int RetentionTicksMonths, int BatchSize, int MaxRunSeconds, string? UpdatedBy);
 record TimelineEvent(DateTime TimestampUtc, string EventType, string Outcome, string? Side, string Summary, object Details);

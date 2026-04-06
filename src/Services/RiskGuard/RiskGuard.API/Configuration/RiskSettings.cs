@@ -5,11 +5,11 @@ public sealed class RiskSettings
     /// <summary>Minimum required risk/reward ratio (e.g. 2.0 = 1:2).</summary>
     public decimal MinRiskReward { get; set; } = 2.0m;
 
-    /// <summary>Hard cap on order notional in USDT. Superseded by <see cref="MaxPositionSizePercent"/> when set.</summary>
-    public decimal MaxOrderNotional { get; set; } = 1000m;
+    /// <summary>Minimum order notional in USDT. Orders below this value are rejected.</summary>
+    public decimal MinOrderNotional { get; set; } = 5.0m;
 
-    /// <summary>Maximum single-order size as a percentage of <see cref="VirtualAccountBalance"/> (e.g. 2.0 = 2%).</summary>
-    public decimal MaxPositionSizePercent { get; set; } = 2.0m;
+    /// <summary>Maximum order notional in USDT. Orders above this value have their quantity trimmed down.</summary>
+    public decimal MaxOrderNotional { get; set; } = 200.0m;
 
     /// <summary>Virtual account size in USDT used for position-size and drawdown calculations.</summary>
     public decimal VirtualAccountBalance { get; set; } = 100m;
