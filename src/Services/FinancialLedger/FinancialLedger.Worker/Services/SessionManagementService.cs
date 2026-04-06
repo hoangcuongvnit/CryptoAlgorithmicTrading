@@ -131,6 +131,26 @@ public sealed class SessionManagementService
             new { AccountId = accountId });
     }
 
+    public async Task<SessionDto?> GetSessionByIdAsync(Guid sessionId)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        return await connection.QuerySingleOrDefaultAsync<SessionDto>(
+            """
+            SELECT
+                id AS Id,
+                account_id AS AccountId,
+                algorithm_name AS AlgorithmName,
+                initial_balance AS InitialBalance,
+                start_time AS StartTime,
+                end_time AS EndTime,
+                status AS Status
+            FROM test_sessions
+            WHERE id = @SessionId
+            LIMIT 1
+            """,
+            new { SessionId = sessionId });
+    }
+
     public async Task<IReadOnlyList<SessionDto>> GetSessionsAsync(Guid accountId, string? status)
     {
         await using var connection = new NpgsqlConnection(_connectionString);

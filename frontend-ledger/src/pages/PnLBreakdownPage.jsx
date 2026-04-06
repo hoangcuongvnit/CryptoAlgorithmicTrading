@@ -20,8 +20,22 @@ export default function PnLBreakdownPage() {
   useEffect(() => {
     const env = import.meta.env.VITE_DEFAULT_ENVIRONMENT ?? 'TESTNET'
     ledgerApi.bootstrap(env)
-      .then((d) => ledgerApi.getAccount(d.accountId))
-      .then((acc) => { setSessionId(acc.id); return acc.id })
+      .then((d) => {
+        if (d.activeSession?.id) {
+          setSessionId(d.activeSession.id)
+          return d.activeSession.id
+        }
+
+        return ledgerApi.getSessions(d.accountId, 'ACTIVE').then((sessions) => {
+          const active = sessions.find((s) => s.status === 'ACTIVE')
+          if (!active?.id) {
+            throw new Error('No active session found')
+          }
+
+          setSessionId(active.id)
+          return active.id
+        })
+      })
       .then((sid) => ledgerApi.getPnl(sid))
       .then(setBreakdown)
       .catch((e) => setError(e.message))

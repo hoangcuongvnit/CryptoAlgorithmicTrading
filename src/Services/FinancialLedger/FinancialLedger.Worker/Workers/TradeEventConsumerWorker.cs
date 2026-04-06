@@ -116,18 +116,50 @@ public sealed class TradeEventConsumerWorker : BackgroundService
         var sessionService = scope.ServiceProvider.GetRequiredService<SessionManagementService>();
         var ledgerRepo = scope.ServiceProvider.GetRequiredService<LedgerRepository>();
         var pnlService = scope.ServiceProvider.GetRequiredService<PnlCalculationService>();
+        var sellSnapshotService = scope.ServiceProvider.GetRequiredService<EquitySellSnapshotService>();
 
         var accountId = evt.AccountId;
-        if (accountId == Guid.Empty)
-        {
-            accountId = await accountRepo.GetOrCreateAccountAsync(evt.Environment);
-        }
+        Guid sessionId;
 
-        var activeSession = await sessionService.GetActiveSessionAsync(accountId);
-        var sessionId = activeSession?.Id ?? await sessionService.CreateSessionAsync(
-            accountId,
-            evt.AlgorithmName,
-            _settings.DefaultInitialBalance);
+        if (evt.SessionId != Guid.Empty)
+        {
+            var routedSession = await sessionService.GetSessionByIdAsync(evt.SessionId);
+            if (routedSession is not null)
+            {
+                sessionId = routedSession.Id;
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Ledger event {TransactionId} carried unknown sessionId {SessionId}; falling back to active session routing.",
+                    evt.BinanceTransactionId,
+                    evt.SessionId);
+
+                if (accountId == Guid.Empty)
+                {
+                    accountId = await accountRepo.GetOrCreateAccountAsync(evt.Environment);
+                }
+
+                var activeSessionFallback = await sessionService.GetActiveSessionAsync(accountId);
+                sessionId = activeSessionFallback?.Id ?? await sessionService.CreateSessionAsync(
+                    accountId,
+                    evt.AlgorithmName,
+                    _settings.DefaultInitialBalance);
+            }
+        }
+        else
+        {
+            if (accountId == Guid.Empty)
+            {
+                accountId = await accountRepo.GetOrCreateAccountAsync(evt.Environment);
+            }
+
+            var activeSession = await sessionService.GetActiveSessionAsync(accountId);
+            sessionId = activeSession?.Id ?? await sessionService.CreateSessionAsync(
+                accountId,
+                evt.AlgorithmName,
+                _settings.DefaultInitialBalance);
+        }
 
         var inserted = await ledgerRepo.InsertLedgerEntryAsync(
             sessionId,
@@ -144,6 +176,16 @@ public sealed class TradeEventConsumerWorker : BackgroundService
 
         await pnlService.InvalidateBalanceCacheAsync(sessionId);
         var balance = await pnlService.GetCurrentBalanceAsync(sessionId);
+
+        if (string.Equals(evt.Type, LedgerEntryTypes.RealizedPnl, StringComparison.Ordinal))
+        {
+            await sellSnapshotService.CaptureAfterSellAsync(
+                sessionId,
+                evt.BinanceTransactionId ?? entry.Id.ToString(),
+                evt.Symbol,
+                evt.Timestamp,
+                ct);
+        }
 
         await _hub.Clients.All.SendAsync(
             "ReceiveLedgerEntry",
@@ -185,6 +227,10 @@ public sealed class TradeEventConsumerWorker : BackgroundService
             ? parsedAccountId
             : Guid.Empty;
 
+        var sessionId = dict.TryGetValue("sessionId", out var sessionIdText) && Guid.TryParse(sessionIdText, out var parsedSessionId)
+            ? parsedSessionId
+            : Guid.Empty;
+
         var timestamp = dict.TryGetValue("timestamp", out var timestampText) &&
             DateTime.TryParse(timestampText, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsedTimestamp)
                 ? parsedTimestamp
@@ -201,11 +247,12 @@ public sealed class TradeEventConsumerWorker : BackgroundService
         dict.TryGetValue("transactionId", out var tranId);
         dict.TryGetValue("symbol", out var symbol);
 
-        return new LedgerEvent(accountId, environment, algorithmName, tranId, type.ToUpperInvariant(), amount, symbol, timestamp);
+        return new LedgerEvent(accountId, sessionId, environment, algorithmName, tranId, type.ToUpperInvariant(), amount, symbol, timestamp);
     }
 
     private sealed record LedgerEvent(
         Guid AccountId,
+        Guid SessionId,
         string Environment,
         string AlgorithmName,
         string? BinanceTransactionId,

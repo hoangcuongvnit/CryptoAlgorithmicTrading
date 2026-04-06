@@ -53,6 +53,14 @@ export const ledgerApi = {
     return fetch(`${BASE}/api/ledger/entries?${params}`).then(json)
   },
 
+  // GET equity timeline captured after each SELL (REALIZED_PNL)
+  getSellEquityTimeline(sessionId, { fromDate, toDate, limit = 1000 } = {}) {
+    const params = new URLSearchParams({ sessionId, limit })
+    if (fromDate) params.append('fromDate', fromDate)
+    if (toDate) params.append('toDate', toDate)
+    return fetch(`${BASE}/api/ledger/equity/sell-timeline?${params}`).then(json)
+  },
+
   // GET sessions for account
   getSessions(accountId, status = 'ALL') {
     const params = new URLSearchParams({ status })

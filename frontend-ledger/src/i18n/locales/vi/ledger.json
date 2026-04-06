@@ -40,6 +40,28 @@
     "title": "Lịch sử giao dịch",
     "total": "Tổng",
     "empty": "Không có giao dịch nào",
+    "equity": {
+      "title": "Biểu đồ vốn thực (sau mỗi lệnh SELL)",
+      "subtitle": "Mỗi điểm được chụp ngay sau khi khớp SELL: tiền mặt + giá trị thị trường của coin còn giữ.",
+      "loading": "Đang tải dữ liệu biểu đồ vốn...",
+      "empty": "Phiên hiện tại chưa có snapshot SELL nào.",
+      "totalPoints": "Số điểm",
+      "currentBalance": "Tiền mặt",
+      "holdingsValue": "Giá trị coin đang giữ",
+      "totalEquity": "Tổng vốn thực",
+      "lastSellAt": "SELL gần nhất",
+      "firstEquity": "Vốn mốc đầu",
+      "latestEquity": "Vốn mới nhất",
+      "deltaPercent": "Tỷ lệ thay đổi %",
+      "deltaValue": "Giá trị thay đổi",
+      "tooltip": {
+        "txId": "Mã giao dịch",
+        "symbol": "Cặp",
+        "soldAt": "Thời điểm SELL",
+        "holdings": "Coin đang giữ",
+        "noHoldings": "Không còn coin đang giữ"
+      }
+    },
     "filter": {
       "symbol": "Cặp tiền (VD: BTCUSDT)",
       "fromDate": "Từ ngày",

@@ -146,6 +146,15 @@ export function OverviewPage() {
                 : t('common:liveTrading')}
             </span>
           )}
+          <a
+            href="http://localhost:5098"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1 rounded-full text-sm font-semibold border transition-colors hover:opacity-80"
+            style={{ background: '#f0f9ff', border: '1px solid #7dd3fc', color: '#0369a1' }}
+          >
+            {t('ledgerLink')}
+          </a>
           {lastUpdated && (
             <span className="text-xs text-gray-400">
               {t('common:updatedAt', { time: lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: systemTimezone }) })}

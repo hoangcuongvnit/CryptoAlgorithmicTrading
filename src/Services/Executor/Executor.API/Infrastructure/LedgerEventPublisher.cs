@@ -9,6 +9,7 @@ namespace Executor.API.Infrastructure;
 public sealed class LedgerEventPublisher
 {
     private const string LedgerEventsStream = "ledger:events";
+    private const decimal CommissionRate = 0.001m;
 
     private readonly IConnectionMultiplexer _redis;
     private readonly BinanceSettings _binanceSettings;
@@ -30,7 +31,32 @@ public sealed class LedgerEventPublisher
         PositionTracker.OpenPosition? positionBeforeFill,
         CancellationToken cancellationToken)
     {
-        if (!result.Success || request.Side != OrderSide.Sell)
+        if (!result.Success)
+        {
+            return;
+        }
+
+        var environment = _binanceSettings.UseTestnet ? "TESTNET" : "MAINNET";
+        var algorithmName = string.IsNullOrWhiteSpace(request.StrategyName) ? "EXECUTOR" : request.StrategyName;
+
+        // Commission affects net PnL on every successful fill (BUY and SELL).
+        if (result.FilledQty > 0 && result.FilledPrice > 0)
+        {
+            var commission = -(result.FilledQty * result.FilledPrice * CommissionRate);
+
+            await PublishEntryAsync(
+                transactionId: $"{result.OrderId}:COMMISSION:{request.Side}",
+                type: "COMMISSION",
+                amount: commission,
+                symbol: request.Symbol,
+                environment: environment,
+                algorithmName: algorithmName,
+                sessionId: request.SessionId,
+                timestamp: result.Timestamp,
+                cancellationToken: cancellationToken);
+        }
+
+        if (request.Side != OrderSide.Sell)
         {
             return;
         }
@@ -47,9 +73,6 @@ public sealed class LedgerEventPublisher
         }
 
         var grossRealizedPnl = (result.FilledPrice - positionBeforeFill.AvgEntryPrice) * closedQty;
-        var commission = -(closedQty * (result.FilledPrice + positionBeforeFill.AvgEntryPrice) * 0.001m);
-        var environment = _binanceSettings.UseTestnet ? "TESTNET" : "MAINNET";
-        var algorithmName = string.IsNullOrWhiteSpace(request.StrategyName) ? "EXECUTOR" : request.StrategyName;
 
         await PublishEntryAsync(
             transactionId: $"{result.OrderId}:REALIZED_PNL",
@@ -58,16 +81,7 @@ public sealed class LedgerEventPublisher
             symbol: request.Symbol,
             environment: environment,
             algorithmName: algorithmName,
-            timestamp: result.Timestamp,
-            cancellationToken: cancellationToken);
-
-        await PublishEntryAsync(
-            transactionId: $"{result.OrderId}:COMMISSION",
-            type: "COMMISSION",
-            amount: commission,
-            symbol: request.Symbol,
-            environment: environment,
-            algorithmName: algorithmName,
+            sessionId: request.SessionId,
             timestamp: result.Timestamp,
             cancellationToken: cancellationToken);
     }
@@ -79,6 +93,7 @@ public sealed class LedgerEventPublisher
         string symbol,
         string environment,
         string algorithmName,
+        string? sessionId,
         DateTime timestamp,
         CancellationToken cancellationToken)
     {
@@ -90,6 +105,7 @@ public sealed class LedgerEventPublisher
             new("type", type),
             new("amount", amount.ToString("0.########", CultureInfo.InvariantCulture)),
             new("accountId", string.Empty),
+            new("sessionId", sessionId ?? string.Empty),
             new("environment", environment),
             new("algorithmName", algorithmName),
             new("timestamp", timestamp.ToString("O")),

@@ -37,6 +37,32 @@ public sealed record LedgerEntryDto(
 
 public sealed record PnlBreakdown(decimal RealizedPnl, decimal Commission, decimal FundingFee, decimal NetPnl);
 
+public sealed record EquityHoldingSnapshot(
+    string Symbol,
+    decimal Quantity,
+    decimal MarkPrice,
+    decimal MarketValue);
+
+public sealed record SellEquitySnapshot(
+    Guid SessionId,
+    string TriggerTransactionId,
+    string? TriggerSymbol,
+    DateTime SnapshotTime,
+    decimal CurrentBalance,
+    decimal HoldingsMarketValue,
+    decimal TotalEquity,
+    IReadOnlyList<EquityHoldingSnapshot> Holdings);
+
+public sealed record SellEquitySnapshotPoint(
+    Guid SessionId,
+    string TriggerTransactionId,
+    string? TriggerSymbol,
+    DateTime SnapshotTime,
+    decimal CurrentBalance,
+    decimal HoldingsMarketValue,
+    decimal TotalEquity,
+    IReadOnlyList<EquityHoldingSnapshot> Holdings);
+
 public sealed record ResetSessionRequest(
     string AccountId,
     decimal NewInitialBalance,

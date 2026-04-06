@@ -40,6 +40,28 @@
     "title": "Ledger Entries",
     "total": "Total",
     "empty": "No entries found",
+    "equity": {
+      "title": "Real Equity Timeline (after SELL)",
+      "subtitle": "Each point is captured right after a sell fill: cash + market value of remaining holdings.",
+      "loading": "Loading equity timeline...",
+      "empty": "No SELL snapshots yet for this session.",
+      "totalPoints": "Points",
+      "currentBalance": "Cash Balance",
+      "holdingsValue": "Holdings Value",
+      "totalEquity": "Total Equity",
+      "lastSellAt": "Last SELL",
+      "firstEquity": "First Equity",
+      "latestEquity": "Latest Equity",
+      "deltaPercent": "Delta %",
+      "deltaValue": "Delta Value",
+      "tooltip": {
+        "txId": "Tx ID",
+        "symbol": "Symbol",
+        "soldAt": "Sold At",
+        "holdings": "Holdings",
+        "noHoldings": "No open holdings"
+      }
+    },
     "filter": {
       "symbol": "Symbol (e.g. BTCUSDT)",
       "fromDate": "From date",

@@ -24,9 +24,11 @@ builder.Services.AddSignalR();
 
 builder.Services.AddScoped<VirtualAccountRepository>();
 builder.Services.AddScoped<LedgerRepository>();
+builder.Services.AddScoped<EquitySnapshotRepository>();
 builder.Services.AddScoped<SessionManagementService>();
 builder.Services.AddScoped<PnlCalculationService>();
 builder.Services.AddScoped<SessionResetSagaService>();
+builder.Services.AddScoped<EquitySellSnapshotService>();
 
 builder.Services.AddHostedService<TradeEventConsumerWorker>();
 
@@ -173,6 +175,55 @@ app.MapGet("/api/ledger/entries", async (
 		Page = page,
 		PageSize = pageSize,
 		Entries = entries,
+	});
+});
+
+app.MapGet("/api/ledger/equity/sell-timeline", async (
+	string sessionId,
+	DateTime? fromDate,
+	DateTime? toDate,
+	int? limit,
+	EquitySnapshotRepository snapshotRepository,
+	CancellationToken ct) =>
+{
+	if (!Guid.TryParse(sessionId, out var parsedSessionId))
+	{
+		return Results.BadRequest("Invalid session ID");
+	}
+
+	var take = Math.Clamp(limit ?? 1000, 1, 5000);
+	var points = await snapshotRepository.GetSellTimelineAsync(parsedSessionId, fromDate, toDate, take);
+	var firstPoint = points.FirstOrDefault();
+	var latestPoint = points.LastOrDefault();
+
+	object? summary = null;
+	if (firstPoint is not null && latestPoint is not null)
+	{
+		var deltaValue = latestPoint.TotalEquity - firstPoint.TotalEquity;
+		decimal? deltaPercent = null;
+
+		if (firstPoint.TotalEquity != 0m)
+		{
+			deltaPercent = decimal.Round((deltaValue / firstPoint.TotalEquity) * 100m, 4);
+		}
+
+		summary = new
+		{
+			firstEquity = firstPoint.TotalEquity,
+			latestEquity = latestPoint.TotalEquity,
+			deltaValue = deltaValue,
+			deltaPercent,
+			firstSellAt = firstPoint.SnapshotTime,
+			latestSellAt = latestPoint.SnapshotTime,
+		};
+	}
+
+	return Results.Ok(new
+	{
+		SessionId = parsedSessionId,
+		Total = points.Count,
+		Summary = summary,
+		Points = points,
 	});
 });
 
