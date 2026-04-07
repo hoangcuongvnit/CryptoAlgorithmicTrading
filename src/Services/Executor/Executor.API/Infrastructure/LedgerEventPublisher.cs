@@ -39,6 +39,42 @@ public sealed class LedgerEventPublisher
         var environment = _binanceSettings.UseTestnet ? "TESTNET" : "MAINNET";
         var algorithmName = string.IsNullOrWhiteSpace(request.StrategyName) ? "EXECUTOR" : request.StrategyName;
 
+        if (result.FilledQty > 0 && result.FilledPrice > 0)
+        {
+            var notional = result.FilledQty * result.FilledPrice;
+            if (request.Side == OrderSide.Buy)
+            {
+                await PublishEntryAsync(
+                    transactionId: $"{result.OrderId}:BUY_CASH_OUT",
+                    type: "BUY_CASH_OUT",
+                    amount: -notional,
+                    symbol: request.Symbol,
+                    environment: environment,
+                    algorithmName: algorithmName,
+                    sessionId: request.SessionId,
+                    timestamp: result.Timestamp,
+                    cancellationToken: cancellationToken);
+            }
+            else if (request.Side == OrderSide.Sell && positionBeforeFill is not null && positionBeforeFill.Quantity > 0)
+            {
+                var sellCashQty = Math.Min(result.FilledQty, positionBeforeFill.Quantity);
+                if (sellCashQty > 0)
+                {
+                    var principalBack = sellCashQty * positionBeforeFill.AvgEntryPrice;
+                    await PublishEntryAsync(
+                        transactionId: $"{result.OrderId}:SELL_CASH_IN",
+                        type: "SELL_CASH_IN",
+                        amount: principalBack,
+                        symbol: request.Symbol,
+                        environment: environment,
+                        algorithmName: algorithmName,
+                        sessionId: request.SessionId,
+                        timestamp: result.Timestamp,
+                        cancellationToken: cancellationToken);
+                }
+            }
+        }
+
         // Commission affects net PnL on every successful fill (BUY and SELL).
         if (result.FilledQty > 0 && result.FilledPrice > 0)
         {

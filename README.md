@@ -12,10 +12,32 @@ A high-performance, microservices-based algorithmic trading system for cryptocur
 - [Microservices](#microservices)
 - [Communication Protocols](#communication-protocols)
 - [Data Flow](#data-flow)
+- [Ledger Session And Equity Timeline Rules](#ledger-session-and-equity-timeline-rules)
 - [Getting Started](#getting-started)
 - [Development Roadmap](#development-roadmap)
 - [Engineering Principles](#engineering-principles)
 - [Contributing](#contributing)
+
+---
+
+## Ledger Session And Equity Timeline Rules
+
+This section defines the required behavior for FinancialLedger timeline rendering and session boundaries.
+
+1. When a new ledger session is created, the system must create a SESSION_START marker in equity timeline data.
+2. A ledger session starts when user submits the reset/create form and ends only when the next ledger session is created.
+3. A ledger session can span multiple days or months if user does not create a new one.
+4. Ledger session is different from trading session. Trading session is fixed 8-hour cycle used by trading engine.
+5. Every successful BUY and SELL order must produce exactly one note marker on equity fluctuation chart.
+6. Root cause found: timeline persistence could fail or miss markers when schema migration was incomplete or event mapping was too narrow.
+7. Mitigation:
+  - Snapshot persistence is now backward compatible with old/new schema.
+  - Timeline points are upserted by per-order marker id to avoid duplicate SELL points and to keep one marker per order.
+  - SESSION_START marker is written at session creation/reset time.
+  - BUY/SELL markers are derived from order transaction metadata and captured for all successful fills.
+
+Operational note:
+- Ensure SQL migrations are applied in all environments, especially scripts/add-ledger-equity-snapshots.sql and scripts/add-equity-snapshot-event-type.sql.
 
 ---
 

@@ -3,6 +3,8 @@ namespace FinancialLedger.Worker.Domain;
 public static class LedgerEntryTypes
 {
     public const string InitialFunding = "INITIAL_FUNDING";
+    public const string BuyCashOut = "BUY_CASH_OUT";
+    public const string SellCashIn = "SELL_CASH_IN";
     public const string RealizedPnl = "REALIZED_PNL";
     public const string Commission = "COMMISSION";
     public const string FundingFee = "FUNDING_FEE";
@@ -10,7 +12,7 @@ public static class LedgerEntryTypes
 
     public static bool IsSupported(string type)
     {
-        return type is InitialFunding or RealizedPnl or Commission or FundingFee or Withdrawal;
+        return type is InitialFunding or BuyCashOut or SellCashIn or RealizedPnl or Commission or FundingFee or Withdrawal;
     }
 }
 

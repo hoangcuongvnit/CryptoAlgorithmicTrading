@@ -177,32 +177,37 @@ public sealed class TradeEventConsumerWorker : BackgroundService
         await pnlService.InvalidateBalanceCacheAsync(sessionId);
         var balance = await pnlService.GetCurrentBalanceAsync(sessionId);
 
-        if (string.Equals(evt.Type, LedgerEntryTypes.RealizedPnl, StringComparison.Ordinal))
+        var snapshotTriggerId = BuildSnapshotTriggerTransactionId(evt, entry.Id.ToString());
+
+        if (string.Equals(evt.Type, LedgerEntryTypes.Commission, StringComparison.Ordinal))
+        {
+            var side = ParseOrderSideFromTransactionId(evt.BinanceTransactionId);
+            if (side is not null)
+            {
+                await sellSnapshotService.CaptureSnapshotAsync(
+                    sessionId,
+                    snapshotTriggerId,
+                    evt.Symbol,
+                    evt.Timestamp,
+                    side,
+                    ct);
+            }
+        }
+        else if (string.Equals(evt.Type, LedgerEntryTypes.RealizedPnl, StringComparison.Ordinal))
         {
             await sellSnapshotService.CaptureSnapshotAsync(
                 sessionId,
-                evt.BinanceTransactionId ?? entry.Id.ToString(),
+                snapshotTriggerId,
                 evt.Symbol,
                 evt.Timestamp,
                 EquityEventTypes.Sell,
-                ct);
-        }
-        else if (string.Equals(evt.Type, LedgerEntryTypes.Commission, StringComparison.Ordinal)
-            && (evt.BinanceTransactionId?.EndsWith(":Buy", StringComparison.OrdinalIgnoreCase) == true))
-        {
-            await sellSnapshotService.CaptureSnapshotAsync(
-                sessionId,
-                evt.BinanceTransactionId,
-                evt.Symbol,
-                evt.Timestamp,
-                EquityEventTypes.Buy,
                 ct);
         }
         else if (string.Equals(evt.Type, LedgerEntryTypes.InitialFunding, StringComparison.Ordinal))
         {
             await sellSnapshotService.CaptureSnapshotAsync(
                 sessionId,
-                evt.BinanceTransactionId ?? entry.Id.ToString(),
+                snapshotTriggerId,
                 null,
                 evt.Timestamp,
                 EquityEventTypes.SessionStart,
@@ -282,4 +287,67 @@ public sealed class TradeEventConsumerWorker : BackgroundService
         decimal Amount,
         string? Symbol,
         DateTime Timestamp);
+
+    private static string BuildSnapshotTriggerTransactionId(LedgerEvent evt, string fallbackEntryId)
+    {
+        if (string.IsNullOrWhiteSpace(evt.BinanceTransactionId))
+        {
+            return fallbackEntryId;
+        }
+
+        if (string.Equals(evt.Type, LedgerEntryTypes.InitialFunding, StringComparison.Ordinal))
+        {
+            return $"SESSION_START:{evt.SessionId}";
+        }
+
+        if (string.Equals(evt.Type, LedgerEntryTypes.Commission, StringComparison.Ordinal))
+        {
+            var tx = evt.BinanceTransactionId;
+            var marker = ":COMMISSION:";
+            var idx = tx.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx > 0)
+            {
+                var orderId = tx[..idx];
+                var sideText = tx[(idx + marker.Length)..].Trim();
+                var side = string.Equals(sideText, "BUY", StringComparison.OrdinalIgnoreCase)
+                    ? EquityEventTypes.Buy
+                    : EquityEventTypes.Sell;
+                return $"ORDER:{orderId}:{side}";
+            }
+        }
+
+        if (string.Equals(evt.Type, LedgerEntryTypes.RealizedPnl, StringComparison.Ordinal))
+        {
+            var tx = evt.BinanceTransactionId;
+            var marker = ":REALIZED_PNL";
+            var idx = tx.LastIndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (idx > 0)
+            {
+                var orderId = tx[..idx];
+                return $"ORDER:{orderId}:{EquityEventTypes.Sell}";
+            }
+        }
+
+        return evt.BinanceTransactionId;
+    }
+
+    private static string? ParseOrderSideFromTransactionId(string? transactionId)
+    {
+        if (string.IsNullOrWhiteSpace(transactionId))
+        {
+            return null;
+        }
+
+        if (transactionId.EndsWith(":BUY", StringComparison.OrdinalIgnoreCase))
+        {
+            return EquityEventTypes.Buy;
+        }
+
+        if (transactionId.EndsWith(":SELL", StringComparison.OrdinalIgnoreCase))
+        {
+            return EquityEventTypes.Sell;
+        }
+
+        return null;
+    }
 }

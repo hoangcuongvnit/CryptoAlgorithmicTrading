@@ -26,6 +26,16 @@
     "realTimeEquity": "Vốn thực tế",
     "roe": "ROE",
     "openPositions": "Vị thế đang mở",
+    "allocation": {
+      "title": "Tỷ lệ phân bổ danh mục",
+      "subtitle": "Hiển thị tỷ lệ tiền mặt ước tính và giá trị coin đang nắm giữ theo từng mã.",
+      "empty": "Chưa có dữ liệu phân bổ danh mục.",
+      "cash": "Tiền mặt",
+      "estimatedCash": "Tiền mặt ước tính",
+      "holdingsValue": "Giá trị coin theo giá thị trường",
+      "costBasis": "Giá vốn coin đang giữ",
+      "portfolioValue": "Tổng giá trị danh mục"
+    },
     "equityChart": {
       "title": "Biểu đồ vốn theo phiên",
       "subtitle": "Vốn được chụp sau mỗi sự kiện: khởi tạo phiên, mua, bán.",

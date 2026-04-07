@@ -67,6 +67,21 @@ public sealed class LedgerRepository
             new { SessionId = sessionId });
     }
 
+    public async Task<bool> HasCashFlowEntriesAsync(Guid sessionId)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        return await connection.QuerySingleAsync<bool>(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM ledger_entries
+                WHERE session_id = @SessionId
+                  AND type IN ('BUY_CASH_OUT', 'SELL_CASH_IN')
+            )
+            """,
+            new { SessionId = sessionId });
+    }
+
     public async Task<(IReadOnlyList<LedgerEntryDto> Entries, int Total)> GetLedgerEntriesAsync(
         Guid sessionId,
         DateTime? fromDate,

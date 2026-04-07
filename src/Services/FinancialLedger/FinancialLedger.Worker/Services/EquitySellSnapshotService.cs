@@ -11,6 +11,7 @@ public sealed class EquitySellSnapshotService
 {
     private readonly EquitySnapshotRepository _snapshotRepository;
     private readonly PnlCalculationService _pnlService;
+    private readonly LedgerRepository _ledgerRepository;
     private readonly IConnectionMultiplexer _redis;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<EquitySellSnapshotService> _logger;
@@ -18,12 +19,14 @@ public sealed class EquitySellSnapshotService
     public EquitySellSnapshotService(
         EquitySnapshotRepository snapshotRepository,
         PnlCalculationService pnlService,
+        LedgerRepository ledgerRepository,
         IConnectionMultiplexer redis,
         IHttpClientFactory httpClientFactory,
         ILogger<EquitySellSnapshotService> logger)
     {
         _snapshotRepository = snapshotRepository;
         _pnlService = pnlService;
+        _ledgerRepository = ledgerRepository;
         _redis = redis;
         _httpClientFactory = httpClientFactory;
         _logger = logger;
@@ -42,6 +45,7 @@ public sealed class EquitySellSnapshotService
 
         var holdings = new List<EquityHoldingSnapshot>();
         var holdingsMarketValue = 0m;
+        var unrealizedPnl = 0m;
 
         foreach (var position in positions)
         {
@@ -66,6 +70,7 @@ public sealed class EquitySellSnapshotService
 
             var marketValue = decimal.Round(position.Quantity * markPrice, 8);
             holdingsMarketValue += marketValue;
+            unrealizedPnl += decimal.Round(position.Quantity * (markPrice - position.EntryPrice), 8);
 
             holdings.Add(new EquityHoldingSnapshot(
                 position.Symbol,
@@ -74,7 +79,10 @@ public sealed class EquitySellSnapshotService
                 marketValue));
         }
 
-        var totalEquity = decimal.Round(currentBalance + holdingsMarketValue, 8);
+        var usesCashFlowMode = await _ledgerRepository.HasCashFlowEntriesAsync(sessionId);
+        var totalEquity = usesCashFlowMode
+            ? decimal.Round(currentBalance + holdingsMarketValue, 8)
+            : decimal.Round(currentBalance + unrealizedPnl, 8);
         var snapshot = new SellEquitySnapshot(
             sessionId,
             triggerTransactionId,
@@ -145,5 +153,6 @@ public sealed class EquitySellSnapshotService
     private sealed record PositionDto(
         [property: JsonPropertyName("symbol")] string Symbol,
         [property: JsonPropertyName("quantity")] decimal Quantity,
+        [property: JsonPropertyName("entryPrice")] decimal EntryPrice,
         [property: JsonPropertyName("currentPrice")] decimal CurrentPrice);
 }

@@ -27,6 +27,58 @@ function fmtPct(n, digits = 2) {
   return `${v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`
 }
 
+const ALLOCATION_COLORS = ['#22d3ee', '#34d399', '#f59e0b', '#f87171', '#60a5fa', '#a78bfa', '#f472b6', '#fb7185']
+
+function buildPortfolioAllocation({ currentBalance, positions }) {
+  const safeBalance = Number.isFinite(Number(currentBalance)) ? Number(currentBalance) : 0
+  const symbolMap = new Map()
+  let holdingsMarketValue = 0
+  let holdingsCostBasis = 0
+
+  for (const pos of positions ?? []) {
+    const qty = Number(pos?.quantity ?? 0)
+    if (!Number.isFinite(qty) || qty <= 0) continue
+
+    const entry = Number(pos?.entryPrice ?? 0)
+    const mark = Number(pos?.markPrice ?? 0)
+    const priceForValue = mark > 0 ? mark : entry
+    if (!Number.isFinite(priceForValue) || priceForValue <= 0) continue
+
+    const symbol = String(pos?.symbol ?? '').toUpperCase() || 'UNKNOWN'
+    const marketValue = qty * priceForValue
+    const costBasis = qty * (entry > 0 ? entry : priceForValue)
+
+    holdingsMarketValue += marketValue
+    holdingsCostBasis += costBasis
+
+    symbolMap.set(symbol, (symbolMap.get(symbol) ?? 0) + marketValue)
+  }
+
+  const estimatedCash = Math.max(0, safeBalance)
+  const slices = [
+    { key: 'CASH', label: 'CASH', value: estimatedCash, color: ALLOCATION_COLORS[0] },
+    ...Array.from(symbolMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([symbol, value], idx) => ({
+        key: symbol,
+        label: symbol,
+        value,
+        color: ALLOCATION_COLORS[(idx + 1) % ALLOCATION_COLORS.length],
+      })),
+  ].filter((x) => x.value > 0)
+
+  const total = slices.reduce((sum, x) => sum + x.value, 0)
+  const slicesWithPercent = slices.map((x) => ({ ...x, percent: total > 0 ? (x.value / total) * 100 : 0 }))
+
+  return {
+    estimatedCash,
+    holdingsMarketValue,
+    holdingsCostBasis,
+    total,
+    slices: slicesWithPercent,
+  }
+}
+
 // ─── sub-components ───────────────────────────────────────────────────────────
 
 function StatCard({ label, value, colorClass = 'text-white' }) {
@@ -98,9 +150,14 @@ export default function LedgerPage() {
   const realTimeEquity = equity?.realTimeEquity ?? account.currentBalance
 
   const ct = t('dashboard.equityChart', { returnObjects: true })
+  const at = t('dashboard.allocation', { returnObjects: true })
   const timelinePoints = equityTimeline?.points ?? []
   const equitySummary  = equityTimeline?.summary ?? null
   const latestPoint    = timelinePoints.length > 0 ? timelinePoints[timelinePoints.length - 1] : null
+  const allocation = buildPortfolioAllocation({
+    currentBalance: account.currentBalance ?? 0,
+    positions: equity?.positions ?? [],
+  })
 
   return (
     <div className="space-y-6">
@@ -138,6 +195,43 @@ export default function LedgerPage() {
             {roe >= 0 ? '+' : ''}{fmt(roe)}%
           </p>
         </div>
+      </div>
+
+      <div className="space-y-3 bg-gray-800 p-4 rounded-lg border border-gray-700">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-100">{at.title}</h3>
+          <p className="text-xs text-gray-400">{at.subtitle}</p>
+        </div>
+
+        {allocation.total <= 0 && (
+          <p className="text-yellow-400 text-sm">{at.empty}</p>
+        )}
+
+        {allocation.total > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <PortfolioAllocationChart slices={allocation.slices} total={allocation.total} labels={at} />
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="bg-gray-900 rounded p-3 border border-gray-700">
+                <p className="text-gray-500">{at.estimatedCash}</p>
+                <p className="font-mono text-cyan-300">{fmt(allocation.estimatedCash, 4)}</p>
+              </div>
+              <div className="bg-gray-900 rounded p-3 border border-gray-700">
+                <p className="text-gray-500">{at.holdingsValue}</p>
+                <p className="font-mono text-green-300">{fmt(allocation.holdingsMarketValue, 4)}</p>
+              </div>
+              <div className="bg-gray-900 rounded p-3 border border-gray-700">
+                <p className="text-gray-500">{at.costBasis}</p>
+                <p className="font-mono text-yellow-300">{fmt(allocation.holdingsCostBasis, 4)}</p>
+              </div>
+              <div className="bg-gray-900 rounded p-3 border border-gray-700">
+                <p className="text-gray-500">{at.portfolioValue}</p>
+                <p className="font-mono text-blue-300">{fmt(allocation.total, 4)}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Equity timeline chart */}
@@ -247,6 +341,74 @@ export default function LedgerPage() {
 
 function eventColor(eventType) {
   return EVENT_COLOR[eventType] ?? EVENT_COLOR.SELL
+}
+
+function PortfolioAllocationChart({ slices, total, labels }) {
+  const size = 260
+  const cx = size / 2
+  const cy = size / 2
+  const radius = 92
+  const stroke = 42
+
+  let cumulative = 0
+  const arcs = slices.map((slice) => {
+    const start = cumulative
+    cumulative += slice.percent
+    return { ...slice, start, end: cumulative }
+  })
+
+  const polar = (angleDeg, r) => {
+    const rad = ((angleDeg - 90) * Math.PI) / 180
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+  }
+
+  const describeArc = (startPct, endPct) => {
+    const startAngle = (startPct / 100) * 360
+    const endAngle = (endPct / 100) * 360
+    const start = polar(endAngle, radius)
+    const end = polar(startAngle, radius)
+    const arcFlag = endAngle - startAngle > 180 ? 1 : 0
+    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${arcFlag} 0 ${end.x} ${end.y}`
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+      <div className="flex justify-center">
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#1f2937" strokeWidth={stroke} />
+          {arcs.map((slice) => (
+            <path
+              key={slice.key}
+              d={describeArc(slice.start, slice.end)}
+              fill="none"
+              stroke={slice.color}
+              strokeWidth={stroke}
+              strokeLinecap="butt"
+            />
+          ))}
+          <text x={cx} y={cy - 6} textAnchor="middle" fill="#9ca3af" fontSize="11">{labels.portfolioValue}</text>
+          <text x={cx} y={cy + 16} textAnchor="middle" fill="#e5e7eb" fontSize="15" fontWeight="700">
+            ${fmt(total, 2)}
+          </text>
+        </svg>
+      </div>
+
+      <div className="space-y-2 max-h-[250px] overflow-auto pr-1">
+        {slices.map((slice) => (
+          <div key={slice.key} className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded px-2 py-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
+              <span className="text-xs text-gray-200 truncate">{slice.key === 'CASH' ? labels.cash : slice.label}</span>
+            </div>
+            <div className="text-right leading-tight">
+              <div className="text-[11px] text-gray-400">{fmtPct(slice.percent, 2)}</div>
+              <div className="text-xs font-mono text-gray-100">{fmt(slice.value, 4)}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function EventMarker({ cx, cy, eventType, size = 5, hovered = false }) {

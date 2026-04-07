@@ -9,16 +9,19 @@ public sealed class SessionManagementService
 {
     private readonly string _connectionString;
     private readonly LedgerRepository _ledgerRepository;
+    private readonly EquitySnapshotRepository _equitySnapshotRepository;
     private readonly ILogger<SessionManagementService> _logger;
 
     public SessionManagementService(
         IConfiguration configuration,
         LedgerRepository ledgerRepository,
+        EquitySnapshotRepository equitySnapshotRepository,
         ILogger<SessionManagementService> logger)
     {
         _connectionString = configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required");
         _ledgerRepository = ledgerRepository;
+        _equitySnapshotRepository = equitySnapshotRepository;
         _logger = logger;
     }
 
@@ -57,6 +60,8 @@ public sealed class SessionManagementService
             tx);
 
         await tx.CommitAsync();
+
+        await TryCreateSessionStartSnapshotAsync(sessionId, initialBalance, now);
 
         _logger.LogInformation("Created session {SessionId} for account {AccountId}", sessionId, accountId);
         return sessionId;
@@ -105,6 +110,8 @@ public sealed class SessionManagementService
             tx);
 
         await tx.CommitAsync();
+
+        await TryCreateSessionStartSnapshotAsync(newSessionId, newInitialBalance, now);
 
         _logger.LogInformation("Reset session for account {AccountId}. New session {SessionId}", accountId, newSessionId);
         return newSessionId;
@@ -182,5 +189,28 @@ public sealed class SessionManagementService
             parameters)).ToList();
 
         return sessions;
+    }
+
+    private async Task TryCreateSessionStartSnapshotAsync(Guid sessionId, decimal initialBalance, DateTime sessionStartTime)
+    {
+        try
+        {
+            await _equitySnapshotRepository.InsertSellSnapshotAsync(new SellEquitySnapshot(
+                sessionId,
+                $"SESSION_START:{sessionId}",
+                null,
+                sessionStartTime,
+                decimal.Round(initialBalance, 8),
+                0m,
+                decimal.Round(initialBalance, 8),
+                [],
+                EquityEventTypes.SessionStart));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to create session start equity marker for session {SessionId}",
+                sessionId);
+        }
     }
 }

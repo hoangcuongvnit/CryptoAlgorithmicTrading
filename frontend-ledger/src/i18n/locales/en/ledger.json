@@ -26,6 +26,16 @@
     "realTimeEquity": "Real-time Equity",
     "roe": "ROE",
     "openPositions": "Open Positions",
+    "allocation": {
+      "title": "Portfolio Allocation",
+      "subtitle": "Shows estimated cash ratio and per-coin holding value by symbol.",
+      "empty": "No portfolio allocation data yet.",
+      "cash": "Cash",
+      "estimatedCash": "Estimated Cash",
+      "holdingsValue": "Holdings Market Value",
+      "costBasis": "Holdings Cost Basis",
+      "portfolioValue": "Portfolio Value"
+    },
     "equityChart": {
       "title": "Session Equity Chart",
       "subtitle": "Equity captured after each event: session start, buy, sell.",

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useLedgerSignalR } from '../hooks/useLedgerSignalR'
 import { ledgerApi } from '../services/ledgerApi'
 
-const ENTRY_TYPES = ['', 'INITIAL_FUNDING', 'REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE', 'WITHDRAWAL']
+const ENTRY_TYPES = ['', 'INITIAL_FUNDING', 'BUY_CASH_OUT', 'SELL_CASH_IN', 'REALIZED_PNL', 'COMMISSION', 'FUNDING_FEE', 'WITHDRAWAL']
 const PAGE_SIZE   = 50
 
 function fmt(n, digits = 4) {
@@ -169,6 +169,8 @@ export default function EntriesPage() {
 
 function typeColor(type) {
   switch (type) {
+    case 'BUY_CASH_OUT':    return 'bg-red-900 text-red-300'
+    case 'SELL_CASH_IN':    return 'bg-emerald-900 text-emerald-300'
     case 'REALIZED_PNL':    return 'bg-green-900 text-green-300'
     case 'COMMISSION':      return 'bg-yellow-900 text-yellow-300'
     case 'FUNDING_FEE':     return 'bg-orange-900 text-orange-300'

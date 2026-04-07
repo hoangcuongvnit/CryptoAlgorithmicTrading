@@ -12,7 +12,9 @@ namespace FinancialLedger.Worker.Workers;
 /// <summary>
 /// Periodically fetches open positions from Executor, reads current mark prices from Redis,
 /// computes unrealized PnL, and broadcasts RealTimeEquity via SignalR.
-/// RealTimeEquity = CurrentBalance + UnrealizedPnL
+/// RealTimeEquity formula is session-aware:
+/// - cash-flow mode: CurrentBalance + HoldingsMarketValue
+/// - legacy mode:    CurrentBalance + UnrealizedPnL
 /// </summary>
 public sealed class EquityProjectionWorker : BackgroundService
 {
@@ -67,6 +69,7 @@ public sealed class EquityProjectionWorker : BackgroundService
         var positions = await FetchOpenPositionsAsync(ct);
 
         var unrealizedPnl = 0m;
+        var holdingsMarketValue = 0m;
         var positionSnapshots = new List<object>();
 
         foreach (var pos in positions)
@@ -80,6 +83,7 @@ public sealed class EquityProjectionWorker : BackgroundService
 
             var posUnrealized = pos.Quantity * (markPrice - pos.EntryPrice);
             unrealizedPnl += posUnrealized;
+            holdingsMarketValue += pos.Quantity * markPrice;
 
             positionSnapshots.Add(new
             {
@@ -96,6 +100,7 @@ public sealed class EquityProjectionWorker : BackgroundService
         var sessionService = scope.ServiceProvider.GetRequiredService<SessionManagementService>();
         var pnlService = scope.ServiceProvider.GetRequiredService<PnlCalculationService>();
         var accountRepo = scope.ServiceProvider.GetRequiredService<Infrastructure.VirtualAccountRepository>();
+        var ledgerRepo = scope.ServiceProvider.GetRequiredService<Infrastructure.LedgerRepository>();
 
         var accountId = await accountRepo.GetOrCreateAccountAsync(_settings.DefaultEnvironment);
         var session = await sessionService.GetActiveSessionAsync(accountId);
@@ -105,15 +110,20 @@ public sealed class EquityProjectionWorker : BackgroundService
         }
 
         var currentBalance = await pnlService.GetCurrentBalanceAsync(session.Id);
-        var realTimeEquity = currentBalance + unrealizedPnl;
+        var usesCashFlowMode = await ledgerRepo.HasCashFlowEntriesAsync(session.Id);
+        var realTimeEquity = usesCashFlowMode
+            ? currentBalance + holdingsMarketValue
+            : currentBalance + unrealizedPnl;
 
         await _hub.Clients.All.SendAsync(
             "ReceiveEquityUpdate",
             new
             {
                 sessionId = session.Id,
+                usesCashFlowMode,
                 currentBalance,
                 unrealizedPnl = decimal.Round(unrealizedPnl, 4),
+                holdingsMarketValue = decimal.Round(holdingsMarketValue, 4),
                 realTimeEquity = decimal.Round(realTimeEquity, 4),
                 positions = positionSnapshots,
                 timestamp = DateTime.UtcNow,

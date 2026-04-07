@@ -95,10 +95,16 @@ public sealed class OrderExecutionService
         }
 
         if (orderRequest.Side == OrderSide.Sell &&
-            !orderRequest.IsReduceOnly &&
             !_positionTracker.TryValidateSellQuantity(orderRequest.Symbol, orderRequest.Quantity, out var availableQuantity, out var sellGuardError))
         {
-            if (availableQuantity <= 0m)
+            if (availableQuantity > 0m)
+            {
+                _logger.LogWarning(
+                    "Sell quantity clamped for {Symbol}: requested {Requested} exceeds tracked position {Available}. Proceeding with available quantity.",
+                    orderRequest.Symbol, orderRequest.Quantity, availableQuantity);
+                orderRequest = orderRequest with { Quantity = availableQuantity };
+            }
+            else if (!orderRequest.IsReduceOnly)
             {
                 return new OrderResult
                 {
@@ -115,11 +121,6 @@ public sealed class OrderExecutionService
                     SessionId = orderRequest.SessionId
                 };
             }
-
-            _logger.LogWarning(
-                "Sell quantity clamped for {Symbol}: requested {Requested} exceeds tracked position {Available}. Proceeding with available quantity.",
-                orderRequest.Symbol, orderRequest.Quantity, availableQuantity);
-            orderRequest = orderRequest with { Quantity = availableQuantity };
         }
 
         if (orderRequest.Side == OrderSide.Buy)

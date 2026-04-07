@@ -149,10 +149,16 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         }
 
         if (orderRequest.Side == OrderSide.Sell &&
-            !orderRequest.IsReduceOnly &&
             !_positionTracker.TryValidateSellQuantity(orderRequest.Symbol, orderRequest.Quantity, out var availableQuantity, out var sellGuardError))
         {
-            if (availableQuantity <= 0m)
+            if (availableQuantity > 0m)
+            {
+                _logger.LogWarning(
+                    "Sell quantity clamped for {Symbol}: requested {Requested} exceeds tracked position {Available}. Proceeding with available quantity.",
+                    orderRequest.Symbol, orderRequest.Quantity, availableQuantity);
+                orderRequest = orderRequest with { Quantity = availableQuantity };
+            }
+            else if (!orderRequest.IsReduceOnly)
             {
                 _metrics.RecordOrderRejected(orderRequest.Symbol, "Sell guard: no local position");
                 orderResult = BuildFailureResult(
@@ -163,11 +169,6 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
                     TradingErrorCode.InsufficientPositionQuantity);
                 return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
             }
-
-            _logger.LogWarning(
-                "Sell quantity clamped for {Symbol}: requested {Requested} exceeds tracked position {Available}. Proceeding with available quantity.",
-                orderRequest.Symbol, orderRequest.Quantity, availableQuantity);
-            orderRequest = orderRequest with { Quantity = availableQuantity };
         }
 
         if (orderRequest.Side == OrderSide.Buy)

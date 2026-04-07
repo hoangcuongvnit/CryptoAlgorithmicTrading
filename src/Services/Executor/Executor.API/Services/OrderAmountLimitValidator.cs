@@ -31,6 +31,20 @@ public sealed class OrderAmountLimitValidator
     public async Task<OrderAmountValidationResult> ValidateAsync(OrderRequest request, CancellationToken ct)
     {
         var snapshot = _limits.Current;
+
+        // Min/max notional limits are entry guards; only BUY orders are constrained.
+        if (request.Side != OrderSide.Buy)
+        {
+            return new OrderAmountValidationResult(true, null, TradingErrorCode.None, 0m, 0m, snapshot.MinOrderAmount, snapshot.MaxOrderAmount);
+        }
+
+        // Reduce-only orders (close-all/liquidation) must be allowed to flatten
+        // positions even when their notional is outside normal entry bounds.
+        if (request.IsReduceOnly)
+        {
+            return new OrderAmountValidationResult(true, null, TradingErrorCode.None, 0m, 0m, snapshot.MinOrderAmount, snapshot.MaxOrderAmount);
+        }
+
         var effectivePrice = request.Price > 0
             ? request.Price
             : await _priceReferenceRepository.GetLatestClosePriceAsync(request.Symbol, ct) ?? 0m;
