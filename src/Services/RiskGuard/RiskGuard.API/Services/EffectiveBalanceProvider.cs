@@ -69,117 +69,44 @@ public sealed class EffectiveBalanceProvider : IEffectiveBalanceProvider
 
     private async Task<EffectiveBalanceSnapshot> ResolveAsync(string preferredEnvironment, CancellationToken ct)
     {
-        if (preferredEnvironment == "TESTNET")
-        {
-            return await ResolveTestnetBalanceAsync(ct);
-        }
-
-        if (preferredEnvironment == "MAINNET")
-        {
-            return await ResolveMainnetBalanceAsync(ct);
-        }
-
-        try
-        {
-            var executor = _httpClientFactory.CreateClient("executor");
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(200, _settings.BalanceLookupTimeoutMs)));
-
-            var executorResult = await executor.GetFromJsonAsync<ExecutorEffectiveBalanceResponse>(
-                "/api/trading/balance/effective",
-                cts.Token);
-
-            if (executorResult is null)
-            {
-                return BuildFailure("Executor returned an empty effective balance payload.");
-            }
-
-            var environment = NormalizeEnvironment(executorResult.Environment);
-            if (environment == "TESTNET")
-            {
-                return await ResolveTestnetBalanceAsync(ct);
-            }
-
-            if (environment == "MAINNET")
-            {
-                return await ResolveMainnetBalanceAsync(ct);
-            }
-
-            return BuildFailure("Unable to determine trading environment from executor effective balance payload.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to resolve trading environment from executor effective balance");
-            return BuildFailure($"Environment lookup failed: {ex.Message}");
-        }
+        var requestedEnvironment = preferredEnvironment == "MAINNET" ? "MAINNET" : "TESTNET";
+        return await ResolveLedgerBalanceAsync(requestedEnvironment, ct);
     }
 
-    private async Task<EffectiveBalanceSnapshot> ResolveMainnetBalanceAsync(CancellationToken ct)
+    private async Task<EffectiveBalanceSnapshot> ResolveLedgerBalanceAsync(string environment, CancellationToken ct)
     {
         try
         {
-            var executor = _httpClientFactory.CreateClient("executor");
+            var financialLedger = _httpClientFactory.CreateClient("financialledger");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(200, _settings.BalanceLookupTimeoutMs)));
 
-            var executorResult = await executor.GetFromJsonAsync<ExecutorEffectiveBalanceResponse>(
-                "/api/trading/balance/effective",
+            var path = $"/api/ledger/balance/effective?environment={environment}&baseCurrency={Uri.EscapeDataString(_settings.BalanceBaseCurrency)}";
+            var response = await financialLedger.GetFromJsonAsync<LedgerEffectiveBalanceResponse>(
+                path,
                 cts.Token);
 
-            var reportedEnvironment = NormalizeEnvironment(executorResult?.Environment);
-            if (reportedEnvironment != "MAINNET")
+            if (response is not null && response.Available && response.Balance.HasValue)
             {
-                return BuildFailure(
-                    $"Executor currently reports {reportedEnvironment}, cannot provide MAINNET reconciled balance.",
-                    "MAINNET",
-                    "MAINNET_RECONCILED");
-            }
-
-            if (executorResult is not null && executorResult.Available && executorResult.Balance.HasValue)
-            {
+                var resolvedEnvironment = NormalizeEnvironment(response.Environment);
                 return new EffectiveBalanceSnapshot(
                     IsAvailable: true,
-                    Balance: Math.Max(0m, executorResult.Balance.Value),
-                    Environment: "MAINNET",
-                    Source: string.IsNullOrWhiteSpace(executorResult.Source) ? "MAINNET_RECONCILED" : executorResult.Source!,
-                    AsOfUtc: executorResult.AsOfUtc ?? DateTime.UtcNow,
-                    IsStale: executorResult.Stale,
+                    Balance: Math.Max(0m, response.Balance.Value),
+                    Environment: resolvedEnvironment == "UNKNOWN" ? environment : resolvedEnvironment,
+                    Source: string.IsNullOrWhiteSpace(response.Source) ? "FINANCIAL_LEDGER" : response.Source!,
+                    AsOfUtc: response.AsOfUtc ?? DateTime.UtcNow,
+                    IsStale: false,
                     IsFallback: false,
                     Error: null);
             }
 
-            return BuildFailure(executorResult?.Detail ?? "Mainnet reconciled balance is unavailable.", "MAINNET", "MAINNET_RECONCILED");
+            return BuildFailure(response?.Detail ?? "FinancialLedger effective balance is unavailable.", environment, "FINANCIAL_LEDGER");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to resolve MAINNET effective balance from executor");
+            _logger.LogWarning(ex, "Failed to resolve {Environment} effective balance from FinancialLedger", environment);
             return BuildFailure($"Balance lookup failed: {ex.Message}");
         }
-    }
-
-    private async Task<EffectiveBalanceSnapshot> ResolveTestnetBalanceAsync(CancellationToken ct)
-    {
-        var financialLedger = _httpClientFactory.CreateClient("financialledger");
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(200, _settings.BalanceLookupTimeoutMs)));
-
-        var path = $"/api/ledger/balance/effective?environment=TESTNET&baseCurrency={Uri.EscapeDataString(_settings.BalanceBaseCurrency)}";
-        var response = await financialLedger.GetFromJsonAsync<LedgerEffectiveBalanceResponse>(path, cts.Token);
-
-        if (response is not null && response.Available && response.Balance.HasValue)
-        {
-            return new EffectiveBalanceSnapshot(
-                IsAvailable: true,
-                Balance: Math.Max(0m, response.Balance.Value),
-                Environment: "TESTNET",
-                Source: string.IsNullOrWhiteSpace(response.Source) ? "FINANCIAL_LEDGER" : response.Source!,
-                AsOfUtc: response.AsOfUtc ?? DateTime.UtcNow,
-                IsStale: false,
-                IsFallback: false,
-                Error: null);
-        }
-
-        return BuildFailure(response?.Detail ?? "FinancialLedger effective balance is unavailable.", "TESTNET", "FINANCIAL_LEDGER");
     }
 
     private EffectiveBalanceSnapshot BuildFailure(string reason, string environment = "UNKNOWN", string source = "UNAVAILABLE")
@@ -219,19 +146,9 @@ public sealed class EffectiveBalanceProvider : IEffectiveBalanceProvider
         return "UNKNOWN";
     }
 
-    private sealed class ExecutorEffectiveBalanceResponse
-    {
-        public string? Environment { get; set; }
-        public string? Source { get; set; }
-        public bool Available { get; set; }
-        public decimal? Balance { get; set; }
-        public DateTime? AsOfUtc { get; set; }
-        public bool Stale { get; set; }
-        public string? Detail { get; set; }
-    }
-
     private sealed class LedgerEffectiveBalanceResponse
     {
+        public string? Environment { get; set; }
         public string? Source { get; set; }
         public bool Available { get; set; }
         public decimal? Balance { get; set; }

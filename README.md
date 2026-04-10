@@ -30,7 +30,7 @@ Binance WebSocket -> Ingestor -> Redis price:{SYMBOL} -> Analyzer -> Redis signa
 - The system currently uses 3 fixed 8-hour trading sessions per day: S1 00:00-08:00 UTC, S2 08:00-16:00 UTC, and S3 16:00-24:00 UTC.
 - Trading sessions are not the same as ledger sessions. Trading sessions are fixed engine cycles; ledger sessions are user-created reporting scopes that can span multiple days.
 - Paper trading has been removed. The system is live-only, with Executor able to switch between live and testnet mode through `BINANCE_USE_TESTNET`.
-- RiskGuard resolves effective balance by environment: TESTNET uses FinancialLedger, MAINNET uses Executor reconciled balance.
+- RiskGuard and Executor both resolve effective balance from FinancialLedger for capital gating, regardless of environment (MAINNET or TESTNET). The exchange mode toggle controls Binance API connectivity only, not the capital source.
 - Close-all, reconciliation, and session hardening are first-class runtime behaviors, not future ideas.
 
 ## Technical Stack

@@ -65,6 +65,28 @@
     }
   },
 
+  "binanceAccount": {
+    "title": "Tài khoản Binance thực tế",
+    "subtitle": "Số dư trực tiếp từ Binance Spot, cập nhật mỗi 30 giây.",
+    "loading": "Đang tải...",
+    "unavailable": "Không thể lấy số dư từ Binance.",
+    "refresh": "Làm mới",
+    "refreshing": "Đang tải...",
+    "usdtFree": "USDT khả dụng",
+    "usdtLocked": "USDT đang khóa",
+    "coinValue": "Giá trị coin",
+    "totalPortfolio": "Tổng danh mục",
+    "noCoins": "Không có coin nào ngoài USDT.",
+    "asOf": "Cập nhật lúc",
+    "col": {
+      "asset": "Tài sản",
+      "free": "Khả dụng",
+      "locked": "Đang khóa",
+      "markPrice": "Giá thị trường",
+      "value": "Giá trị (USDT)"
+    }
+  },
+
   "positions": {
     "symbol": "Cặp",
     "quantity": "Khối lượng",

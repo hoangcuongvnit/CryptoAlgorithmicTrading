@@ -113,8 +113,9 @@ export function OverviewPage() {
     : t('reconciliation.noDrift')
 
   const effectiveSource = effectiveBalance?.source ?? 'UNKNOWN'
-  const isTestnetMode = tradingMode === 'testnet'
-  const isTestnetLedgerDisconnected = isTestnetMode && (
+  // Both environments now route to FinancialLedger for capital gate.
+  // Show the warning whenever the ledger is unavailable or stale, regardless of mode.
+  const isLedgerDisconnected = (
     !effectiveBalance?.available ||
     effectiveBalance?.stale ||
     effectiveSource.includes('FALLBACK')
@@ -166,11 +167,11 @@ export function OverviewPage() {
       {/* Safety Banner */}
       <SafetyLight riskStats={risk} riskConfig={config} />
 
-      {isTestnetLedgerDisconnected && (
+      {isLedgerDisconnected && (
         <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3">
-          <div className="text-sm font-semibold text-red-700">{t('balance.testnetWarningTitle')}</div>
+          <div className="text-sm font-semibold text-red-700">{t('balance.ledgerWarningTitle')}</div>
           <div className="mt-1 text-sm text-red-700">
-            {effectiveBalance?.detail ?? t('balance.testnetWarningBody')}
+            {effectiveBalance?.detail ?? t('balance.ledgerWarningBody')}
           </div>
         </div>
       )}
@@ -184,7 +185,7 @@ export function OverviewPage() {
           subtitle={effectiveBalanceSubtitle}
           icon="🏦"
           colorClass={
-            isTestnetLedgerDisconnected
+            isLedgerDisconnected
               ? 'text-red-600'
               : 'text-gray-800'
           }

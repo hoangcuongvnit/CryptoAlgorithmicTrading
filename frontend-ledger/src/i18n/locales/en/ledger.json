@@ -65,6 +65,28 @@
     }
   },
 
+  "binanceAccount": {
+    "title": "Binance Spot Account",
+    "subtitle": "Live balances from Binance Spot, refreshed every 30 seconds.",
+    "loading": "Loading...",
+    "unavailable": "Unable to fetch Binance balances.",
+    "refresh": "Refresh",
+    "refreshing": "Loading...",
+    "usdtFree": "USDT Available",
+    "usdtLocked": "USDT Locked",
+    "coinValue": "Coin Value",
+    "totalPortfolio": "Total Portfolio",
+    "noCoins": "No coin holdings besides USDT.",
+    "asOf": "As of",
+    "col": {
+      "asset": "Asset",
+      "free": "Available",
+      "locked": "Locked",
+      "markPrice": "Mark Price",
+      "value": "Value (USDT)"
+    }
+  },
+
   "positions": {
     "symbol": "Symbol",
     "quantity": "Qty",

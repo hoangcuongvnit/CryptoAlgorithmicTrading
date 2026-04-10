@@ -358,4 +358,23 @@ app.MapPost("/api/ledger/accounts/bootstrap", async (
 	});
 });
 
+app.MapGet("/api/ledger/binance-account", async (
+	IHttpClientFactory httpClientFactory,
+	CancellationToken ct) =>
+{
+	try
+	{
+		var client = httpClientFactory.CreateClient("executor");
+		var response = await client.GetAsync("/api/trading/spot-account", ct);
+		var body = await response.Content.ReadAsStringAsync(ct);
+		return response.IsSuccessStatusCode
+			? Results.Content(body, "application/json", System.Text.Encoding.UTF8, (int)response.StatusCode)
+			: Results.Problem($"Executor returned {(int)response.StatusCode}: {body}");
+	}
+	catch (Exception ex)
+	{
+		return Results.Problem($"Failed to reach Executor: {ex.Message}");
+	}
+});
+
 await app.RunAsync();

@@ -28,8 +28,8 @@
     "title": "Effective Balance",
     "stale": "Stale",
     "unavailable": "Unavailable",
-    "testnetWarningTitle": "TESTNET WARNING: Financial Ledger connection lost",
-    "testnetWarningBody": "Unable to sync balance from Financial Ledger. The system is currently using fallback balance and ledger connectivity should be checked immediately."
+    "ledgerWarningTitle": "WARNING: Financial Ledger connection lost",
+    "ledgerWarningBody": "Unable to sync balance from Financial Ledger. The system is using fallback balance — ledger connectivity must be restored to resume accurate capital gating."
   },
   "session": {
     "title": "Current Session",

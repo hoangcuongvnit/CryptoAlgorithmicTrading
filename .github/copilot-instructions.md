@@ -74,9 +74,9 @@ Before exchange placement, orders must still pass the current runtime checks in 
 
 ## Effective Balance Routing
 
-- TESTNET requests should resolve through FinancialLedger at `/api/ledger/balance/effective`.
-- MAINNET requests should resolve through Executor at `/api/trading/balance/effective`.
-- Keep `Risk:AllowVirtualBalanceFallback` as a compatibility path unless the task explicitly removes it.
+- Both MAINNET and TESTNET resolve effective balance from FinancialLedger at `/api/ledger/balance/effective`.
+- `BINANCE_USE_TESTNET` controls Executor order routing (Binance API connectivity) only — it does not change the capital source.
+- Keep `Risk:AllowVirtualBalanceFallback` as a compatibility fallback path when FinancialLedger is unreachable.
 - When editing Docker Compose or container config, use service DNS names, not `localhost`, for inter-service requests.
 
 ## Container And Environment Rules

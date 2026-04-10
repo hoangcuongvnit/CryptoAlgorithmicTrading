@@ -12,11 +12,22 @@ public sealed record RecoveryPolicy(
 
 public static class RecoveryPolicyResolver
 {
+    /// <summary>
+    /// Resolves recovery policy for a detected drift.
+    /// </summary>
+    /// <param name="settings">Reconciliation settings.</param>
+    /// <param name="driftType">POSITION or BALANCE.</param>
+    /// <param name="currentSession">Current trading session (may be null).</param>
+    /// <param name="signedDriftDelta">
+    /// Signed delta: BinanceValue - LocalValue.
+    /// Positive  = Binance has more (excess on exchange).
+    /// Negative  = local has more (excess in tracker, dangerous for sells).
+    /// </param>
     public static RecoveryPolicy Resolve(
         ReconciliationSettings settings,
         string driftType,
         SessionInfo? currentSession,
-        decimal driftAmount)
+        decimal signedDriftDelta)
     {
         var normalizedDriftType = driftType.Trim().ToUpperInvariant();
         var nearSessionBoundary = currentSession is not null
@@ -35,6 +46,22 @@ public static class RecoveryPolicyResolver
                     : "BALANCE_LOGGED");
         }
 
+        // Binance > local (excess on exchange): purely observational.
+        // We do NOT auto-correct upward — the local tracker is conservative by design.
+        // Logging the observation is sufficient; no position mutation needed.
+        if (signedDriftDelta > 0)
+        {
+            return new RecoveryPolicy(
+                DriftType: normalizedDriftType,
+                RecoveryMode: settings.RecoveryMode,
+                ShouldAutoCorrect: false,
+                RequiresApproval: false,
+                AllowsSessionBoundaryCrossing: false,
+                RecoveryAction: "POSITION_EXCESS_OBSERVED");
+        }
+
+        // Binance < local (local tracker has more than Binance): dangerous for sell-side.
+        // Apply standard approval/auto-correct policy.
         var requiresApproval = settings.RecoveryMode == ReconciliationRecoveryMode.RequireApproval;
         var shouldAutoCorrect = settings.RecoveryMode == ReconciliationRecoveryMode.AutoCorrect;
         var allowsSessionBoundaryCrossing = settings.AllowCrossSessionCorrection;

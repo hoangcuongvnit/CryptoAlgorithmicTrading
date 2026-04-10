@@ -208,7 +208,8 @@ public sealed class PeriodicReconciliationService : BackgroundService
 
         foreach (var candidate in candidates)
         {
-            var policy = RecoveryPolicyResolver.Resolve(_tradingSettings.Reconciliation, candidate.DriftType, currentSession, Math.Abs(candidate.BinanceValue - candidate.LocalValue));
+            // Pass signed delta: positive = Binance excess, negative = local excess.
+            var policy = RecoveryPolicyResolver.Resolve(_tradingSettings.Reconciliation, candidate.DriftType, currentSession, candidate.BinanceValue - candidate.LocalValue);
             var recoveryAttempted = false;
             var recoverySuccess = false;
             var recoveryAction = policy.RecoveryAction;

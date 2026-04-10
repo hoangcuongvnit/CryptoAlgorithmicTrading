@@ -74,6 +74,11 @@ export const ledgerApi = {
     return fetch(`${BASE}/api/ledger/pnl?${params}`).then(json)
   },
 
+  // GET Binance spot account (real balances from exchange)
+  getBinanceAccount() {
+    return fetch(`${BASE}/api/ledger/binance-account`).then(json)
+  },
+
   // POST reset session (archive old, create new)
   resetSession(accountId, newInitialBalance, algorithmName, options = {}) {
     return fetch(`${BASE}/api/ledger/sessions/reset`, {

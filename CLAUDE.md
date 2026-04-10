@@ -56,15 +56,14 @@ cd infrastructure && docker compose -f docker-compose-observability.yml up -d
 - `ARCHITECTURE.md` now contains the system design and topology reference.
 - Keep this file aligned with current implementation details, not historical roadmap text.
 
-### Effective Balance Migration (Env-Aware)
+### Effective Balance Unification (Unified Source — Both Environments)
 
 - `RiskGuard` no longer depends solely on static `VirtualAccountBalance` for core sizing/drawdown decisions.
 - New provider: `IEffectiveBalanceProvider` + `EffectiveBalanceProvider`.
-- Source routing by environment:
-     - `TESTNET` → `FinancialLedger` (`/api/ledger/balance/effective`)
-     - `MAINNET` → `Executor` reconciled snapshot (`/api/trading/balance/effective`)
-- Compatibility switch retained: `Risk:AllowVirtualBalanceFallback` for safe rollout.
-- `ValidateOrderRequest` now carries `environment` (proto + Strategy sender + RiskGuard receiver).
+- **Both MAINNET and TESTNET** resolve effective balance from `FinancialLedger` at `/api/ledger/balance/effective`.
+- `Risk:AllowVirtualBalanceFallback` retained as compatibility fallback path when FinancialLedger is unreachable.
+- `ValidateOrderRequest` carries `environment` (proto + Strategy sender + RiskGuard receiver) — used for labelling, not for routing capital source.
+- `Executor` `BuyBudgetGuardService` and `/api/trading/balance/effective` endpoint also route to `FinancialLedger` for both environments.
 
 ### Close-All Hardening (Executor)
 
@@ -667,49 +666,35 @@ GET /api/trading/reconciliation/latest # Proxy to Executor reconciliation latest
 
 ## ENVIRONMENT VARIABLES
 
-Set in `infrastructure/.env`:
+Set in `infrastructure/.env` (copy from `.env.template`).
+
+**The following are managed via the Settings Page UI (stored encrypted in DB) — do NOT set in `.env`:**
+- Binance API Key / Secret (live + testnet), UseTestnet flag
+- Telegram Bot Token / Chat ID
+- Risk thresholds (MaxDrawdown, MinRiskReward, Cooldown, OrderNotional limits)
+- Strategy order sizes (DefaultOrderNotionalUsdt, MinOrderNotionalUsdt)
+- HouseKeeper schedule and retention policy
+
+Gateway syncs all of the above to the relevant services automatically on startup.
 
 ```env
-# Exchange
-BINANCE_API_KEY=
-BINANCE_API_SECRET=
-BINANCE_TESTNET_API_KEY=
-BINANCE_TESTNET_API_SECRET=
-BINANCE_USE_TESTNET=true
-
-# Notifications
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=0
-
-# Database (PostgreSQL)
+# Database (PostgreSQL) — required
 POSTGRES_USER=trader
 POSTGRES_PASSWORD=strongpassword
 POSTGRES_DB=cryptotrading
 
-# Database (MongoDB — for TimelineLogger)
+# Database (MongoDB — for TimelineLogger) — required
 MONGO_USERNAME=timeline_user
 MONGO_PASSWORD=strongpassword
 MONGO_DATABASE=cryptotrading_timeline
 
-# Trading (Live only)
+# Risk fallback balance — used when FinancialLedger is unreachable
 INITIAL_BALANCE=10000.00
-
-# Risk Rules
-MAX_DRAWDOWN_PERCENT=5.0
-MIN_RISK_REWARD=2.0
-MAX_POSITION_SIZE_PERCENT=2.0
-COOLDOWN_SECONDS=30
 
 # Timeline Logger
 TIMELINE_BATCH_SIZE=100
 TIMELINE_BATCH_TIMEOUT_MS=5000
 TIMELINE_DEFAULT_RETENTION_DAYS=90
-
-# Maintenance
-HOUSEKEEPER_ENABLED=true
-HOUSEKEEPER_SCHEDULE_UTC=03:15
-HOUSEKEEPER_RETENTION_ORDERS_DAYS=365
-HOUSEKEEPER_RETENTION_TICKS_MONTHS=12
 
 # Historical Backfill
 HISTORICAL_BACKFILL_ENABLED=false
@@ -717,7 +702,7 @@ HISTORICAL_START_DATE=2025-01-01
 HISTORICAL_END_DATE=2026-03-01
 
 # Financial Ledger
-FINANCIAL_LEDGER_DEFAULT_INITIAL_BALANCE=10000
+FINANCIAL_LEDGER_DEFAULT_INITIAL_BALANCE=100
 FINANCIAL_LEDGER_REDIS_STREAM_KEY=ledger:events
 FINANCIAL_LEDGER_REDIS_CONSUMER_GROUP=financial-ledger
 ```

@@ -28,8 +28,8 @@
     "title": "Ngân sách thực",
     "stale": "Dữ liệu cũ",
     "unavailable": "Chưa có dữ liệu",
-    "testnetWarningTitle": "CẢNH BÁO TESTNET: Mất kết nối sổ cái tài chính",
-    "testnetWarningBody": "Không thể đồng bộ số dư từ Financial Ledger. Hệ thống đang dùng số dư dự phòng, cần kiểm tra kết nối dịch vụ sổ cái ngay."
+    "ledgerWarningTitle": "CẢNH BÁO: Mất kết nối sổ cái tài chính",
+    "ledgerWarningBody": "Không thể đồng bộ số dư từ Financial Ledger. Hệ thống đang dùng số dư dự phòng — cần khôi phục kết nối sổ cái để đảm bảo kiểm soát vốn chính xác."
   },
   "session": {
     "title": "Phiên hiện tại",

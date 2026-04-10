@@ -352,91 +352,153 @@ app.MapGet("/api/trading/session/positions", (
 app.MapGet("/api/trading/balance/effective", async (
     [FromServices] IHttpClientFactory httpClientFactory,
     [FromServices] IOptions<BinanceSettings> binanceOpts,
-    [FromServices] IOptions<TradingSettings> tradingOpts,
-    [FromServices] CashBalanceStateService cashBalanceState,
     CancellationToken ct) =>
 {
     var useTestnet = binanceOpts.Value.UseTestnet;
     var environment = useTestnet ? "TESTNET" : "MAINNET";
 
-    if (useTestnet)
+    var detail = "Effective balance fallback is active.";
+    try
     {
-        var detail = "Testnet effective balance fallback is active.";
-        try
+        var client = httpClientFactory.CreateClient("financialledger");
+        var response = await client.GetAsync($"/api/ledger/balance/effective?environment={environment}&baseCurrency=USDT", ct);
+        if (response.IsSuccessStatusCode)
         {
-            var client = httpClientFactory.CreateClient("financialledger");
-            var response = await client.GetAsync("/api/ledger/balance/effective?environment=TESTNET&baseCurrency=USDT", ct);
-            if (response.IsSuccessStatusCode)
+            var payload = await response.Content.ReadFromJsonAsync<FinancialLedgerEffectiveBalanceResponse>(cancellationToken: ct);
+            if (payload is not null && payload.Available && payload.Balance.HasValue)
             {
-                var payload = await response.Content.ReadFromJsonAsync<FinancialLedgerEffectiveBalanceResponse>(cancellationToken: ct);
-                if (payload is not null && payload.Available && payload.Balance.HasValue)
+                return Results.Ok(new
                 {
-                    return Results.Ok(new
-                    {
-                        environment,
-                        source = "FINANCIAL_LEDGER",
-                        available = true,
-                        balance = Math.Max(0m, payload.Balance.Value),
-                        asOfUtc = payload.AsOfUtc ?? DateTime.UtcNow,
-                        stale = false,
-                        detail = "Testnet effective balance resolved from FinancialLedger."
-                    });
-                }
-
-                detail = payload?.Detail ?? "FinancialLedger returned unavailable balance payload.";
+                    environment,
+                    source = "FINANCIAL_LEDGER",
+                    available = true,
+                    balance = Math.Max(0m, payload.Balance.Value),
+                    asOfUtc = payload.AsOfUtc ?? DateTime.UtcNow,
+                    stale = false,
+                    detail = $"{environment} effective balance resolved from FinancialLedger."
+                });
             }
-            else
-            {
-                detail = $"FinancialLedger returned HTTP {(int)response.StatusCode}.";
-            }
-        }
-        catch (Exception ex)
-        {
-            detail = $"FinancialLedger lookup failed: {ex.Message}";
-        }
 
-        return Results.Ok(new
+            detail = payload?.Detail ?? "FinancialLedger returned unavailable balance payload.";
+        }
+        else
         {
-            environment,
-            source = "FINANCIAL_LEDGER_FALLBACK",
-            available = true,
-            balance = 100m,
-            asOfUtc = DateTime.UtcNow,
-            stale = true,
-            detail = $"{detail} Fallback balance 100 USDT applied."
-        });
+            detail = $"FinancialLedger returned HTTP {(int)response.StatusCode}.";
+        }
     }
-
-    if (!cashBalanceState.TryGetMainnetSnapshot(out var snapshot))
+    catch (Exception ex)
     {
-        return Results.Ok(new
-        {
-            environment,
-            source = "MAINNET_RECONCILED",
-            available = false,
-            balance = (decimal?)null,
-            asOfUtc = (DateTime?)null,
-            stale = true,
-            detail = "Mainnet reconciled cash snapshot is unavailable."
-        });
+        detail = $"FinancialLedger lookup failed: {ex.Message}";
     }
-
-    var maxAgeMinutes = Math.Max(1, tradingOpts.Value.Reconciliation.CashSnapshotMaxAgeMinutes);
-    var snapshotAge = DateTime.UtcNow - snapshot.UpdatedAtUtc;
-    var isStale = snapshotAge > TimeSpan.FromMinutes(maxAgeMinutes);
 
     return Results.Ok(new
     {
         environment,
-        source = "MAINNET_RECONCILED",
+        source = "FINANCIAL_LEDGER_FALLBACK",
         available = true,
-        balance = snapshot.CashBalance,
-        asOfUtc = snapshot.UpdatedAtUtc,
-        stale = isStale,
-        detail = snapshot.Source,
-        snapshotAgeMinutes = Math.Round(snapshotAge.TotalMinutes, 2),
-        snapshotMaxAgeMinutes = maxAgeMinutes
+        balance = 100m,
+        asOfUtc = DateTime.UtcNow,
+        stale = true,
+        detail = $"{detail} Fallback balance 100 USDT applied."
     });
+});
+
+app.MapGet("/api/trading/spot-account", async (
+    [FromServices] BinanceRestClientProvider clientProvider,
+    [FromServices] IConnectionMultiplexer redis,
+    [FromServices] IOptions<BinanceSettings> binanceOpts,
+    CancellationToken ct) =>
+{
+    var settings  = binanceOpts.Value;
+    var isTestnet = settings.UseTestnet;
+
+    // Use the currently active credentials (testnet or live depending on trading mode).
+    // ActiveApiKey resolves to testnet key when UseTestnet=true, otherwise live key.
+    if (string.IsNullOrWhiteSpace(settings.ActiveApiKey))
+    {
+        return Results.Ok(new
+        {
+            isTestnet,
+            unavailable = true,
+            detail = "Binance API key not configured. Please set credentials in Settings.",
+        });
+    }
+
+    try
+    {
+        var accountResult = await clientProvider.Current.SpotApi.Account.GetAccountInfoAsync(ct: ct);
+        if (!accountResult.Success || accountResult.Data is null)
+        {
+            return Results.Problem($"Binance account query failed: {accountResult.Error?.Message}");
+        }
+
+        var db = redis.GetDatabase();
+        var usdtFree = 0m;
+        var usdtLocked = 0m;
+        var totalCoinValue = 0m;
+        var coinRows = new List<object>();
+
+        foreach (var b in accountResult.Data.Balances)
+        {
+            var asset  = GetBalanceAsset(b);
+            var free   = GetBalanceDecimal(b, "Free");
+            var locked = GetBalanceDecimal(b, "Locked");
+            var total  = free + locked;
+            if (total <= 0m || string.IsNullOrWhiteSpace(asset)) continue;
+
+            if (asset.Equals("USDT", StringComparison.OrdinalIgnoreCase))
+            {
+                usdtFree   = free;
+                usdtLocked = locked;
+                continue;
+            }
+
+            var redisKey  = $"price:latest:{asset.ToUpperInvariant()}USDT";
+            var priceRaw  = await db.StringGetAsync(redisKey);
+            var markPrice = 0m;
+            if (priceRaw.HasValue)
+                decimal.TryParse(priceRaw.ToString(), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out markPrice);
+
+            var marketValue = markPrice > 0m ? total * markPrice : 0m;
+            totalCoinValue += marketValue;
+
+            coinRows.Add(new { asset, free, locked, total, markPrice, marketValue });
+        }
+
+        var sortedCoins = coinRows
+            .OrderByDescending(r => (decimal)r.GetType().GetProperty("marketValue")!.GetValue(r)!)
+            .ToList<object>();
+
+        return Results.Ok(new
+        {
+            isTestnet,
+            asOfUtc        = DateTime.UtcNow,
+            usdtFree,
+            usdtLocked,
+            usdtTotal      = usdtFree + usdtLocked,
+            totalCoinValue = decimal.Round(totalCoinValue, 4),
+            totalPortfolio = decimal.Round(usdtFree + usdtLocked + totalCoinValue, 4),
+            coins          = sortedCoins,
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Failed to fetch Binance spot account: {ex.Message}");
+    }
+
+    static string GetBalanceAsset(object b)
+    {
+        var prop = b.GetType().GetProperty("Asset");
+        return prop?.GetValue(b)?.ToString() ?? string.Empty;
+    }
+
+    static decimal GetBalanceDecimal(object b, string name)
+    {
+        var prop = b.GetType().GetProperty(name);
+        if (prop is null) return 0m;
+        try { return Convert.ToDecimal(prop.GetValue(b)); } catch { return 0m; }
+    }
 });
 
 app.MapGet("/api/trading/report/capital-flow", async (

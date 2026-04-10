@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { useLedgerSignalR } from '../hooks/useLedgerSignalR'
 import { ledgerApi } from '../services/ledgerApi'
 
+const BINANCE_POLL_MS = 30_000
+
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const EQUITY_RELOAD_TYPES = new Set(['REALIZED_PNL', 'COMMISSION', 'INITIAL_FUNDING'])
@@ -101,6 +103,8 @@ export default function LedgerPage() {
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState(null)
+  const [binanceAccount, setBinanceAccount] = useState(null)
+  const [binanceLoading, setBinanceLoading] = useState(false)
 
   // Bootstrap account on mount
   useEffect(() => {
@@ -125,6 +129,20 @@ export default function LedgerPage() {
   }, [account?.id])
 
   useEffect(() => { loadEquityTimeline() }, [loadEquityTimeline])
+
+  const fetchBinanceAccount = useCallback(() => {
+    setBinanceLoading(true)
+    ledgerApi.getBinanceAccount()
+      .then(setBinanceAccount)
+      .catch(() => {}) // non-critical
+      .finally(() => setBinanceLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetchBinanceAccount()
+    const id = setInterval(fetchBinanceAccount, BINANCE_POLL_MS)
+    return () => clearInterval(id)
+  }, [fetchBinanceAccount])
 
   const handleEquity  = useCallback((data) => setEquity(data), [])
   const handleBalance = useCallback((data) => {
@@ -171,6 +189,9 @@ export default function LedgerPage() {
           {isConnected ? t('status.live') : t('status.offline')}
         </span>
       </div>
+
+      {/* Binance Spot Account */}
+      <BinanceAccountWidget data={binanceAccount} loading={binanceLoading} onRefresh={fetchBinanceAccount} t={t} />
 
       {/* Stats + ROE row */}
       <div className="flex flex-col xl:flex-row gap-4 xl:items-stretch">
@@ -332,6 +353,107 @@ export default function LedgerPage() {
             </table>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── BinanceAccountWidget ─────────────────────────────────────────────────────
+
+function BinanceAccountWidget({ data, loading, onRefresh, t }) {
+  const bt = t('binanceAccount', { returnObjects: true })
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-100">{bt.title}</h3>
+          <p className="text-xs text-gray-400">{bt.subtitle}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {data && (
+            <span className={`text-xs px-2 py-0.5 rounded-full ${data.isTestnet ? 'bg-yellow-900 text-yellow-300' : 'bg-green-900 text-green-300'}`}>
+              {data.isTestnet ? 'TESTNET' : 'MAINNET'}
+            </span>
+          )}
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 disabled:opacity-50"
+          >
+            {loading ? bt.refreshing : bt.refresh}
+          </button>
+        </div>
+      </div>
+
+      {!data && !loading && (
+        <p className="text-yellow-400 text-sm">{bt.unavailable}</p>
+      )}
+
+      {loading && !data && (
+        <p className="text-gray-400 text-sm">{bt.loading}</p>
+      )}
+
+      {data?.unavailable && (
+        <p className="text-yellow-400 text-sm">{data.detail ?? bt.unavailable}</p>
+      )}
+
+      {data && !data.unavailable && (
+        <>
+          {/* Summary row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gray-900 rounded p-3 border border-gray-700">
+              <p className="text-xs text-gray-400">{bt.usdtFree}</p>
+              <p className="text-xl font-bold font-mono text-cyan-300">${fmt(data.usdtFree)}</p>
+            </div>
+            <div className="bg-gray-900 rounded p-3 border border-gray-700">
+              <p className="text-xs text-gray-400">{bt.usdtLocked}</p>
+              <p className="text-xl font-bold font-mono text-yellow-300">${fmt(data.usdtLocked)}</p>
+            </div>
+            <div className="bg-gray-900 rounded p-3 border border-gray-700">
+              <p className="text-xs text-gray-400">{bt.coinValue}</p>
+              <p className="text-xl font-bold font-mono text-green-300">${fmt(data.totalCoinValue)}</p>
+            </div>
+            <div className="bg-gray-900 rounded p-3 border border-gray-700">
+              <p className="text-xs text-gray-400">{bt.totalPortfolio}</p>
+              <p className="text-xl font-bold font-mono text-blue-300">${fmt(data.totalPortfolio)}</p>
+            </div>
+          </div>
+
+          {/* Coin holdings table */}
+          {data.coins?.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border border-gray-700 rounded-lg overflow-hidden">
+                <thead className="bg-gray-700 text-gray-400">
+                  <tr>
+                    {[bt.col.asset, bt.col.free, bt.col.locked, bt.col.markPrice, bt.col.value].map((h) => (
+                      <th key={h} className="px-3 py-2 text-left">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.coins.map((c) => (
+                    <tr key={c.asset} className="border-t border-gray-800 hover:bg-gray-800/50">
+                      <td className="px-3 py-1.5 font-mono text-blue-300 font-semibold">{c.asset}</td>
+                      <td className="px-3 py-1.5 font-mono">{fmt(c.free, 6)}</td>
+                      <td className="px-3 py-1.5 font-mono text-yellow-400">{fmt(c.locked, 6)}</td>
+                      <td className="px-3 py-1.5 font-mono">{c.markPrice > 0 ? `$${fmt(c.markPrice, 4)}` : '—'}</td>
+                      <td className="px-3 py-1.5 font-mono text-green-300">{c.marketValue > 0 ? `$${fmt(c.marketValue, 2)}` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {data.coins?.length === 0 && (
+            <p className="text-gray-500 text-xs">{bt.noCoins}</p>
+          )}
+
+          <p className="text-xs text-gray-600 text-right">
+            {bt.asOf}: {new Date(data.asOfUtc).toLocaleString()}
+          </p>
+        </>
       )}
     </div>
   )
