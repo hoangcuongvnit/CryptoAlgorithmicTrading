@@ -2,6 +2,12 @@
 
 > Quick-reference for AI agents. Optimized for token efficiency and fast context loading.
 
+## DOCS AT A GLANCE
+
+- `README.md` is the public-facing project overview.
+- `ARCHITECTURE.md` is the technical design reference.
+- This file is the implementation-focused AI navigation guide and current repo source of truth.
+
 ---
 
 ## QUICK COMMANDS
@@ -38,10 +44,17 @@ cd infrastructure && docker compose -f docker-compose-observability.yml up -d
 | Target | `net10.0` (all projects, `Directory.Build.props`) |
 | Packages | Centrally managed in `Directory.Packages.props` — add `<PackageVersion>` there, no `Version=` in `.csproj` |
 | Code style | File-scoped namespaces, 4-space indent, nullable enabled (`.editorconfig`) |
+| Docs | `README.md` for overview, `ARCHITECTURE.md` for design, this file for implementation facts |
 
 ---
 
-## LATEST UPDATES (2026-04-05)
+## LATEST UPDATES (2026-04-10)
+
+### Documentation Sync
+
+- `README.md` is now public-facing and concise.
+- `ARCHITECTURE.md` now contains the system design and topology reference.
+- Keep this file aligned with current implementation details, not historical roadmap text.
 
 ### Effective Balance Migration (Env-Aware)
 
@@ -62,6 +75,15 @@ cd infrastructure && docker compose -f docker-compose-observability.yml up -d
 - Added post-close verification of leftovers and reasons (`NO_USDT_PAIR`, valuation unavailable, still present after close, etc.).
 - Close-all status now exposes richer operation telemetry:
      - `discoveredCandidatesCount`, `attemptedCloseCount`, `verifiedAtUtc`, `leftovers`.
+
+### Ledger Equity Sell Timeline (FinancialLedger)
+
+- `scripts/add-ledger-equity-snapshots.sql` creates `ledger_equity_snapshots` with `unique(session_id, trigger_transaction_id)`.
+- `TradeEventConsumerWorker` captures equity snapshots for `REALIZED_PNL` events through `EquitySellSnapshotService`.
+- Snapshot formula: `total_equity = current_balance + holdings_market_value`, with Redis `price:latest:{SYMBOL}` as the preferred source and Executor current price as fallback.
+- `GET /api/ledger/equity/sell-timeline` returns the sell equity timeline for a ledger session.
+- `EquitySnapshotRepository` now handles missing-table errors defensively and returns an empty timeline instead of throwing.
+- The sell timeline query uses dynamic SQL with optional filters to avoid nullable-parameter and ORDER BY issues in PostgreSQL.
 
 ### Reconciliation + Runtime Safety (Executor)
 
@@ -89,6 +111,8 @@ cd infrastructure && docker compose -f docker-compose-observability.yml up -d
 
 ## ARCHITECTURE OVERVIEW
 
+The repository is a 12-service monorepo. The main trading path runs through Ingestor, Analyzer, Strategy, RiskGuard, Executor, and Notifier, while TimelineLogger, FinancialLedger, Gateway, HouseKeeper, and HistoricalCollector provide supporting runtime, reporting, and maintenance capabilities.
+
 ### Data Flow (End-to-End)
 
 ```
@@ -109,7 +133,7 @@ Binance WS → Ingestor → [TimescaleDB] + [Redis: price:SYMBOL]
 |----------|----------|-----------|
 | Redis Pub/Sub | Ingestor→Analyzer→Strategy | `src/Shared/Constants/RedisChannels.cs` |
 | gRPC/Protobuf | Strategy→RiskGuard→Executor | `src/Shared/ProtoFiles/` |
-| Redis Streams | Audit log (all trades) | Stream key: `trades:audit` |
+| Redis Streams | Audit log and ledger event routing | Stream keys: `trades:audit`, `ledger:events` |
 
 > **gRPC note**: All gRPC services require `AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true)` for unencrypted HTTP/2.
 
@@ -158,11 +182,11 @@ trading-engine:commands # Redis Pub/Sub: control commands (e.g. HALT_AND_CLOSE_A
 
 > **Dual API configuration**: Live (primary) + Testnet (for safe order testing on Executor only)
 
-| Service | Binance Environment | Lý do |
+| Service | Binance Environment | Reason |
 |---------|--------------------|----|
-| **Executor** | Live hoặc **Testnet** (via `BINANCE_USE_TESTNET` env var) | Đặt/huỷ lệnh — Testnet để test an toàn |
-| **Ingestor** | **Live** (luôn luôn) | Binance testnet không cung cấp WebSocket market data |
-| **All Others** | **Live** (Analyzer, Strategy, RiskGuard, Notifier) | Không gọi Binance trực tiếp, chỉ dùng Redis/gRPC |
+| **Executor** | Live or **Testnet** (via `BINANCE_USE_TESTNET` env var) | Order placement and cancellation; testnet can be used safely |
+| **Ingestor** | **Live** only | Binance testnet does not provide the WebSocket market data needed here |
+| **All Others** | **Live** only (Analyzer, Strategy, RiskGuard, Notifier) | They do not call Binance directly; they use Redis and gRPC |
 
 ---
 
@@ -425,7 +449,7 @@ GET  /health
 
 ### TimelineLogger — `src/Services/TimelineLogger/TimelineLogger.Worker/`
 
-**Role**: Thu thập & lưu trữ toàn bộ sự kiện giao dịch theo từng symbol vào MongoDB
+**Role**: Collect and store all trade-related events per symbol in MongoDB
 
 **Port**: HTTP=5096
 

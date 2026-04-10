@@ -312,8 +312,6 @@ services:
       postgres:
         condition: service_healthy
         required: false
-      executor:
-        condition: service_healthy
       timelinelogger:
         condition: service_healthy
     volumes:
