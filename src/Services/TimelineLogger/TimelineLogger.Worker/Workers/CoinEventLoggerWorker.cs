@@ -1,12 +1,12 @@
 using CryptoTrading.Shared.Constants;
 using CryptoTrading.Shared.Timeline;
 using Microsoft.Extensions.Options;
+using MongoDB.Bson;
 using StackExchange.Redis;
 using System.Text.Json;
 using TimelineLogger.Worker.Configuration;
 using TimelineLogger.Worker.Infrastructure;
 using TimelineLogger.Worker.Infrastructure.Documents;
-using MongoDB.Bson;
 
 namespace TimelineLogger.Worker.Workers;
 

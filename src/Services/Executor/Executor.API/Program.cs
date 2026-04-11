@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
-using System.Net.Http.Json;
 using StackExchange.Redis;
 
 // Npgsql 6+ strict mode rejects DateTime(Kind=Utc) for TIMESTAMP WITHOUT TIME ZONE columns.
@@ -411,7 +410,7 @@ app.MapGet("/api/trading/report/capital-flow", async (
     CancellationToken ct) =>
 {
     var fromDate = DateTime.TryParse(from, out var pFrom) ? pFrom : DateTime.UtcNow.Date;
-    var toDate   = DateTime.TryParse(to,   out var pTo)   ? pTo   : DateTime.UtcNow.Date;
+    var toDate = DateTime.TryParse(to, out var pTo) ? pTo : DateTime.UtcNow.Date;
     var tradingMode = mode is "testnet" ? "testnet" : "live";
     var events = await budget.GetCapitalFlowAsync(fromDate, toDate, tradingMode, ct);
     return Results.Ok(events);

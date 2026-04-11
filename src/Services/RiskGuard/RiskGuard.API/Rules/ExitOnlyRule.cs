@@ -1,4 +1,3 @@
-using CryptoTrading.Shared.DTOs;
 using StackExchange.Redis;
 
 namespace RiskGuard.API.Rules;

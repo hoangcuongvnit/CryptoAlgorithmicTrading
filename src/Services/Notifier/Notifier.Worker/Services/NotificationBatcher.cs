@@ -1,8 +1,8 @@
-using System.Collections.Concurrent;
-using System.Text;
 using Microsoft.Extensions.Options;
 using Notifier.Worker.Channels;
 using Notifier.Worker.Configuration;
+using System.Collections.Concurrent;
+using System.Text;
 
 namespace Notifier.Worker.Services;
 
@@ -121,10 +121,10 @@ public sealed class NotificationBatcher : BackgroundService
 
     private static string CategoryLabel(string category) => category switch
     {
-        "order"        => "Orders Filled",
+        "order" => "Orders Filled",
         "system_event" => "System Events",
-        "startup"      => "Service Events",
-        _              => category
+        "startup" => "Service Events",
+        _ => category
     };
 
     private sealed record BatchItem(string Category, string Message);

@@ -88,7 +88,7 @@ public sealed class BudgetRepository
     {
         var conditions = new List<string>();
         if (from.HasValue) conditions.Add("recorded_at_utc >= @From");
-        if (to.HasValue)   conditions.Add("recorded_at_utc < @To");
+        if (to.HasValue) conditions.Add("recorded_at_utc < @To");
         var where = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
         var sql = $"""
@@ -108,19 +108,19 @@ public sealed class BudgetRepository
             await conn.OpenAsync(ct);
             await EnsureBudgetSchemaAsync(conn, ct);
             var p = new { From = from, To = to, Limit = limit, Offset = offset };
-            var rows  = await conn.QueryAsync<dynamic>(new CommandDefinition(sql, p, cancellationToken: ct));
+            var rows = await conn.QueryAsync<dynamic>(new CommandDefinition(sql, p, cancellationToken: ct));
             var total = await conn.QuerySingleAsync<long>(new CommandDefinition(countSql, p, cancellationToken: ct));
 
             var entries = rows.Select(r => new LedgerEntry(
-                Id:                 (Guid)r.id,
-                RecordedAtUtc:      (DateTime)r.recorded_at_utc,
-                ReferenceType:      (string)r.reference_type,
-                ReferenceId:        (string?)r.reference_id,
-                CashBalanceBefore:  (decimal)r.cash_balance_before,
-                CashBalanceAfter:   (decimal)r.cash_balance_after,
-                AdjustmentAmount:   (decimal)r.adjustment_amount,
-                Description:        (string?)r.description,
-                CreatedBy:          (string?)r.created_by
+                Id: (Guid)r.id,
+                RecordedAtUtc: (DateTime)r.recorded_at_utc,
+                ReferenceType: (string)r.reference_type,
+                ReferenceId: (string?)r.reference_id,
+                CashBalanceBefore: (decimal)r.cash_balance_before,
+                CashBalanceAfter: (decimal)r.cash_balance_after,
+                AdjustmentAmount: (decimal)r.adjustment_amount,
+                Description: (string?)r.description,
+                CreatedBy: (string?)r.created_by
             )).ToList();
 
             return (entries, (int)total);
@@ -285,7 +285,7 @@ public sealed class BudgetRepository
     {
         var conditions = new List<string>();
         if (from.HasValue) conditions.Add("recorded_at_utc >= @From");
-        if (to.HasValue)   conditions.Add("recorded_at_utc < @To");
+        if (to.HasValue) conditions.Add("recorded_at_utc < @To");
         var where = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
 
         var sql = $"""
@@ -304,9 +304,9 @@ public sealed class BudgetRepository
                 new CommandDefinition(sql, new { From = from, To = to }, cancellationToken: ct));
 
             return rows.Select(r => new EquityPoint(
-                RecordedAtUtc:    (DateTime)r.recorded_at_utc,
-                ReferenceType:    (string)r.reference_type,
-                CashBalance:      decimal.Round((decimal)r.cash_balance, 4),
+                RecordedAtUtc: (DateTime)r.recorded_at_utc,
+                ReferenceType: (string)r.reference_type,
+                CashBalance: decimal.Round((decimal)r.cash_balance, 4),
                 AdjustmentAmount: decimal.Round((decimal)r.adjustment_amount, 4)
             )).ToList();
         }
@@ -323,7 +323,7 @@ public sealed class BudgetRepository
         DateTime from, DateTime to, string mode, CancellationToken ct)
     {
         var startUtc = DateTime.SpecifyKind(from.Date, DateTimeKind.Utc);
-        var endUtc   = DateTime.SpecifyKind(to.Date,   DateTimeKind.Utc).AddDays(1);
+        var endUtc = DateTime.SpecifyKind(to.Date, DateTimeKind.Utc).AddDays(1);
 
         const string sql = """
             SELECT
@@ -363,22 +363,22 @@ public sealed class BudgetRepository
             await EnsureBudgetSchemaAsync(conn, ct);
             var rows = await conn.QueryAsync<dynamic>(new CommandDefinition(sql, new
             {
-                Start     = startUtc,
-                End       = endUtc,
+                Start = startUtc,
+                End = endUtc,
                 StartDate = startUtc.Date,
-                EndDate   = endUtc.Date,
-                Mode      = mode
+                EndDate = endUtc.Date,
+                Mode = mode
             }, cancellationToken: ct));
 
             return rows.Select(r => new CapitalFlowEvent(
-                RecordedAtUtc:    (DateTime)r.recorded_at_utc,
-                EventType:        (string)r.event_type,
-                ReferenceId:      (string?)r.reference_id,
-                CashBalance:      decimal.Round((decimal)r.cash_balance, 4),
-                HoldingsValue:    r.holdings_value is null ? null : decimal.Round((decimal)r.holdings_value, 4),
-                TotalEquity:      r.total_equity   is null ? null : decimal.Round((decimal)r.total_equity,   4),
+                RecordedAtUtc: (DateTime)r.recorded_at_utc,
+                EventType: (string)r.event_type,
+                ReferenceId: (string?)r.reference_id,
+                CashBalance: decimal.Round((decimal)r.cash_balance, 4),
+                HoldingsValue: r.holdings_value is null ? null : decimal.Round((decimal)r.holdings_value, 4),
+                TotalEquity: r.total_equity is null ? null : decimal.Round((decimal)r.total_equity, 4),
                 AdjustmentAmount: decimal.Round((decimal)r.adjustment_amount, 4),
-                Description:      (string?)r.description
+                Description: (string?)r.description
             )).ToList();
         }
         catch (Exception ex)
@@ -424,15 +424,15 @@ public sealed class BudgetRepository
             await EnsureBudgetSchemaAsync(conn, ct);
             await conn.ExecuteAsync(new CommandDefinition(sql, new
             {
-                SessionId     = sessionId,
+                SessionId = sessionId,
                 SessionNumber = sessionNumber,
-                SessionDate   = sessionDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                SnapshotType  = snapshotType,
-                Mode          = mode,
-                Cash          = cashBalance,
-                Holdings      = holdingsValue,
-                OpenCount     = openPositionCount,
-                IsFlat        = openPositionCount == 0
+                SessionDate = sessionDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                SnapshotType = snapshotType,
+                Mode = mode,
+                Cash = cashBalance,
+                Holdings = holdingsValue,
+                OpenCount = openPositionCount,
+                IsFlat = openPositionCount == 0
             }, cancellationToken: ct));
         }
         catch (Exception ex)
@@ -495,9 +495,14 @@ public sealed class BudgetRepository
             """;
         return conn.ExecuteAsync(new CommandDefinition(sql, new
         {
-            Id = id, RefType = refType, RefId = refId,
-            Before = before, After = after, Adjustment = adjustment,
-            Description = description, CreatedBy = createdBy
+            Id = id,
+            RefType = refType,
+            RefId = refId,
+            Before = before,
+            After = after,
+            Adjustment = adjustment,
+            Description = description,
+            CreatedBy = createdBy
         }, tx, cancellationToken: ct));
     }
 

@@ -1,11 +1,10 @@
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using FinancialLedger.Worker.Configuration;
 using FinancialLedger.Worker.Hubs;
 using FinancialLedger.Worker.Services;
 using Microsoft.AspNetCore.SignalR;
 using StackExchange.Redis;
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace FinancialLedger.Worker.Workers;
 

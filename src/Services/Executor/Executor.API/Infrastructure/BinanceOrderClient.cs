@@ -1,8 +1,8 @@
 using Binance.Net.Enums;
 using CryptoTrading.Shared.DTOs;
+using StackExchange.Redis;
 using System.Collections.Concurrent;
 using System.Text.Json;
-using StackExchange.Redis;
 
 namespace Executor.API.Infrastructure;
 

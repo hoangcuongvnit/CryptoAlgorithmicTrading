@@ -1,4 +1,3 @@
-using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
 using CryptoTrading.Shared.Timeline;
 using Microsoft.Extensions.Options;

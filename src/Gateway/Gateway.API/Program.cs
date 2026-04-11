@@ -1,10 +1,10 @@
-using System.Text.Json;
 using Gateway.API.Dashboard;
 using Gateway.API.Settings;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -899,7 +899,7 @@ reportGroup2.MapGet("/capital-flow", async (
     {
         var qs = new System.Text.StringBuilder("/api/trading/report/capital-flow?");
         if (!string.IsNullOrEmpty(from)) qs.Append($"from={Uri.EscapeDataString(from)}&");
-        if (!string.IsNullOrEmpty(to))   qs.Append($"to={Uri.EscapeDataString(to)}&");
+        if (!string.IsNullOrEmpty(to)) qs.Append($"to={Uri.EscapeDataString(to)}&");
         if (!string.IsNullOrEmpty(mode)) qs.Append($"mode={Uri.EscapeDataString(mode)}&");
         var response = await client.GetAsync(qs.ToString().TrimEnd('?', '&'), ct);
         var body = await response.Content.ReadAsStringAsync(ct);
@@ -1249,9 +1249,14 @@ settingsGroup.MapPut("/exchange/binance", async (
         {
             var client = factory.CreateClient("executor");
             await client.PostAsJsonAsync("/api/trading/reload-exchange-config",
-                new { apiKey = apiKey ?? "", apiSecret = apiSecret ?? "",
-                      testnetApiKey = testnetApiKey ?? "", testnetApiSecret = testnetApiSecret ?? "",
-                      useTestnet = body.UseTestnet }, ct);
+                new
+                {
+                    apiKey = apiKey ?? "",
+                    apiSecret = apiSecret ?? "",
+                    testnetApiKey = testnetApiKey ?? "",
+                    testnetApiSecret = testnetApiSecret ?? "",
+                    useTestnet = body.UseTestnet
+                }, ct);
         }
         catch (Exception ex)
         {
@@ -1698,9 +1703,14 @@ app.Lifetime.ApplicationStarted.Register(() =>
             {
                 var client = factory.CreateClient("executor");
                 await client.PostAsJsonAsync("/api/trading/reload-exchange-config",
-                    new { apiKey = apiKey ?? "", apiSecret = apiSecret ?? "",
-                          testnetApiKey = testnetApiKey ?? "", testnetApiSecret = testnetApiSecret ?? "",
-                          useTestnet = exchangeCfg.UseTestnet });
+                    new
+                    {
+                        apiKey = apiKey ?? "",
+                        apiSecret = apiSecret ?? "",
+                        testnetApiKey = testnetApiKey ?? "",
+                        testnetApiSecret = testnetApiSecret ?? "",
+                        useTestnet = exchangeCfg.UseTestnet
+                    });
                 logger.LogInformation("Exchange credentials synced to Executor on startup (testnet={UseTestnet})", exchangeCfg.UseTestnet);
             }
             else
@@ -1779,19 +1789,19 @@ internalGroup.MapGet("/exchange/credentials", async (
     if (!cfg.IsConfigured && !cfg.TestnetIsConfigured)
         return Results.Ok(new { configured = false });
 
-    var apiKey           = await repo.GetDecryptedApiKeyAsync(ct);
-    var apiSecret        = await repo.GetDecryptedApiSecretAsync(ct);
-    var testnetApiKey    = await repo.GetDecryptedTestnetApiKeyAsync(ct);
+    var apiKey = await repo.GetDecryptedApiKeyAsync(ct);
+    var apiSecret = await repo.GetDecryptedApiSecretAsync(ct);
+    var testnetApiKey = await repo.GetDecryptedTestnetApiKeyAsync(ct);
     var testnetApiSecret = await repo.GetDecryptedTestnetApiSecretAsync(ct);
 
     return Results.Ok(new
     {
-        configured       = true,
-        apiKey           = apiKey           ?? "",
-        apiSecret        = apiSecret        ?? "",
-        testnetApiKey    = testnetApiKey    ?? "",
+        configured = true,
+        apiKey = apiKey ?? "",
+        apiSecret = apiSecret ?? "",
+        testnetApiKey = testnetApiKey ?? "",
         testnetApiSecret = testnetApiSecret ?? "",
-        useTestnet       = cfg.UseTestnet
+        useTestnet = cfg.UseTestnet
     });
 });
 

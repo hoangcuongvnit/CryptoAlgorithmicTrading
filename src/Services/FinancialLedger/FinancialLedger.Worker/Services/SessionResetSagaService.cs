@@ -1,5 +1,4 @@
 using FinancialLedger.Worker.Configuration;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace FinancialLedger.Worker.Services;

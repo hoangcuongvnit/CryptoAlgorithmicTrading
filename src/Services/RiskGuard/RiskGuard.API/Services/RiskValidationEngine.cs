@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Timeline;
 using RiskGuard.API.Rules;
+using System.Diagnostics;
 
 namespace RiskGuard.API.Services;
 

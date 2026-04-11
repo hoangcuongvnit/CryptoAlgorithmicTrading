@@ -198,7 +198,7 @@ public sealed class LiquidationOrchestrator : BackgroundService
             // Holdings value: sum of open position market values (approximated as quantity × current price)
             decimal holdingsValue = openPositions.Sum(pos =>
             {
-                var qty   = (decimal)(pos.GetType().GetProperty("quantity")?.GetValue(pos)   ?? 0m);
+                var qty = (decimal)(pos.GetType().GetProperty("quantity")?.GetValue(pos) ?? 0m);
                 var price = (decimal)(pos.GetType().GetProperty("currentPrice")?.GetValue(pos) ?? 0m);
                 return qty * price;
             });

@@ -1,4 +1,3 @@
-using CryptoTrading.Shared.DTOs;
 using Microsoft.Extensions.Options;
 using RiskGuard.API.Configuration;
 

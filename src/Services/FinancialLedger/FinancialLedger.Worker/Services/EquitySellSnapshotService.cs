@@ -2,7 +2,6 @@ using FinancialLedger.Worker.Domain;
 using FinancialLedger.Worker.Infrastructure;
 using StackExchange.Redis;
 using System.Globalization;
-using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
 namespace FinancialLedger.Worker.Services;

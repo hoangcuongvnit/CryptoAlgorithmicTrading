@@ -1,7 +1,6 @@
 using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
 using System.Net.Sockets;
 
 namespace Executor.API.Services;
@@ -27,11 +26,11 @@ public sealed class CredentialSyncService : BackgroundService
         CredentialSyncGate gate,
         ILogger<CredentialSyncService> logger)
     {
-        _httpFactory    = httpFactory;
+        _httpFactory = httpFactory;
         _clientProvider = clientProvider;
-        _binanceOpts    = binanceOpts;
-        _gate           = gate;
-        _logger         = logger;
+        _binanceOpts = binanceOpts;
+        _gate = gate;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -79,14 +78,14 @@ public sealed class CredentialSyncService : BackgroundService
                 }
 
                 var settings = _binanceOpts.Value;
-                settings.ApiKey           = payload.ApiKey;
-                settings.ApiSecret        = payload.ApiSecret;
-                settings.TestnetApiKey    = payload.TestnetApiKey;
+                settings.ApiKey = payload.ApiKey;
+                settings.ApiSecret = payload.ApiSecret;
+                settings.TestnetApiKey = payload.TestnetApiKey;
                 settings.TestnetApiSecret = payload.TestnetApiSecret;
-                settings.UseTestnet       = payload.UseTestnet;
+                settings.UseTestnet = payload.UseTestnet;
 
-                var activeKey    = payload.UseTestnet && !string.IsNullOrEmpty(payload.TestnetApiKey)
-                                   ? payload.TestnetApiKey    : payload.ApiKey;
+                var activeKey = payload.UseTestnet && !string.IsNullOrEmpty(payload.TestnetApiKey)
+                                   ? payload.TestnetApiKey : payload.ApiKey;
                 var activeSecret = payload.UseTestnet && !string.IsNullOrEmpty(payload.TestnetApiSecret)
                                    ? payload.TestnetApiSecret : payload.ApiSecret;
 

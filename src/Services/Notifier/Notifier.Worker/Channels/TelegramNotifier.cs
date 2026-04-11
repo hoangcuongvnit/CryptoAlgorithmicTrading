@@ -64,9 +64,9 @@ public sealed class TelegramNotifier
 
     public string FormatSystemEvent(SystemEvent evt) => evt.Type switch
     {
-        SystemEventType.ServiceStarted  => $"🚀 {evt.ServiceName} ONLINE | {_tz.Format(evt.Timestamp)}",
-        SystemEventType.ServiceStopped  => $"⏹️ {evt.ServiceName} STOPPED | {_tz.Format(evt.Timestamp)}",
-        SystemEventType.ConnectionLost     => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
+        SystemEventType.ServiceStarted => $"🚀 {evt.ServiceName} ONLINE | {_tz.Format(evt.Timestamp)}",
+        SystemEventType.ServiceStopped => $"⏹️ {evt.ServiceName} STOPPED | {_tz.Format(evt.Timestamp)}",
+        SystemEventType.ConnectionLost => $"⚠️ WS DISCONNECTED: {evt.Message} | Reconnecting...",
         SystemEventType.ConnectionRestored => $"✅ WS RESTORED: {evt.Message}",
         SystemEventType.MaxDrawdownBreached => $"🚨 MAX DRAWDOWN BREACHED – All trading halted\n{evt.Message}",
         SystemEventType.Error =>
@@ -79,7 +79,7 @@ public sealed class TelegramNotifier
             $"\n{evt.ServiceName}: {evt.Message}",
         SystemEventType.ReconciliationDrift =>
             $"🔎 RECONCILIATION DRIFT\n{evt.ServiceName}: {evt.Message}",
-        _                                  => $"ℹ️ {evt.ServiceName}: {evt.Message}"
+        _ => $"ℹ️ {evt.ServiceName}: {evt.Message}"
     };
 
     public async Task SendOrderResultAsync(OrderResult order, CancellationToken cancellationToken = default)

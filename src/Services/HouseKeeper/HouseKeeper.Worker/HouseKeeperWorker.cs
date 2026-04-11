@@ -1,8 +1,6 @@
 using Dapper;
 using HouseKeeper.Worker.Configuration;
 using HouseKeeper.Worker.Jobs;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 

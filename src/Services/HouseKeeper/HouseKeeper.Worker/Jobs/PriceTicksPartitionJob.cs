@@ -1,9 +1,8 @@
-using System.Diagnostics;
 using Dapper;
 using HouseKeeper.Worker.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using System.Diagnostics;
 
 namespace HouseKeeper.Worker.Jobs;
 

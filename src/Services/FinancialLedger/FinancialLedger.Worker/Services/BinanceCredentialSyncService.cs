@@ -1,4 +1,3 @@
-using System.Net.Http.Json;
 using System.Net.Sockets;
 
 namespace FinancialLedger.Worker.Services;

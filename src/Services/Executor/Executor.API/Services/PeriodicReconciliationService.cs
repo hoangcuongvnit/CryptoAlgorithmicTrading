@@ -274,8 +274,8 @@ public sealed class PeriodicReconciliationService : BackgroundService
 
         // Build rich alert message — constructed inside drift branch (memory optimization per spec §6.3)
         var positionDrifts = drifts.Where(d => d.DriftType == "POSITION").ToList();
-        var balanceDrift   = drifts.FirstOrDefault(d => d.DriftType == "BALANCE");
-        var shortId        = reconciliationId.ToString("N")[..8];
+        var balanceDrift = drifts.FirstOrDefault(d => d.DriftType == "BALANCE");
+        var shortId = reconciliationId.ToString("N")[..8];
 
         var sb = new System.Text.StringBuilder();
 
@@ -306,12 +306,12 @@ public sealed class PeriodicReconciliationService : BackgroundService
 
         await _systemEvents.PublishAsync(new SystemEvent
         {
-            Type        = SystemEventType.ReconciliationDrift,
+            Type = SystemEventType.ReconciliationDrift,
             ServiceName = "Executor",
-            Message     = alertMessage,
-            Timestamp   = DateTime.UtcNow,
-            ErrorCode   = null,
-            Symbol      = null
+            Message = alertMessage,
+            Timestamp = DateTime.UtcNow,
+            ErrorCode = null,
+            Symbol = null
         }, ct);
 
         _logger.LogWarning("{AlertMessage}", alertMessage);

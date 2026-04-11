@@ -109,7 +109,7 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
         p.Add("offset", (Math.Max(page, 1) - 1) * pageSize);
 
         var countSql = $"SELECT COUNT(*) FROM public.risk_evaluations {where}";
-         var dataSql = $"""
+        var dataSql = $"""
              SELECT evaluation_id AS "EvaluationId",
                  order_request_id AS "OrderRequestId",
                  session_id AS "SessionId",
@@ -140,7 +140,7 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
             return ([], total);
 
         var evalIds = rows.Select(r => r.EvaluationId).ToArray();
-         const string rulesSql = """
+        const string rulesSql = """
              SELECT evaluation_id AS "EvaluationId",
                  rule_name AS "RuleName",
                  rule_version AS "RuleVersion",
@@ -169,7 +169,7 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
 
     public async Task<RiskEvaluationDto?> GetByIdAsync(Guid evaluationId, CancellationToken ct = default)
     {
-         const string evalSql = """
+        const string evalSql = """
              SELECT evaluation_id AS "EvaluationId",
                  order_request_id AS "OrderRequestId",
                  session_id AS "SessionId",
@@ -189,7 +189,7 @@ public sealed class RiskEvaluationRepository : IRiskEvaluationRepository
             WHERE evaluation_id = @evaluationId
             """;
 
-         const string rulesSql = """
+        const string rulesSql = """
              SELECT evaluation_id AS "EvaluationId",
                  rule_name AS "RuleName",
                  rule_version AS "RuleVersion",

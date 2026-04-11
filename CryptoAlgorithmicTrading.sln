@@ -23,15 +23,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HistoricalCollector.Worker"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HouseKeeper.Worker", "src\Services\HouseKeeper\HouseKeeper.Worker\HouseKeeper.Worker.csproj", "{D3F5A8B1-2C4E-4F67-9A0B-CF1234567890}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Services", "Services", "{984BB9B3-3FA3-BE33-9484-CAC21695A33C}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TimelineLogger", "TimelineLogger", "{AD98D8AD-30D9-99BB-0ADC-F1CF2C417341}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimelineLogger.Worker", "src\Services\TimelineLogger\TimelineLogger.Worker\TimelineLogger.Worker.csproj", "{93586874-53E7-4FDB-BE36-510EA75CD723}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FinancialLedger", "FinancialLedger", "{478DF11F-36DD-4F6C-7443-0122F89E603E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FinancialLedger.Worker", "src\Services\FinancialLedger\FinancialLedger.Worker\FinancialLedger.Worker.csproj", "{90A14C2B-182E-4606-8B14-8988A46CD8B6}"
 EndProject
@@ -192,13 +184,6 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{984BB9B3-3FA3-BE33-9484-CAC21695A33C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{AD98D8AD-30D9-99BB-0ADC-F1CF2C417341} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
-		{93586874-53E7-4FDB-BE36-510EA75CD723} = {AD98D8AD-30D9-99BB-0ADC-F1CF2C417341}
-		{478DF11F-36DD-4F6C-7443-0122F89E603E} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
-		{90A14C2B-182E-4606-8B14-8988A46CD8B6} = {478DF11F-36DD-4F6C-7443-0122F89E603E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6B83120A-163A-450D-B4E8-CF01164B8465}

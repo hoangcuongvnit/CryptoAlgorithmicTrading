@@ -1,8 +1,6 @@
 using CryptoTrading.Shared.DTOs;
 using Executor.API.Configuration;
-using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
 
 namespace Executor.API.Services;
 

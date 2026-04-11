@@ -1,6 +1,5 @@
 using Executor.API.Configuration;
 using Microsoft.Extensions.Options;
-using System.Net.Http.Json;
 
 namespace Executor.API.Infrastructure;
 
