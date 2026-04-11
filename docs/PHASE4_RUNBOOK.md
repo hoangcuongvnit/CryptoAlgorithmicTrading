@@ -211,6 +211,45 @@ grpcurl -plaintext localhost:5014 grpc.health.v1.Health/Check
 - Verify Redis is running with Streams support
 - Check for errors in Executor logs about publishing to `trades:audit`
 
+### FinancialLedger receives no new ledger rows (stream has events)
+- Symptom: trades are executed, but FinancialLedger shows missing ledger rows.
+- Fast checks:
+  - `docker compose exec -T redis redis-cli XLEN ledger:events`
+  - `docker compose exec -T redis redis-cli XPENDING ledger:events financial-ledger`
+  - `docker compose logs --since 5m financialledger | Select-String -Pattern "ledger_entries_type_check|Error while consuming ledger events stream"`
+
+#### Required migration for cashflow ledger entry types
+Run this migration before deploying FinancialLedger/Executor changes that emit cashflow types:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading
+Get-Content -Raw .\scripts\add-ledger-entry-cashflow-types.sql | docker compose -f .\infrastructure\docker-compose.yml exec -T postgres psql -U trader -d cryptotrading -v ON_ERROR_STOP=1
+```
+
+This updates `ledger_entries_type_check` to allow:
+- `BUY_CASH_OUT`
+- `SELL_CASH_IN`
+
+#### One-command pending replay (safe mode)
+Use the reusable script to replay and ack pending entries while temporarily stopping the FinancialLedger consumer:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading
+powershell -ExecutionPolicy Bypass -File .\scripts\replay-ledger-pending.ps1
+```
+
+Script behavior:
+- Reads pending IDs from `XPENDING ledger:events financial-ledger`.
+- Stops `financialledger` service (unless `-SkipStopStart` is passed).
+- Requeues each pending event via `XADD` and then `XACK`s the old entry.
+- Starts `financialledger` service again.
+- Prints pending summary before/after.
+
+Optional flags:
+- `-DryRun` to preview without writing.
+- `-ComposeProjectDir` when compose file is not under `./infrastructure`.
+- `-MaxCount` to cap replay batch size.
+
 ### Paper fills not realistic
 - Adjust `SlippageBasisPoints` in Executor appsettings.json
 - Paper simulator uses 8-decimal rounding for fill prices

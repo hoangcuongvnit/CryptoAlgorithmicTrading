@@ -66,6 +66,26 @@ docker compose up -d
 
 For service-specific development, use the standard .NET build and test commands documented in [CLAUDE.md](CLAUDE.md).
 
+## Pre-Deploy Checklist
+
+Use this checklist for every new environment (or any environment that has not applied the latest ledger schema updates) before rolling out services.
+
+- [ ] Apply the ledger cashflow type migration:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading
+Get-Content -Raw .\scripts\add-ledger-entry-cashflow-types.sql | docker compose -f .\infrastructure\docker-compose.yml exec -T postgres psql -U trader -d cryptotrading -v ON_ERROR_STOP=1
+```
+
+- [ ] Verify `ledger_entries_type_check` includes `BUY_CASH_OUT` and `SELL_CASH_IN`.
+- [ ] Confirm FinancialLedger has no stream-consume constraint errors:
+    - `docker compose logs --since 5m financialledger | Select-String -Pattern "ledger_entries_type_check|Error while consuming ledger events stream"`
+- [ ] If pending events exist, run the safe replay script:
+    - `powershell -ExecutionPolicy Bypass -File .\scripts\replay-ledger-pending.ps1`
+
+Reference:
+- [docs/PHASE4_RUNBOOK.md](docs/PHASE4_RUNBOOK.md) for full operational troubleshooting and replay flow.
+
 ## Engineering Principles
 
 - Keep hot paths lean and allocation-conscious.

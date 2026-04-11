@@ -23,6 +23,42 @@ The `docker-compose.yml` has been updated to include all 7 microservices plus su
 - 10GB+ disk space
 - Network connectivity (for Binance API)
 
+## Pre-Deploy Checklist (Ledger Stream Safety)
+
+Run this checklist before first deploy on a new environment, or before deploying FinancialLedger/Executor updates that affect ledger events.
+
+- [ ] Apply required ledger migration for cashflow entry types:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading
+Get-Content -Raw .\scripts\add-ledger-entry-cashflow-types.sql | docker compose -f .\infrastructure\docker-compose.yml exec -T postgres psql -U trader -d cryptotrading -v ON_ERROR_STOP=1
+```
+
+- [ ] Verify the constraint includes both `BUY_CASH_OUT` and `SELL_CASH_IN`:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading\infrastructure
+docker compose exec -T postgres psql -U trader -d cryptotrading -c "SELECT conname, pg_get_constraintdef(c.oid) AS def FROM pg_constraint c JOIN pg_class t ON c.conrelid = t.oid WHERE t.relname = 'ledger_entries' AND c.contype = 'c';"
+```
+
+- [ ] Confirm no consume errors from FinancialLedger:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading\infrastructure
+docker compose logs --since 5m financialledger | Select-String -Pattern "ledger_entries_type_check|Error while consuming ledger events stream"
+```
+
+- [ ] If pending stream entries exist, replay safely with one command:
+
+```powershell
+Set-Location d:\Code\CryptoAlgorithmicTrading
+powershell -ExecutionPolicy Bypass -File .\scripts\replay-ledger-pending.ps1
+```
+
+Expected result after replay:
+- `XPENDING ledger:events financial-ledger` returns `0`.
+- FinancialLedger logs stop showing `ledger_entries_type_check` errors.
+
 ## Step-by-Step Deployment
 
 ### 1. Prepare Environment

@@ -41,10 +41,13 @@ The core ledger table that records every cash flow fluctuation.
 * `Id` (PK, UUID)
 * `SessionId` (FK -> TestSessions.Id)
 * `BinanceTransactionId` (VARCHAR, Unique Index - Crucial for idempotency to prevent duplicate events from Binance)
-* `Type` (Enum: INITIAL_FUNDING, REALIZED_PNL, COMMISSION, FUNDING_FEE, WITHDRAWAL)
+* `Type` (Enum: INITIAL_FUNDING, BUY_CASH_OUT, SELL_CASH_IN, REALIZED_PNL, COMMISSION, FUNDING_FEE, WITHDRAWAL)
 * `Amount` (DECIMAL, Positive value = inflow, Negative value = outflow)
 * `Symbol` (VARCHAR, Nullable, e.g., BTCUSDT)
 * `Timestamp` (Timestamp, The actual execution time from Binance)
+
+Deployment note:
+* Apply `scripts/add-ledger-entry-cashflow-types.sql` in every environment before rolling out builds that emit `BUY_CASH_OUT`/`SELL_CASH_IN` events.
 
 ## 4. Mathematical Formulas
 
