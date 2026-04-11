@@ -66,17 +66,15 @@
   },
 
   "binanceAccount": {
-    "title": "Tài khoản Binance thực tế",
-    "subtitle": "Số dư trực tiếp từ Binance Spot, cập nhật mỗi 30 giây.",
+    "title": "Số dư USDT trên Cloud",
+    "subtitle": "Số dư USDT từ Binance Spot Cloud, cập nhật mỗi 30 giây. (Không phải danh mục tài sản).",
     "loading": "Đang tải...",
     "unavailable": "Không thể lấy số dư từ Binance.",
     "refresh": "Làm mới",
     "refreshing": "Đang tải...",
     "usdtFree": "USDT khả dụng",
     "usdtLocked": "USDT đang khóa",
-    "coinValue": "Giá trị coin",
-    "totalPortfolio": "Tổng danh mục",
-    "noCoins": "Không có coin nào ngoài USDT.",
+    "usdtTotal": "USDT tổng",
     "asOf": "Cập nhật lúc",
     "col": {
       "asset": "Tài sản",

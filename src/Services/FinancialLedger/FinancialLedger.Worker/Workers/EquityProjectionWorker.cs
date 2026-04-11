@@ -102,7 +102,11 @@ public sealed class EquityProjectionWorker : BackgroundService
         var accountRepo = scope.ServiceProvider.GetRequiredService<Infrastructure.VirtualAccountRepository>();
         var ledgerRepo = scope.ServiceProvider.GetRequiredService<Infrastructure.LedgerRepository>();
 
-        var accountId = await accountRepo.GetOrCreateAccountAsync(_settings.DefaultEnvironment);
+        // Use the account that is most recently active (regardless of environment),
+        // so that equity projection follows whichever account is receiving ledger events
+        // from the Executor (MAINNET or TESTNET mode).
+        var accountId = await accountRepo.GetMostRecentActiveAccountAsync()
+            ?? await accountRepo.GetOrCreateAccountAsync(_settings.DefaultEnvironment);
         var session = await sessionService.GetActiveSessionAsync(accountId);
         if (session is null)
         {

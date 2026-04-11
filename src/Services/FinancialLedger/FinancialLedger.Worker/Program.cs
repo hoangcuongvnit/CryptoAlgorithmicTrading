@@ -29,6 +29,9 @@ builder.Services.AddScoped<SessionManagementService>();
 builder.Services.AddScoped<PnlCalculationService>();
 builder.Services.AddScoped<SessionResetSagaService>();
 builder.Services.AddScoped<EquitySellSnapshotService>();
+builder.Services.AddSingleton<BinanceCredentialState>();
+builder.Services.AddSingleton<BinanceAccountSnapshotService>();
+builder.Services.AddHostedService<BinanceCredentialSyncService>();
 
 builder.Services.AddHostedService<TradeEventConsumerWorker>();
 
@@ -39,6 +42,16 @@ builder.Services.AddHttpClient("executor", client =>
     {
         client.BaseAddress = new Uri(ledgerSettings.ExecutorUrl);
     }
+});
+builder.Services.AddHttpClient("gateway", client =>
+{
+	var baseUrl = string.IsNullOrWhiteSpace(ledgerSettings.GatewayUrl)
+		? "http://localhost:5000"
+		: ledgerSettings.GatewayUrl;
+
+	client.BaseAddress = new Uri(baseUrl);
+	client.Timeout = TimeSpan.FromSeconds(
+		Math.Clamp(ledgerSettings.GatewayTimeoutSeconds, 3, 60));
 });
 builder.Services.AddHostedService<EquityProjectionWorker>();
 
@@ -359,22 +372,11 @@ app.MapPost("/api/ledger/accounts/bootstrap", async (
 });
 
 app.MapGet("/api/ledger/binance-account", async (
-	IHttpClientFactory httpClientFactory,
+	BinanceAccountSnapshotService snapshotService,
 	CancellationToken ct) =>
 {
-	try
-	{
-		var client = httpClientFactory.CreateClient("executor");
-		var response = await client.GetAsync("/api/trading/spot-account", ct);
-		var body = await response.Content.ReadAsStringAsync(ct);
-		return response.IsSuccessStatusCode
-			? Results.Content(body, "application/json", System.Text.Encoding.UTF8, (int)response.StatusCode)
-			: Results.Problem($"Executor returned {(int)response.StatusCode}: {body}");
-	}
-	catch (Exception ex)
-	{
-		return Results.Problem($"Failed to reach Executor: {ex.Message}");
-	}
+	var payload = await snapshotService.GetSnapshotAsync(ct);
+	return Results.Ok(payload);
 });
 
 await app.RunAsync();

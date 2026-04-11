@@ -50,8 +50,8 @@ public sealed class CredentialSyncService : BackgroundService
     private async Task SyncCredentialsAsync(CancellationToken ct)
     {
         _logger.LogInformation("CredentialSyncService: pulling credentials from Gateway.");
-        const int maxAttempts = 3;
-        const int delayMs = 2000;
+        const int maxAttempts = 12;
+        const int delayMs = 5000;
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {

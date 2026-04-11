@@ -104,6 +104,9 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      gateway:
+        condition: service_healthy
+        required: false
     environment:
       - DOTNET_ENVIRONMENT=Production
       # Binance credentials are managed via the Settings Page.
@@ -142,6 +145,9 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      gateway:
+        condition: service_healthy
+        required: false
       executor:
         condition: service_healthy
         required: false
@@ -153,6 +159,16 @@ services:
       - Ledger__RedisEventsStreamKey=${FINANCIAL_LEDGER_REDIS_STREAM_KEY:-ledger:events}
       - Ledger__RedisConsumerGroup=${FINANCIAL_LEDGER_REDIS_CONSUMER_GROUP:-financial-ledger}
       - Ledger__ExecutorUrl=http://trading_executor:5094
+      - Ledger__GatewayUrl=http://trading_gateway:5000
+      - Ledger__GatewayTimeoutSeconds=10
+      - Ledger__Binance__ApiKey=${FINANCIAL_LEDGER_BINANCE_API_KEY:-}
+      - Ledger__Binance__ApiSecret=${FINANCIAL_LEDGER_BINANCE_API_SECRET:-}
+      - Ledger__Binance__TestnetApiKey=${FINANCIAL_LEDGER_BINANCE_TESTNET_API_KEY:-}
+      - Ledger__Binance__TestnetApiSecret=${FINANCIAL_LEDGER_BINANCE_TESTNET_API_SECRET:-}
+      - Ledger__Binance__UseTestnet=${BINANCE_USE_TESTNET:-true}
+      - Ledger__Binance__RequestTimeoutSeconds=${FINANCIAL_LEDGER_BINANCE_TIMEOUT_SECONDS:-10}
+      - Ledger__Binance__MaxRetries=${FINANCIAL_LEDGER_BINANCE_MAX_RETRIES:-3}
+      - Ledger__Binance__RetryDelayMs=${FINANCIAL_LEDGER_BINANCE_RETRY_DELAY_MS:-1000}
     ports:
       - "5097:5097"
     healthcheck:

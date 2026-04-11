@@ -41,6 +41,27 @@ public sealed class VirtualAccountRepository
         return newId;
     }
 
+    /// <summary>
+    /// Returns the account ID that has the most recently started active session,
+    /// regardless of environment. Used by EquityProjectionWorker to follow whichever
+    /// account is currently receiving trade events from the Executor.
+    /// </summary>
+    public async Task<Guid?> GetMostRecentActiveAccountAsync(string baseCurrency = "USDT")
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        return await connection.QuerySingleOrDefaultAsync<Guid?>(
+            """
+            SELECT va.id
+            FROM virtual_accounts va
+            JOIN test_sessions ts ON ts.account_id = va.id
+            WHERE va.base_currency = @BaseCurrency
+              AND ts.status = 'ACTIVE'
+            ORDER BY ts.start_time DESC
+            LIMIT 1
+            """,
+            new { BaseCurrency = baseCurrency });
+    }
+
     public async Task<VirtualAccountDto?> GetAccountAsync(Guid accountId)
     {
         await using var connection = new NpgsqlConnection(_connectionString);

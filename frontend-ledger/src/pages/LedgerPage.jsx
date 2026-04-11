@@ -7,7 +7,7 @@ const BINANCE_POLL_MS = 30_000
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
-const EQUITY_RELOAD_TYPES = new Set(['REALIZED_PNL', 'COMMISSION', 'INITIAL_FUNDING'])
+const EQUITY_RELOAD_TYPES = new Set(['REALIZED_PNL', 'COMMISSION', 'INITIAL_FUNDING', 'BUY_CASH_OUT', 'SELL_CASH_IN'])
 
 const EVENT_COLOR = {
   SESSION_START: '#60a5fa',  // blue-400
@@ -27,58 +27,6 @@ function fmtPct(n, digits = 2) {
   const v = Number(n)
   if (!Number.isFinite(v)) return '—'
   return `${v.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`
-}
-
-const ALLOCATION_COLORS = ['#22d3ee', '#34d399', '#f59e0b', '#f87171', '#60a5fa', '#a78bfa', '#f472b6', '#fb7185']
-
-function buildPortfolioAllocation({ currentBalance, positions }) {
-  const safeBalance = Number.isFinite(Number(currentBalance)) ? Number(currentBalance) : 0
-  const symbolMap = new Map()
-  let holdingsMarketValue = 0
-  let holdingsCostBasis = 0
-
-  for (const pos of positions ?? []) {
-    const qty = Number(pos?.quantity ?? 0)
-    if (!Number.isFinite(qty) || qty <= 0) continue
-
-    const entry = Number(pos?.entryPrice ?? 0)
-    const mark = Number(pos?.markPrice ?? 0)
-    const priceForValue = mark > 0 ? mark : entry
-    if (!Number.isFinite(priceForValue) || priceForValue <= 0) continue
-
-    const symbol = String(pos?.symbol ?? '').toUpperCase() || 'UNKNOWN'
-    const marketValue = qty * priceForValue
-    const costBasis = qty * (entry > 0 ? entry : priceForValue)
-
-    holdingsMarketValue += marketValue
-    holdingsCostBasis += costBasis
-
-    symbolMap.set(symbol, (symbolMap.get(symbol) ?? 0) + marketValue)
-  }
-
-  const estimatedCash = Math.max(0, safeBalance)
-  const slices = [
-    { key: 'CASH', label: 'CASH', value: estimatedCash, color: ALLOCATION_COLORS[0] },
-    ...Array.from(symbolMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([symbol, value], idx) => ({
-        key: symbol,
-        label: symbol,
-        value,
-        color: ALLOCATION_COLORS[(idx + 1) % ALLOCATION_COLORS.length],
-      })),
-  ].filter((x) => x.value > 0)
-
-  const total = slices.reduce((sum, x) => sum + x.value, 0)
-  const slicesWithPercent = slices.map((x) => ({ ...x, percent: total > 0 ? (x.value / total) * 100 : 0 }))
-
-  return {
-    estimatedCash,
-    holdingsMarketValue,
-    holdingsCostBasis,
-    total,
-    slices: slicesWithPercent,
-  }
 }
 
 // ─── sub-components ───────────────────────────────────────────────────────────
@@ -146,7 +94,13 @@ export default function LedgerPage() {
 
   const handleEquity  = useCallback((data) => setEquity(data), [])
   const handleBalance = useCallback((data) => {
-    setAccount((prev) => prev ? { ...prev, currentBalance: data.balance } : prev)
+    // Chỉ cập nhật balance nếu sessionId khớp với session đang xem,
+    // tránh cross-contamination khi Executor chạy MAINNET nhưng UI đang xem TESTNET account.
+    setAccount((prev) => {
+      if (!prev) return prev
+      if (data.sessionId && prev.id && data.sessionId !== prev.id) return prev
+      return { ...prev, currentBalance: data.balance }
+    })
   }, [])
   const handleEntry = useCallback((entry) => {
     if (EQUITY_RELOAD_TYPES.has(entry?.type)) loadEquityTimeline()
@@ -168,14 +122,9 @@ export default function LedgerPage() {
   const realTimeEquity = equity?.realTimeEquity ?? account.currentBalance
 
   const ct = t('dashboard.equityChart', { returnObjects: true })
-  const at = t('dashboard.allocation', { returnObjects: true })
   const timelinePoints = equityTimeline?.points ?? []
   const equitySummary  = equityTimeline?.summary ?? null
   const latestPoint    = timelinePoints.length > 0 ? timelinePoints[timelinePoints.length - 1] : null
-  const allocation = buildPortfolioAllocation({
-    currentBalance: account.currentBalance ?? 0,
-    positions: equity?.positions ?? [],
-  })
 
   return (
     <div className="space-y-6">
@@ -216,43 +165,6 @@ export default function LedgerPage() {
             {roe >= 0 ? '+' : ''}{fmt(roe)}%
           </p>
         </div>
-      </div>
-
-      <div className="space-y-3 bg-gray-800 p-4 rounded-lg border border-gray-700">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-100">{at.title}</h3>
-          <p className="text-xs text-gray-400">{at.subtitle}</p>
-        </div>
-
-        {allocation.total <= 0 && (
-          <p className="text-yellow-400 text-sm">{at.empty}</p>
-        )}
-
-        {allocation.total > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <PortfolioAllocationChart slices={allocation.slices} total={allocation.total} labels={at} />
-            </div>
-            <div className="space-y-2 text-xs">
-              <div className="bg-gray-900 rounded p-3 border border-gray-700">
-                <p className="text-gray-500">{at.estimatedCash}</p>
-                <p className="font-mono text-cyan-300">{fmt(allocation.estimatedCash, 4)}</p>
-              </div>
-              <div className="bg-gray-900 rounded p-3 border border-gray-700">
-                <p className="text-gray-500">{at.holdingsValue}</p>
-                <p className="font-mono text-green-300">{fmt(allocation.holdingsMarketValue, 4)}</p>
-              </div>
-              <div className="bg-gray-900 rounded p-3 border border-gray-700">
-                <p className="text-gray-500">{at.costBasis}</p>
-                <p className="font-mono text-yellow-300">{fmt(allocation.holdingsCostBasis, 4)}</p>
-              </div>
-              <div className="bg-gray-900 rounded p-3 border border-gray-700">
-                <p className="text-gray-500">{at.portfolioValue}</p>
-                <p className="font-mono text-blue-300">{fmt(allocation.total, 4)}</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Equity timeline chart */}
@@ -401,7 +313,7 @@ function BinanceAccountWidget({ data, loading, onRefresh, t }) {
       {data && !data.unavailable && (
         <>
           {/* Summary row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="bg-gray-900 rounded p-3 border border-gray-700">
               <p className="text-xs text-gray-400">{bt.usdtFree}</p>
               <p className="text-xl font-bold font-mono text-cyan-300">${fmt(data.usdtFree)}</p>
@@ -411,45 +323,10 @@ function BinanceAccountWidget({ data, loading, onRefresh, t }) {
               <p className="text-xl font-bold font-mono text-yellow-300">${fmt(data.usdtLocked)}</p>
             </div>
             <div className="bg-gray-900 rounded p-3 border border-gray-700">
-              <p className="text-xs text-gray-400">{bt.coinValue}</p>
-              <p className="text-xl font-bold font-mono text-green-300">${fmt(data.totalCoinValue)}</p>
-            </div>
-            <div className="bg-gray-900 rounded p-3 border border-gray-700">
-              <p className="text-xs text-gray-400">{bt.totalPortfolio}</p>
-              <p className="text-xl font-bold font-mono text-blue-300">${fmt(data.totalPortfolio)}</p>
+              <p className="text-xs text-gray-400">{bt.usdtTotal}</p>
+              <p className="text-xl font-bold font-mono text-blue-300">${fmt(data.usdtTotal)}</p>
             </div>
           </div>
-
-          {/* Coin holdings table */}
-          {data.coins?.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs border border-gray-700 rounded-lg overflow-hidden">
-                <thead className="bg-gray-700 text-gray-400">
-                  <tr>
-                    {[bt.col.asset, bt.col.free, bt.col.locked, bt.col.markPrice, bt.col.value].map((h) => (
-                      <th key={h} className="px-3 py-2 text-left">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.coins.map((c) => (
-                    <tr key={c.asset} className="border-t border-gray-800 hover:bg-gray-800/50">
-                      <td className="px-3 py-1.5 font-mono text-blue-300 font-semibold">{c.asset}</td>
-                      <td className="px-3 py-1.5 font-mono">{fmt(c.free, 6)}</td>
-                      <td className="px-3 py-1.5 font-mono text-yellow-400">{fmt(c.locked, 6)}</td>
-                      <td className="px-3 py-1.5 font-mono">{c.markPrice > 0 ? `$${fmt(c.markPrice, 4)}` : '—'}</td>
-                      <td className="px-3 py-1.5 font-mono text-green-300">{c.marketValue > 0 ? `$${fmt(c.marketValue, 2)}` : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {data.coins?.length === 0 && (
-            <p className="text-gray-500 text-xs">{bt.noCoins}</p>
-          )}
-
           <p className="text-xs text-gray-600 text-right">
             {bt.asOf}: {new Date(data.asOfUtc).toLocaleString()}
           </p>

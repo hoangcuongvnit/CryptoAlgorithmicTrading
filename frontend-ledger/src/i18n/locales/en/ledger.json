@@ -66,8 +66,8 @@
   },
 
   "binanceAccount": {
-    "title": "Binance Spot Account",
-    "subtitle": "Live balances from Binance Spot, refreshed every 30 seconds.",
+    "title": "USDT Balance on Cloud",
+    "subtitle": "USDT balance from Binance Spot Cloud, refreshed every 30 seconds. (Not a portfolio view).",
     "loading": "Loading...",
     "unavailable": "Unable to fetch Binance balances.",
     "refresh": "Refresh",
@@ -77,6 +77,7 @@
     "coinValue": "Coin Value",
     "totalPortfolio": "Total Portfolio",
     "noCoins": "No coin holdings besides USDT.",
+    "usdtTotal": "USDT Total",
     "asOf": "As of",
     "col": {
       "asset": "Asset",
