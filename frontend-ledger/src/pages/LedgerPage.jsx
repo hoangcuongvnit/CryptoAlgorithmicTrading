@@ -166,6 +166,13 @@ export default function LedgerPage() {
   const roe            = account.roePercent ?? 0
   const unrealized     = equity?.unrealizedPnl ?? 0
   const realTimeEquity = equity?.realTimeEquity ?? account.currentBalance
+  const openPositions  = equity?.positions ?? []
+  const totalHoldingMarketValue = openPositions.reduce((sum, p) => {
+    const qty = Number(p?.quantity ?? 0)
+    const mark = Number(p?.markPrice ?? 0)
+    if (!Number.isFinite(qty) || !Number.isFinite(mark)) return sum
+    return sum + (qty * mark)
+  }, 0)
 
   const ct = t('dashboard.equityChart', { returnObjects: true })
   const timelinePoints = equityTimeline?.points ?? []
@@ -293,33 +300,39 @@ export default function LedgerPage() {
       </div>
 
       {/* Open positions */}
-      {equity?.positions?.length > 0 && (
+      {openPositions.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-300 mb-2">{t('dashboard.openPositions')}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border border-gray-700 rounded-lg overflow-hidden">
               <thead className="bg-gray-800 text-gray-400 text-xs">
                 <tr>
-                  {['symbol', 'quantity', 'entryPrice', 'markPrice', 'unrealizedPnl'].map((h) => (
+                  {['symbol', 'quantity', 'entryPrice', 'markPrice', 'marketValue', 'unrealizedPnl'].map((h) => (
                     <th key={h} className="px-3 py-2 text-left">{t(`positions.${h}`)}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {equity.positions.map((p, i) => (
+                {openPositions.map((p, i) => {
+                  const marketValue = Number(p.quantity ?? 0) * Number(p.markPrice ?? 0)
+                  return (
                   <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/50">
                     <td className="px-3 py-2 font-mono text-blue-300">{p.symbol}</td>
                     <td className="px-3 py-2 font-mono">{p.quantity}</td>
                     <td className="px-3 py-2 font-mono">{fmt(p.entryPrice, 4)}</td>
                     <td className="px-3 py-2 font-mono">{fmt(p.markPrice, 4)}</td>
+                    <td className="px-3 py-2 font-mono text-cyan-300">${fmt(marketValue, 4)}</td>
                     <td className={`px-3 py-2 font-mono ${p.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {p.unrealizedPnl >= 0 ? '+' : ''}{fmt(p.unrealizedPnl)}
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
+          <p className="text-xs text-gray-400 mt-2 text-right">
+            {t('positions.totalMarketValue')}: <span className="font-mono text-cyan-300">${fmt(totalHoldingMarketValue, 4)}</span>
+          </p>
         </div>
       )}
     </div>

@@ -129,6 +129,8 @@
     "quantity": "Qty",
     "entryPrice": "Entry",
     "markPrice": "Mark",
+    "marketValue": "Market Value",
+    "totalMarketValue": "Total holdings market value",
     "unrealizedPnl": "Unrealized PnL"
   },
 

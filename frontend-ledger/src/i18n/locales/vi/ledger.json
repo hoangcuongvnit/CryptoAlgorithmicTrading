@@ -126,6 +126,8 @@
     "quantity": "Khối lượng",
     "entryPrice": "Giá vào",
     "markPrice": "Giá thị trường",
+    "marketValue": "Giá trị thị trường",
+    "totalMarketValue": "Tổng giá trị coin đang giữ",
     "unrealizedPnl": "Lãi/Lỗ"
   },
 
