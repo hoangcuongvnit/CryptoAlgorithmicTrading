@@ -27,6 +27,14 @@
     "realTimeEquity": "Vốn thực tế",
     "roe": "ROE",
     "openPositions": "Vị thế đang mở",
+    "formulas": {
+      "initialBalance": "Vốn được nhập khi khởi tạo phiên giao dịch.\nBất biến trong suốt phiên.",
+      "currentBalance": "Tổng tất cả giao dịch trong sổ cái:\n= INITIAL_FUNDING\n+ REALIZED_PNL  (lãi/lỗ khi bán)\n+ COMMISSION    (phí giao dịch)\n+ BUY_CASH_OUT  (tiền ra khi mua)\n+ SELL_CASH_IN  (tiền vào khi bán)\n+ ...",
+      "netPnl": "Lợi nhuận đã ghi nhận:\n= SUM(REALIZED_PNL + COMMISSION + FUNDING_FEE)\nTính tổng theo từng symbol trong phiên.",
+      "unrealizedPnl": "Lợi nhuận chưa chốt từ vị thế đang mở:\n= SUM( số lượng × (giá thị trường − giá vào) )\nCập nhật mỗi 5 giây.",
+      "realTimeEquity": "Vốn thực tế tại thời điểm hiện tại:\n= Số dư hiện tại + Giá trị coin đang giữ\n  (coin value = số lượng × giá thị trường)\nCập nhật mỗi 5 giây.",
+      "roe": "Tỷ suất lợi nhuận trên vốn ban đầu:\n= (Lợi nhuận ròng ÷ Số dư ban đầu) × 100%\nChỉ tính lợi nhuận đã thực hiện (không tính unrealized)."
+    },
     "allocation": {
       "title": "Tỷ lệ phân bổ danh mục",
       "subtitle": "Hiển thị tỷ lệ tiền mặt ước tính và giá trị coin đang nắm giữ theo từng mã.",

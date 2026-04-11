@@ -160,11 +160,14 @@
     "cooldownHint": "Số giây tối thiểu giữa hai lệnh liên tiếp trên cùng cặp tiền (0 – 3600).",
     "save": "Lưu cài đặt rủi ro",
     "saving": "Đang lưu...",
-    "saveSuccess": "Đã lưu và áp dụng cài đặt rủi ro vào RiskGuard.",
+    "saveSuccess": "Đã lưu và đồng bộ giới hạn lệnh vào cả RiskGuard và Executor.",
     "saveFailed": "Lưu cài đặt rủi ro thất bại.",
+    "executorSyncFailed": "Lưu RiskGuard thành công nhưng không đồng bộ được vào Executor.",
     "liveWarning": "Các tham số này kiểm soát đánh giá lệnh thực. Thay đổi được áp dụng ngay lập tức.",
     "activeValues": "Đang áp dụng (RiskGuard)",
     "savedValues": "Đã lưu trong DB",
+    "syncOk": "Đồng bộ",
+    "syncMismatch": "Lệch — lưu lại để đồng bộ",
     "errors": {
       "networkError": "Lỗi mạng. Vui lòng thử lại.",
       "validationError": "Vui lòng kiểm tra lại các giá trị."

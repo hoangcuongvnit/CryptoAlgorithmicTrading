@@ -27,6 +27,14 @@
     "realTimeEquity": "Real-time Equity",
     "roe": "ROE",
     "openPositions": "Open Positions",
+    "formulas": {
+      "initialBalance": "Capital entered when the trading session was created.\nImmutable for the entire session.",
+      "currentBalance": "Sum of all ledger entries for the session:\n= INITIAL_FUNDING\n+ REALIZED_PNL   (gain/loss on sells)\n+ COMMISSION     (trading fees)\n+ BUY_CASH_OUT   (cash out on buys)\n+ SELL_CASH_IN   (cash in on sells)\n+ ...",
+      "netPnl": "Realised profit/loss:\n= SUM(REALIZED_PNL + COMMISSION + FUNDING_FEE)\nAggregated across all symbols in the session.",
+      "unrealizedPnl": "Floating P&L from open positions:\n= SUM( quantity × (markPrice − entryPrice) )\nRefreshed every 5 seconds.",
+      "realTimeEquity": "Current portfolio value:\n= Current Balance + Holdings Market Value\n  (holdings value = quantity × markPrice)\nRefreshed every 5 seconds.",
+      "roe": "Return on equity (realised only):\n= (Net P&L ÷ Initial Balance) × 100%\nUnrealized P&L is excluded."
+    },
     "allocation": {
       "title": "Portfolio Allocation",
       "subtitle": "Shows estimated cash ratio and per-coin holding value by symbol.",

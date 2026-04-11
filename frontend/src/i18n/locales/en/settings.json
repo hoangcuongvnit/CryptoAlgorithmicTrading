@@ -160,11 +160,14 @@
     "cooldownHint": "Minimum seconds between consecutive orders on the same symbol (0 – 3600).",
     "save": "Save Risk Settings",
     "saving": "Saving...",
-    "saveSuccess": "Risk settings saved and applied to RiskGuard.",
+    "saveSuccess": "Settings saved and order limits synced to both RiskGuard and Executor.",
     "saveFailed": "Failed to save risk settings.",
+    "executorSyncFailed": "RiskGuard saved successfully but failed to sync order limits to Executor.",
     "liveWarning": "These parameters control live trade evaluation. Changes are applied immediately.",
     "activeValues": "Active in RiskGuard",
     "savedValues": "Saved in DB",
+    "syncOk": "In sync",
+    "syncMismatch": "Mismatch — save to sync",
     "errors": {
       "networkError": "Network error. Please try again.",
       "validationError": "Please check the input values."

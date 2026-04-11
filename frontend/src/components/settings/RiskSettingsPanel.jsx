@@ -23,6 +23,7 @@ export function RiskSettingsPanel() {
   const { t } = useTranslation('settings')
   const [saved, setSaved] = useState(null)
   const [active, setActive] = useState(null)
+  const [executorSync, setExecutorSync] = useState(null) // { minOrderAmount, maxOrderAmount }
   const [maxDrawdown, setMaxDrawdown] = useState('5')
   const [minRR, setMinRR] = useState('2')
   const [minOrderNotional, setMinOrderNotional] = useState('5')
@@ -51,6 +52,12 @@ export function RiskSettingsPanel() {
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setActive(data) })
       .catch(() => {})
+
+    // Load Executor order amount limits for sync status
+    fetch('/api/settings/order-amount-limit')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setExecutorSync(data) })
+      .catch(() => {})
   }, [])
 
   function showToast(type, message) {
@@ -74,29 +81,46 @@ export function RiskSettingsPanel() {
 
     setSaving(true)
     try {
-      const res = await fetch('/api/settings/risk', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          maxDrawdownPercent: mxd,
-          minRiskReward: mrr,
-          minOrderNotional: mnon,
-          maxOrderNotional: mxon,
-          cooldownSeconds: cd,
-          updatedBy: 'admin',
+      const [riskRes, execRes] = await Promise.all([
+        fetch('/api/settings/risk', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            maxDrawdownPercent: mxd,
+            minRiskReward: mrr,
+            minOrderNotional: mnon,
+            maxOrderNotional: mxon,
+            cooldownSeconds: cd,
+            updatedBy: 'admin',
+          }),
         }),
-      })
-      if (res.ok) {
+        fetch('/api/settings/order-amount-limit', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            minOrderAmount: mnon,
+            maxOrderAmount: mxon,
+            updatedBy: 'admin',
+          }),
+        }),
+      ])
+
+      if (riskRes.ok) {
         showToast('success', t('risk.saveSuccess'))
-        const [updatedSaved, updatedActive] = await Promise.all([
+        const [updatedSaved, updatedActive, updatedExec] = await Promise.all([
           fetch('/api/settings/risk').then(r => r.json()),
           fetch('/api/risk/config').then(r => r.json()).catch(() => null),
+          fetch('/api/settings/order-amount-limit').then(r => r.ok ? r.json() : null).catch(() => null),
         ])
         setSaved(updatedSaved)
         if (updatedActive) setActive(updatedActive)
+        if (updatedExec) setExecutorSync(updatedExec)
       } else {
-        const text = await res.text()
+        const text = await riskRes.text()
         showToast('error', text || t('risk.saveFailed'))
+      }
+      if (!execRes.ok) {
+        showToast('error', t('risk.executorSyncFailed'))
       }
     } catch {
       showToast('error', t('risk.errors.networkError'))
@@ -135,6 +159,29 @@ export function RiskSettingsPanel() {
             <span>Max Order:</span><span className="text-blue-600">${active.maxOrderNotional ?? 200}</span>
             <span>Cooldown:</span><span className="text-blue-600">{active.cooldownSeconds}s</span>
           </div>
+          {executorSync && (() => {
+            const rMin = active.minOrderNotional ?? 5
+            const rMax = active.maxOrderNotional ?? 200
+            const eMin = executorSync.minOrderAmount
+            const eMax = executorSync.maxOrderAmount
+            const inSync = rMin === eMin && rMax === eMax
+            return (
+              <div className={`mt-2 pt-2 border-t ${inSync ? 'border-green-100' : 'border-amber-200'}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${inSync ? 'bg-green-500' : 'bg-amber-400'}`} />
+                  <span className={`font-semibold ${inSync ? 'text-green-700' : 'text-amber-700'}`}>
+                    Executor: {inSync ? t('risk.syncOk') : t('risk.syncMismatch')}
+                  </span>
+                </div>
+                {!inSync && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-amber-600">
+                    <span>Min Order:</span><span>${eMin}</span>
+                    <span>Max Order:</span><span>${eMax}</span>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 

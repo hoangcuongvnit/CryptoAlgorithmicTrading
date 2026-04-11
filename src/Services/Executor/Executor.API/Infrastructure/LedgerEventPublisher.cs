@@ -61,12 +61,27 @@ public sealed class LedgerEventPublisher
                     allSucceeded = false;
                 }
             }
-            else if (request.Side == OrderSide.Sell && positionBeforeFill is not null && positionBeforeFill.Quantity > 0)
+            else if (request.Side == OrderSide.Sell)
             {
-                var sellCashQty = Math.Min(result.FilledQty, positionBeforeFill.Quantity);
+                // Determine how many units to return cash for.
+                // When the position is tracked we cap at the tracked quantity (partial-sell safety).
+                // When it is untracked (e.g. IsReduceOnly liquidation after restart) we fall back
+                // to the full filled quantity so balance is always credited.
+                var sellCashQty = positionBeforeFill is not null && positionBeforeFill.Quantity > 0
+                    ? Math.Min(result.FilledQty, positionBeforeFill.Quantity)
+                    : result.FilledQty;
+
                 if (sellCashQty > 0)
                 {
-                    var principalBack = sellCashQty * positionBeforeFill.AvgEntryPrice;
+                    // When entry price is known: return only the cost basis here; the profit/loss
+                    // difference is published separately as REALIZED_PNL below so the two entries
+                    // together equal the full fill proceeds.
+                    // When entry price is unknown (untracked position): return full fill proceeds
+                    // directly so the balance is always correct even without REALIZED_PNL.
+                    var trackedEntryPrice = positionBeforeFill?.AvgEntryPrice ?? 0m;
+                    var cashInPrice = trackedEntryPrice > 0 ? trackedEntryPrice : result.FilledPrice;
+
+                    var principalBack = sellCashQty * cashInPrice;
                     if (await PublishEntryAsync(
                         transactionId: $"{result.OrderId}:SELL_CASH_IN",
                         type: "SELL_CASH_IN",
@@ -109,7 +124,10 @@ public sealed class LedgerEventPublisher
             return allSucceeded;
         }
 
-        if (positionBeforeFill is null || positionBeforeFill.Quantity <= 0)
+        // REALIZED_PNL: only published when entry price is known (tracked position).
+        // If position was untracked, full proceeds were already included in SELL_CASH_IN above,
+        // so skipping REALIZED_PNL here avoids double-counting.
+        if (positionBeforeFill is null || positionBeforeFill.Quantity <= 0 || positionBeforeFill.AvgEntryPrice <= 0)
         {
             return allSucceeded;
         }

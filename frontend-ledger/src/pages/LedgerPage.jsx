@@ -31,11 +31,56 @@ function fmtPct(n, digits = 2) {
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
-function StatCard({ label, value, colorClass = 'text-white' }) {
+function StatCard({ label, value, colorClass = 'text-white', formula }) {
+  const [open, setOpen] = useState(false)
+
   return (
-    <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-      <p className="text-xs text-gray-400 mb-1">{label}</p>
+    <div
+      className={`bg-gray-800 rounded-lg p-4 border border-gray-700 transition-colors ${formula ? 'cursor-pointer hover:border-gray-500' : ''}`}
+      onClick={() => formula && setOpen((s) => !s)}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-gray-400">{label}</p>
+        {formula && (
+          <span className={`text-sm leading-none transition-colors ${open ? 'text-blue-400' : 'text-gray-600 hover:text-gray-400'}`}>
+            ⓘ
+          </span>
+        )}
+      </div>
       <p className={`text-2xl font-bold font-mono ${colorClass}`}>{value}</p>
+      {open && formula && (
+        <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-300 font-mono whitespace-pre-wrap leading-relaxed">
+          {formula}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RoeCard({ roe, label, formula }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div
+      className={`bg-gray-800 rounded-lg p-4 border border-gray-700 xl:min-w-[220px] transition-colors ${formula ? 'cursor-pointer hover:border-gray-500' : ''}`}
+      onClick={() => formula && setOpen((s) => !s)}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-gray-400">{label}</p>
+        {formula && (
+          <span className={`text-sm leading-none transition-colors ${open ? 'text-blue-400' : 'text-gray-600 hover:text-gray-400'}`}>
+            ⓘ
+          </span>
+        )}
+      </div>
+      <p className={`text-3xl font-bold font-mono ${roe >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        {roe >= 0 ? '+' : ''}{fmt(roe)}%
+      </p>
+      {open && formula && (
+        <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-300 font-mono whitespace-pre-wrap leading-relaxed">
+          {formula}
+        </div>
+      )}
     </div>
   )
 }
@@ -145,26 +190,36 @@ export default function LedgerPage() {
       {/* Stats + ROE row */}
       <div className="flex flex-col xl:flex-row gap-4 xl:items-stretch">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 flex-1">
-          <StatCard label={t('dashboard.initialBalance')}  value={`$${fmt(account.initialBalance)}`} />
-          <StatCard label={t('dashboard.currentBalance')}  value={`$${fmt(account.currentBalance)}`} />
+          <StatCard
+            label={t('dashboard.initialBalance')}
+            value={`$${fmt(account.initialBalance)}`}
+            formula={t('dashboard.formulas.initialBalance')}
+          />
+          <StatCard
+            label={t('dashboard.currentBalance')}
+            value={`$${fmt(account.currentBalance)}`}
+            formula={t('dashboard.formulas.currentBalance')}
+          />
           <StatCard
             label={t('dashboard.netPnl')}
             value={`${netPnl >= 0 ? '+' : ''}$${fmt(netPnl)}`}
             colorClass={netPnl >= 0 ? 'text-green-400' : 'text-red-400'}
+            formula={t('dashboard.formulas.netPnl')}
           />
           <StatCard
             label={t('dashboard.unrealizedPnl')}
             value={`${unrealized >= 0 ? '+' : ''}$${fmt(unrealized)}`}
             colorClass={unrealized >= 0 ? 'text-green-400' : 'text-red-400'}
+            formula={t('dashboard.formulas.unrealizedPnl')}
           />
-          <StatCard label={t('dashboard.realTimeEquity')} value={`$${fmt(realTimeEquity)}`} colorClass="text-blue-300" />
+          <StatCard
+            label={t('dashboard.realTimeEquity')}
+            value={`$${fmt(realTimeEquity)}`}
+            colorClass="text-blue-300"
+            formula={t('dashboard.formulas.realTimeEquity')}
+          />
         </div>
-        <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 xl:min-w-[220px]">
-          <p className="text-xs text-gray-400 mb-1">{t('dashboard.roe')}</p>
-          <p className={`text-3xl font-bold font-mono ${roe >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {roe >= 0 ? '+' : ''}{fmt(roe)}%
-          </p>
-        </div>
+        <RoeCard roe={roe} formula={t('dashboard.formulas.roe')} label={t('dashboard.roe')} />
       </div>
 
       {/* Equity timeline chart */}

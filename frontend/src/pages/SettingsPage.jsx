@@ -3,7 +3,6 @@ import { TimezonePanel } from '../components/settings/TimezonePanel.jsx'
 import { TelegramPanel } from '../components/settings/TelegramPanel.jsx'
 import { ExchangePanel } from '../components/settings/ExchangePanel.jsx'
 import { RiskSettingsPanel } from '../components/settings/RiskSettingsPanel.jsx'
-import { OrderAmountLimitsPanel } from '../components/settings/OrderAmountLimitsPanel.jsx'
 import { HouseKeeperPanel } from '../components/settings/HouseKeeperPanel.jsx'
 import { StrategyPanel } from '../components/settings/StrategyPanel.jsx'
 
@@ -23,7 +22,6 @@ export function SettingsPage() {
         <ExchangePanel />
         <RiskSettingsPanel />
         <StrategyPanel />
-        <OrderAmountLimitsPanel />
         <HouseKeeperPanel />
       </div>
     </div>
