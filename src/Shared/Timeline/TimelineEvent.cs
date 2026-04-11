@@ -23,7 +23,6 @@ public static class TimelineEventTypes
     public const string SignalGenerated = "SIGNAL_GENERATED";
     public const string IndicatorCalculated = "INDICATOR_CALCULATED";
     public const string MarketRegimeChanged = "MARKET_REGIME_CHANGED";
-    public const string FundingRateUpdated = "FUNDING_RATE_UPDATED";
 
     // Strategy
     public const string StrategyEvaluated = "STRATEGY_EVALUATED";

@@ -8,6 +8,21 @@ namespace FinancialLedger.Worker.Services;
 
 public sealed class BinanceAccountSnapshotService
 {
+    private static readonly string[] SupportedStableCoins =
+    [
+        "USDT",
+        "USDC",
+        "FDUSD",
+        "BUSD",
+        "TUSD",
+        "USDP",
+        "DAI",
+        "PYUSD"
+    ];
+
+    private static readonly HashSet<string> SupportedStableCoinSet =
+        new(SupportedStableCoins, StringComparer.OrdinalIgnoreCase);
+
     private readonly BinanceCredentialState _credentialState;
     private readonly ILogger<BinanceAccountSnapshotService> _logger;
 
@@ -119,8 +134,16 @@ public sealed class BinanceAccountSnapshotService
 
     private BinanceAccountSnapshotResponse BuildSnapshot(IEnumerable<object> balances, bool isTestnet)
     {
-        var usdtFree = 0m;
-        var usdtLocked = 0m;
+        var stableCoinMap = SupportedStableCoins.ToDictionary(
+            coin => coin,
+            coin => new StableCoinBalanceItem
+            {
+                Asset = coin,
+                Free = 0m,
+                Locked = 0m,
+                Total = 0m,
+            },
+            StringComparer.OrdinalIgnoreCase);
 
         foreach (var balance in balances)
         {
@@ -144,27 +167,57 @@ public sealed class BinanceAccountSnapshotService
                 total = Math.Max(0m, free + locked);
             }
 
+            // Some Binance payloads expose Total + Locked but omit Free.
+            if (free <= 0m && total > 0m)
+            {
+                var available = GetDecimalProperty(balance, "Available");
+                if (available > 0m)
+                {
+                    free = available;
+                }
+                else
+                {
+                    free = Math.Max(0m, total - locked);
+                }
+            }
+
             if (total <= 0m)
             {
                 continue;
             }
 
-            if (asset.Equals("USDT", StringComparison.OrdinalIgnoreCase))
+            if (!SupportedStableCoinSet.Contains(asset))
             {
-                usdtFree = free;
-                usdtLocked = locked;
-                break;
+                continue;
             }
+
+            stableCoinMap[asset] = new StableCoinBalanceItem
+            {
+                Asset = asset,
+                Free = free,
+                Locked = locked,
+                Total = total,
+            };
+
         }
+
+        var stableCoinBalances = SupportedStableCoins
+            .Select(coin => stableCoinMap[coin])
+            .ToArray();
+        var stableCoinTotal = stableCoinBalances.Sum(item => item.Total);
+        var usdtRow = stableCoinMap["USDT"];
 
         return new BinanceAccountSnapshotResponse
         {
             IsTestnet = isTestnet,
             AsOfUtc = DateTime.UtcNow,
-            UsdtFree = usdtFree,
-            UsdtLocked = usdtLocked,
-            UsdtTotal = usdtFree + usdtLocked,
-            Detail = "USDT balance resolved from Binance Spot account."
+            UsdtFree = usdtRow.Free,
+            UsdtLocked = usdtRow.Locked,
+            UsdtTotal = usdtRow.Total,
+            SupportedStableCoins = SupportedStableCoins,
+            StableCoinBalances = stableCoinBalances,
+            StableCoinTotal = stableCoinTotal,
+            Detail = "Stablecoin balances resolved from Binance Spot account."
         };
     }
 
@@ -210,4 +263,15 @@ public sealed class BinanceAccountSnapshotResponse
     public decimal UsdtFree { get; init; }
     public decimal UsdtLocked { get; init; }
     public decimal UsdtTotal { get; init; }
+    public IReadOnlyList<string> SupportedStableCoins { get; init; } = [];
+    public IReadOnlyList<StableCoinBalanceItem> StableCoinBalances { get; init; } = [];
+    public decimal StableCoinTotal { get; init; }
+}
+
+public sealed class StableCoinBalanceItem
+{
+    public string Asset { get; init; } = string.Empty;
+    public decimal Free { get; init; }
+    public decimal Locked { get; init; }
+    public decimal Total { get; init; }
 }

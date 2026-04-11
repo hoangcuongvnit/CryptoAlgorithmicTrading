@@ -26,7 +26,7 @@ message PlaceOrderReply {
   double filled_price       = 3;
   double filled_qty         = 4;
   string error_message      = 5;
-  bool   is_paper           = 6;
+  bool   is_testnet         = 6;
   string session_id         = 7;
   bool   forced_liquidation = 8;
   string liquidation_reason = 9;

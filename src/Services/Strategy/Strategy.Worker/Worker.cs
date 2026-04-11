@@ -355,11 +355,11 @@ public sealed class Worker : BackgroundService
         if (executionReply.Success)
         {
             _logger.LogInformation(
-                "Order executed for {Symbol} | Qty={Qty} | Price={Price} | Paper={Paper} | Session={Session}",
+                "Order executed for {Symbol} | Qty={Qty} | Price={Price} | Testnet={Testnet} | Session={Session}",
                 order.Symbol,
                 executionReply.FilledQty,
                 executionReply.FilledPrice,
-                executionReply.IsPaper,
+                executionReply.IsTestnet,
                 order.SessionId);
             return;
         }

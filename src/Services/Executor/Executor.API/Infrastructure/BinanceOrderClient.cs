@@ -236,7 +236,7 @@ public sealed class BinanceOrderClient
                 ErrorMessage = $"Quantity {request.Quantity} rounds to zero with LOT_SIZE step {filters.StepSize}",
                 ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false
+                IsTestnetTrade = false
             };
         }
 
@@ -263,7 +263,7 @@ public sealed class BinanceOrderClient
                 ErrorMessage = $"Quantity {quantity} is below LOT_SIZE minQty {filters.MinQty} for {request.Symbol}",
                 ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false
+                IsTestnetTrade = false
             };
         }
 
@@ -297,7 +297,7 @@ public sealed class BinanceOrderClient
                     ErrorMessage = $"Order notional {notional:F4} below MIN_NOTIONAL {filters.MinNotional} for {request.Symbol}",
                     ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                     Timestamp = DateTime.UtcNow,
-                    IsPaperTrade = false
+                    IsTestnetTrade = false
                 };
             }
         }
@@ -343,7 +343,7 @@ public sealed class BinanceOrderClient
                 ErrorMessage = placeOrderResult.Error?.Message ?? "Unknown exchange error",
                 ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false
+                IsTestnetTrade = false
             };
         }
 
@@ -360,7 +360,7 @@ public sealed class BinanceOrderClient
             FilledPrice = filledPrice,
             FilledQty = filledQty,
             Timestamp = DateTime.UtcNow,
-            IsPaperTrade = false
+            IsTestnetTrade = false
         };
     }
 }

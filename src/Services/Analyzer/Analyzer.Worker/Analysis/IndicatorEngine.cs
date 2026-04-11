@@ -1,5 +1,4 @@
 using Analyzer.Worker.Configuration;
-using Analyzer.Worker.Infrastructure;
 using CryptoTrading.Shared.DTOs;
 using Microsoft.Extensions.Options;
 using Skender.Stock.Indicators;
@@ -7,14 +6,13 @@ using Skender.Stock.Indicators;
 namespace Analyzer.Worker.Analysis;
 
 /// <summary>
-/// Computes RSI, EMA(9/21), Bollinger Bands, ADX, ATR, volume metrics, funding rate gate,
+/// Computes RSI, EMA(9/21), Bollinger Bands, ADX, ATR, volume metrics,
 /// BB squeeze, and market regime for each symbol, and derives the final <see cref="TradeSignal"/>.
 /// </summary>
 public sealed class IndicatorEngine
 {
     private readonly PriceBuffer _buffer;
     private readonly AnalyzerSettings _settings;
-    private readonly FundingRateCache _fundingRateCache;
     private readonly ILogger<IndicatorEngine> _logger;
 
     // Need enough candles for the slowest indicator (ADX needs ~2×period; keep generous buffer)
@@ -25,12 +23,10 @@ public sealed class IndicatorEngine
     public IndicatorEngine(
         PriceBuffer buffer,
         IOptions<AnalyzerSettings> settings,
-        FundingRateCache fundingRateCache,
         ILogger<IndicatorEngine> logger)
     {
         _buffer = buffer;
         _settings = settings.Value;
-        _fundingRateCache = fundingRateCache;
         _logger = logger;
     }
 
@@ -78,9 +74,6 @@ public sealed class IndicatorEngine
             var atrRaw = quoteList.GetAtr(_settings.AtrPeriod).LastOrDefault()?.Atr;
             var atr14 = atrRaw.HasValue ? Math.Round((decimal)atrRaw.Value, 8) : 0m;
 
-            // ── Phase 2.4: Funding rate (short safety) ───────────────────────
-            var fundingRate = _fundingRateCache.Get(symbol);
-
             // ── Phase 3.1: Market regime ─────────────────────────────────────
             var regime = DetectRegime(quoteList, adx, (decimal)ema9.Value, (decimal)ema21.Value,
                 (decimal)bb.UpperBand.Value, (decimal)bb.LowerBand.Value, (decimal)bb.Sma.Value,
@@ -104,13 +97,13 @@ public sealed class IndicatorEngine
             var isSell = ema9.Value < ema21.Value;
             var (strength, volumeFlag) = ApplySignalFilters(
                 baseStrength, adx, volumeRatio, volumeZscore, priceChange,
-                isSell, rsiDecimal, fundingRate, bbSqueeze);
+                isSell, rsiDecimal, bbSqueeze);
 
             if (strength != baseStrength || volumeFlag != null)
             {
                 _logger.LogDebug(
-                    "{Symbol} strength {Before}→{After} (ADX={Adx:F1} Vol={Vol:F2} Z={Z:F1} FR={FR:P4}{Sq}{Flag})",
-                    symbol, baseStrength, strength, adx, volumeRatio, volumeZscore, fundingRate,
+                    "{Symbol} strength {Before}→{After} (ADX={Adx:F1} Vol={Vol:F2} Z={Z:F1}{Sq}{Flag})",
+                    symbol, baseStrength, strength, adx, volumeRatio, volumeZscore,
                     bbSqueeze ? " SQUEEZE" : string.Empty,
                     volumeFlag != null ? $" {volumeFlag}" : string.Empty);
             }
@@ -130,7 +123,6 @@ public sealed class IndicatorEngine
                 VolumeRatio = Math.Round(volumeRatio, 3),
                 VolumeFlag = volumeFlag,
                 Atr14 = atr14,
-                FundingRate = fundingRate,
                 Regime = regime,
                 BbSqueeze = bbSqueeze
             };
@@ -180,7 +172,6 @@ public sealed class IndicatorEngine
         decimal priceChange,
         bool isSell,
         decimal rsi,
-        decimal fundingRate,
         bool bbSqueeze)
     {
         var strength = baseStrength;
@@ -205,17 +196,11 @@ public sealed class IndicatorEngine
             volumeFlag = "VOLUME_ANOMALY";
         }
 
-        // Phase 2.4: Short safety — block shorts when RSI is still high (not overbought enough)
+        // Phase 2.4: Sell-side caution — avoid weak exits when momentum is still too strong.
         if (isSell)
         {
-            if (rsi >= _settings.ShortRsiThreshold)
+            if (rsi >= _settings.SellRsiThreshold)
                 strength = SignalStrength.Weak;
-
-            if (fundingRate > _settings.MaxFundingRate)
-            {
-                strength = SignalStrength.Weak;
-                volumeFlag = volumeFlag ?? "HIGH_FUNDING";
-            }
         }
 
         // Phase 4.1: BB squeeze — enter only after confirmed breakout; pre-squeeze = no entry

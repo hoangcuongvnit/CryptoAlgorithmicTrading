@@ -20,9 +20,6 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
     return ConnectionMultiplexer.Connect(config);
 });
 
-// HTTP clients
-builder.Services.AddHttpClient("BinanceFunding", c => c.Timeout = TimeSpan.FromSeconds(10));
-
 // Timeline publisher
 builder.Services.AddSingleton<ITimelineEventPublisher, RedisTimelineEventPublisher>();
 
@@ -32,13 +29,11 @@ builder.Services.AddSingleton<PriceBuffer>(sp =>
     var settings = sp.GetRequiredService<IOptions<AnalyzerSettings>>().Value;
     return new PriceBuffer(settings.BufferCapacity);
 });
-builder.Services.AddSingleton<FundingRateCache>();
 builder.Services.AddSingleton<IndicatorEngine>();
 builder.Services.AddSingleton<SignalPublisher>();
 
 // Workers
 builder.Services.AddHostedService<SignalAnalyzerWorker>();
-builder.Services.AddHostedService<FundingRateFetcherWorker>();
 
 var host = builder.Build();
 host.Run();

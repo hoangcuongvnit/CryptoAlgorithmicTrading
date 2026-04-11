@@ -1,5 +1,6 @@
 using CryptoTrading.Shared.DTOs;
 using CryptoTrading.Shared.Session;
+using Executor.API.Configuration;
 using Executor.API.Infrastructure;
 using Microsoft.Extensions.Options;
 
@@ -25,6 +26,7 @@ public sealed class StartupReconciliationService : BackgroundService
     private readonly OrderRepository _orderRepository;
     private readonly PositionTracker _positionTracker;
     private readonly OrderExecutionService _executionService;
+    private readonly BinanceSettings _binanceSettings;
     private readonly SessionClock _sessionClock;
     private readonly SessionTradingPolicy _sessionPolicy;
     private readonly SessionSettings _sessionSettings;
@@ -40,6 +42,7 @@ public sealed class StartupReconciliationService : BackgroundService
         OrderRepository orderRepository,
         PositionTracker positionTracker,
         OrderExecutionService executionService,
+        IOptions<BinanceSettings> binanceSettings,
         SessionClock sessionClock,
         SessionTradingPolicy sessionPolicy,
         IOptions<SessionSettings> sessionSettings,
@@ -51,6 +54,7 @@ public sealed class StartupReconciliationService : BackgroundService
         _orderRepository = orderRepository;
         _positionTracker = positionTracker;
         _executionService = executionService;
+        _binanceSettings = binanceSettings.Value;
         _sessionClock = sessionClock;
         _sessionPolicy = sessionPolicy;
         _sessionSettings = sessionSettings.Value;
@@ -218,7 +222,7 @@ public sealed class StartupReconciliationService : BackgroundService
                         FilledQty = local.NetQty,
                         FilledPrice = local.AvgBuyPrice ?? 0m,
                         Timestamp = DateTime.UtcNow,
-                        IsPaperTrade = false,
+                        IsTestnetTrade = _binanceSettings.UseTestnet,
                         SessionId = session?.SessionId
                     };
                     _positionTracker.OnOrderFilled(syntheticRequest, syntheticResult);

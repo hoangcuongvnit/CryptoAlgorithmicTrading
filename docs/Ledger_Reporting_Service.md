@@ -1,7 +1,7 @@
 # System Specification Document: Ledger & Reporting Service
 
 ## 1. System Overview
-The system is an independent Microservice within the broader architecture of the Automated Binance Futures Trading Bot. Its core responsibilities include managing cash flows (for both Mainnet and Testnet environments), calculating Profit and Loss (PnL) with exact precision, tracking trading fees, and providing a "Test Sessions" feature to facilitate backtesting and forward testing of trading algorithms.
+The system is an independent microservice within the broader architecture of the Automated Binance Spot Trading system. Its core responsibilities include managing cash flows for both Mainnet and Spot Test Network environments, calculating Profit and Loss (PnL) with exact precision, tracking trading fees, and providing a "Test Sessions" feature to facilitate backtesting and forward testing of trading algorithms.
 
 Mode policy: The service supports both live environments (Mainnet and Testnet APIs) and does not include paper trading mode.
 
@@ -94,4 +94,4 @@ This feature safely resets the testing environment while archiving historical da
 * **Data Types:** Always use the `decimal` (or `numeric` in PostgreSQL) data type for all currency-related columns (`Amount`, `Balance`) to prevent floating-point precision loss.
 * **Testnet/Mainnet Parity:** The business logic for Testnet and Mainnet is identical. The only differences are the Binance API Base URL and the `Environment` flag in the database.
 * **Reliability Requirement:** Do not use fire-and-forget Pub/Sub for critical financial events; use durable streams/queues with acknowledgements and retries.
-* **Synchronization Source:** Do not poll Binance `GET /fapi/v1/income` for synchronization; use Executor WebSocket-derived events to avoid API rate-limit pressure.
+* **Synchronization Source:** Do not poll Binance account-income style endpoints for synchronization; use Executor WebSocket-derived events to avoid API rate-limit pressure.

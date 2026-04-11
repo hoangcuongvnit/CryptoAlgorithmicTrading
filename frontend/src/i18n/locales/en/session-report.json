@@ -8,6 +8,7 @@
   "chartHint": "Realized PnL per session. Trade count shown below each bar.",
   "mode": {
     "all": "All modes",
+    "testnet": "Testnet",
     "live": "Live trading"
   },
   "kpi": {

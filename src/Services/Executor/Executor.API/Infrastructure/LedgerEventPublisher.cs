@@ -10,6 +10,8 @@ public sealed class LedgerEventPublisher
 {
     private const string LedgerEventsStream = "ledger:events";
     private const decimal CommissionRate = 0.001m;
+    private const int MaxPublishAttempts = 3;
+    private const int InitialRetryDelayMs = 200;
 
     private readonly IConnectionMultiplexer _redis;
     private readonly BinanceSettings _binanceSettings;
@@ -25,7 +27,7 @@ public sealed class LedgerEventPublisher
         _logger = logger;
     }
 
-    public async Task PublishFromSuccessfulExecutionAsync(
+    public async Task<bool> PublishFromSuccessfulExecutionAsync(
         OrderRequest request,
         OrderResult result,
         PositionTracker.OpenPosition? positionBeforeFill,
@@ -33,18 +35,19 @@ public sealed class LedgerEventPublisher
     {
         if (!result.Success)
         {
-            return;
+            return true;
         }
 
         var environment = _binanceSettings.UseTestnet ? "TESTNET" : "MAINNET";
         var algorithmName = string.IsNullOrWhiteSpace(request.StrategyName) ? "EXECUTOR" : request.StrategyName;
+        var allSucceeded = true;
 
         if (result.FilledQty > 0 && result.FilledPrice > 0)
         {
             var notional = result.FilledQty * result.FilledPrice;
             if (request.Side == OrderSide.Buy)
             {
-                await PublishEntryAsync(
+                if (await PublishEntryAsync(
                     transactionId: $"{result.OrderId}:BUY_CASH_OUT",
                     type: "BUY_CASH_OUT",
                     amount: -notional,
@@ -53,7 +56,10 @@ public sealed class LedgerEventPublisher
                     algorithmName: algorithmName,
                     sessionId: request.SessionId,
                     timestamp: result.Timestamp,
-                    cancellationToken: cancellationToken);
+                    cancellationToken: cancellationToken) is false)
+                {
+                    allSucceeded = false;
+                }
             }
             else if (request.Side == OrderSide.Sell && positionBeforeFill is not null && positionBeforeFill.Quantity > 0)
             {
@@ -61,7 +67,7 @@ public sealed class LedgerEventPublisher
                 if (sellCashQty > 0)
                 {
                     var principalBack = sellCashQty * positionBeforeFill.AvgEntryPrice;
-                    await PublishEntryAsync(
+                    if (await PublishEntryAsync(
                         transactionId: $"{result.OrderId}:SELL_CASH_IN",
                         type: "SELL_CASH_IN",
                         amount: principalBack,
@@ -70,7 +76,10 @@ public sealed class LedgerEventPublisher
                         algorithmName: algorithmName,
                         sessionId: request.SessionId,
                         timestamp: result.Timestamp,
-                        cancellationToken: cancellationToken);
+                        cancellationToken: cancellationToken) is false)
+                    {
+                        allSucceeded = false;
+                    }
                 }
             }
         }
@@ -80,7 +89,7 @@ public sealed class LedgerEventPublisher
         {
             var commission = -(result.FilledQty * result.FilledPrice * CommissionRate);
 
-            await PublishEntryAsync(
+            if (await PublishEntryAsync(
                 transactionId: $"{result.OrderId}:COMMISSION:{request.Side}",
                 type: "COMMISSION",
                 amount: commission,
@@ -89,28 +98,31 @@ public sealed class LedgerEventPublisher
                 algorithmName: algorithmName,
                 sessionId: request.SessionId,
                 timestamp: result.Timestamp,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken) is false)
+            {
+                allSucceeded = false;
+            }
         }
 
         if (request.Side != OrderSide.Sell)
         {
-            return;
+            return allSucceeded;
         }
 
         if (positionBeforeFill is null || positionBeforeFill.Quantity <= 0)
         {
-            return;
+            return allSucceeded;
         }
 
         var closedQty = Math.Min(result.FilledQty, positionBeforeFill.Quantity);
         if (closedQty <= 0)
         {
-            return;
+            return allSucceeded;
         }
 
         var grossRealizedPnl = (result.FilledPrice - positionBeforeFill.AvgEntryPrice) * closedQty;
 
-        await PublishEntryAsync(
+        if (await PublishEntryAsync(
             transactionId: $"{result.OrderId}:REALIZED_PNL",
             type: "REALIZED_PNL",
             amount: grossRealizedPnl,
@@ -119,10 +131,15 @@ public sealed class LedgerEventPublisher
             algorithmName: algorithmName,
             sessionId: request.SessionId,
             timestamp: result.Timestamp,
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken) is false)
+        {
+            allSucceeded = false;
+        }
+
+        return allSucceeded;
     }
 
-    private async Task PublishEntryAsync(
+    private async Task<bool> PublishEntryAsync(
         string transactionId,
         string type,
         decimal amount,
@@ -148,15 +165,38 @@ public sealed class LedgerEventPublisher
             new("symbol", symbol)
         };
 
-        try
+        for (var attempt = 1; attempt <= MaxPublishAttempts; attempt++)
         {
-            await db.StreamAddAsync(LedgerEventsStream, entries);
+            try
+            {
+                await db.StreamAddAsync(LedgerEventsStream, entries);
+                return true;
+            }
+            catch (Exception ex) when (attempt < MaxPublishAttempts)
+            {
+                var delayMs = InitialRetryDelayMs * (1 << (attempt - 1));
+                _logger.LogWarning(ex,
+                    "Ledger event publish failed (attempt {Attempt}/{MaxAttempts}) for {Type} {Symbol} {TransactionId}. Retrying in {DelayMs}ms.",
+                    attempt,
+                    MaxPublishAttempts,
+                    type,
+                    symbol,
+                    transactionId,
+                    delayMs);
+                await Task.Delay(delayMs, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to publish ledger event after {MaxAttempts} attempts: {Type} {Symbol} {TransactionId}",
+                    MaxPublishAttempts,
+                    type,
+                    symbol,
+                    transactionId);
+                return false;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Failed to publish ledger event {Type} for {Symbol} transaction {TransactionId}",
-                type, symbol, transactionId);
-        }
+
+        return false;
     }
 }

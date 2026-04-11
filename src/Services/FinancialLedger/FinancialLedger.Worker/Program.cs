@@ -25,6 +25,7 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<VirtualAccountRepository>();
 builder.Services.AddScoped<LedgerRepository>();
 builder.Services.AddScoped<EquitySnapshotRepository>();
+builder.Services.AddScoped<SessionCoverageRepository>();
 builder.Services.AddScoped<SessionManagementService>();
 builder.Services.AddScoped<PnlCalculationService>();
 builder.Services.AddScoped<SessionResetSagaService>();
@@ -238,6 +239,29 @@ app.MapGet("/api/ledger/equity/sell-timeline", async (
 		Summary = summary,
 		Points = points,
 	});
+});
+
+app.MapGet("/api/ledger/reconciliation/session-coverage", async (
+	string sessionId,
+	SessionCoverageRepository coverageRepository,
+	CancellationToken ct) =>
+{
+	if (!Guid.TryParse(sessionId, out var parsedSessionId))
+	{
+		return Results.BadRequest("Invalid session ID");
+	}
+
+	var coverage = await coverageRepository.GetSessionCoverageAsync(parsedSessionId, ct);
+	if (coverage is null)
+	{
+		return Results.NotFound(new
+		{
+			message = "Session not found",
+			sessionId = parsedSessionId
+		});
+	}
+
+	return Results.Ok(coverage);
 });
 
 app.MapGet("/api/ledger/sessions/{accountId}", async (

@@ -108,7 +108,6 @@ public sealed class SignalAnalyzerWorker : BackgroundService
             Metadata = new Dictionary<string, object?>
             {
                 ["market_regime"] = signal.Regime.ToString(),
-                ["funding_rate"] = signal.FundingRate,
             },
             Tags = [signal.Strength.ToString().ToLowerInvariant(), "signal"],
         }, cancellationToken);

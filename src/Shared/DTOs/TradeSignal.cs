@@ -20,9 +20,6 @@ public sealed record TradeSignal
     // Phase 2.1: ATR for adaptive stop-loss
     public decimal Atr14 { get; init; }
 
-    // Phase 2.4: Funding rate for short safety gate
-    public decimal FundingRate { get; init; }
-
     // Phase 3.1: Market regime classification
     public MarketRegime Regime { get; init; }
 

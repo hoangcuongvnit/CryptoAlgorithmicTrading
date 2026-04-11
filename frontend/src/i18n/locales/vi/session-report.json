@@ -8,7 +8,7 @@
   "chartHint": "PnL thực hiện theo từng phiên. Số lệnh hiển thị dưới mỗi cột.",
   "mode": {
     "all": "Tất cả chế độ",
-    "paper": "Giao dịch thử",
+    "testnet": "Testnet",
     "live": "Giao dịch thật"
   },
   "kpi": {

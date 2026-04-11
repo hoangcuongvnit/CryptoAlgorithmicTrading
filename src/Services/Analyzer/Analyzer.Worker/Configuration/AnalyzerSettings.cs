@@ -30,9 +30,8 @@ public sealed class AnalyzerSettings
     // Phase 2.1: ATR for adaptive stop-loss
     public int AtrPeriod { get; set; } = 14;
 
-    // Phase 2.4: Short selling safety
-    public decimal ShortRsiThreshold { get; set; } = 60m;
-    public decimal MaxFundingRate { get; set; } = 0.02m;
+    // Phase 2.4: Sell-side safety
+    public decimal SellRsiThreshold { get; set; } = 60m;
 
     // Phase 3.1: Market regime detection (needs wider buffer — set BufferCapacity >= 120)
     public decimal RegimeHighVolAtrMultiplier { get; set; } = 1.5m;

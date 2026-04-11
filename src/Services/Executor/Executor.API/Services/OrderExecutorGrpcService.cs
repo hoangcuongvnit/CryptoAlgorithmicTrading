@@ -12,10 +12,12 @@ namespace Executor.API.Services;
 public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecutorServiceBase
 {
     private readonly TradingSettings _tradingSettings;
+    private readonly BinanceSettings _binanceSettings;
     private readonly OrderAmountLimitValidator _orderAmountValidator;
     private readonly BuyBudgetGuardService _buyBudgetGuard;
     private readonly BinanceOrderClient _binanceOrderClient;
     private readonly OrderWriteQueue _orderWriteQueue;
+    private readonly LedgerEventPublisher _ledgerEventPublisher;
     private readonly AuditStreamPublisher _auditStreamPublisher;
     private readonly SystemEventPublisher _systemEvents;
     private readonly PositionTracker _positionTracker;
@@ -29,10 +31,12 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
 
     public OrderExecutorGrpcService(
         IOptions<TradingSettings> tradingSettings,
+        IOptions<BinanceSettings> binanceSettings,
         OrderAmountLimitValidator orderAmountValidator,
         BuyBudgetGuardService buyBudgetGuard,
         BinanceOrderClient binanceOrderClient,
         OrderWriteQueue orderWriteQueue,
+        LedgerEventPublisher ledgerEventPublisher,
         AuditStreamPublisher auditStreamPublisher,
         SystemEventPublisher systemEvents,
         PositionTracker positionTracker,
@@ -45,10 +49,12 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         ILogger<OrderExecutorGrpcService> logger)
     {
         _tradingSettings = tradingSettings.Value;
+        _binanceSettings = binanceSettings.Value;
         _orderAmountValidator = orderAmountValidator;
         _buyBudgetGuard = buyBudgetGuard;
         _binanceOrderClient = binanceOrderClient;
         _orderWriteQueue = orderWriteQueue;
+        _ledgerEventPublisher = ledgerEventPublisher;
         _auditStreamPublisher = auditStreamPublisher;
         _systemEvents = systemEvents;
         _positionTracker = positionTracker;
@@ -187,6 +193,10 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         try
         {
             orderResult = await _binanceOrderClient.PlaceOrderAsync(orderRequest, context.CancellationToken);
+            orderResult = orderResult with
+            {
+                IsTestnetTrade = _binanceSettings.UseTestnet
+            };
         }
         catch (OperationCanceledException ex)
         {
@@ -225,9 +235,31 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
         // Enqueue DB write — never blocks gRPC response
         _orderWriteQueue.TryEnqueue(requestForPersistence, result);
 
+        PositionTracker.OpenPosition? positionBeforeFill = null;
+        if (result.Success && requestForPersistence.Side == OrderSide.Sell)
+        {
+            positionBeforeFill = _positionTracker
+                .GetRawPositions()
+                .FirstOrDefault(p => string.Equals(p.Symbol, requestForPersistence.Symbol, StringComparison.OrdinalIgnoreCase));
+        }
+
         if (result.Success)
         {
             _positionTracker.OnOrderFilled(requestForPersistence, result);
+
+            _ = _ledgerEventPublisher
+                .PublishFromSuccessfulExecutionAsync(requestForPersistence, result, positionBeforeFill, CancellationToken.None)
+                .ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                    {
+                        _logger.LogError(t.Exception, "Ledger event publish failed for {Symbol}", requestForPersistence.Symbol);
+                    }
+                    else if (!t.Result)
+                    {
+                        _logger.LogWarning("Ledger event publish incomplete for {Symbol} after retries.", requestForPersistence.Symbol);
+                    }
+                }, TaskScheduler.Default);
         }
         else
         {
@@ -273,14 +305,14 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             FilledPrice = (double)result.FilledPrice,
             FilledQty = (double)result.FilledQty,
             ErrorMessage = result.ErrorMessage,
-            IsPaper = result.IsPaperTrade,
+            IsTestnet = result.IsTestnetTrade,
             SessionId = result.SessionId ?? string.Empty,
             ForcedLiquidation = result.ForcedLiquidation,
             LiquidationReason = result.LiquidationReason.ToString()
         };
     }
 
-    private static OrderResult BuildFailureResult(
+    private OrderResult BuildFailureResult(
         string symbol,
         string errorMessage,
         TradingErrorCode errorCode = TradingErrorCode.UnknownError)
@@ -293,7 +325,7 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
             ErrorMessage = errorMessage,
             ErrorCode = errorCode,
             Timestamp = DateTime.UtcNow,
-            IsPaperTrade = false
+            IsTestnetTrade = _binanceSettings.UseTestnet
         };
     }
 

@@ -106,13 +106,13 @@
     },
     "tradingMode": {
       "label": "Chế độ giao dịch",
-      "paperMeaning": "Đang dùng chế độ giao dịch ảo — lệnh được mô phỏng hoàn toàn. Không có tiền thật nào bị rủi ro.",
+      "testnetMeaning": "Đang dùng chế độ Testnet — lệnh được gửi đến Binance Testnet. Không dùng tiền thật.",
       "liveMeaning": "Đang giao dịch thực — lệnh được gửi đến Binance bằng tiền thật.",
-      "paperConfig": "Chế độ ảo",
+      "testnetConfig": "Chế độ Testnet",
       "liveConfig": "Chế độ thực",
-      "paperCurrent": "An toàn — không có lệnh thật",
+      "testnetCurrent": "An toàn — chỉ lệnh thử nghiệm",
       "liveCurrent": "Đang hoạt động — lệnh thật được bật",
-      "paperImpact": "Bật chế độ thực trong cấu hình để giao dịch với tiền thật.",
+      "testnetImpact": "Chuyển sang chế độ thực trong cấu hình để giao dịch với tiền thật.",
       "liveImpact": "Mỗi lệnh được duyệt sẽ dùng tiền thật. Kiểm tra quy tắc trước khi triển khai."
     },
     "maxOrderValue": {
@@ -144,7 +144,7 @@
     "title": "Quy tắc lọc tín hiệu & an toàn nâng cao",
     "subtitle": "Các bộ lọc đa pha được áp dụng bởi Analyzer, Strategy, RiskGuard và Executor trước khi đặt lệnh.",
     "phaseLabel": "Pha {{num}}",
-    "configHint": "Các quy tắc đánh dấu 🟡 là tùy chọn qua appsettings.json và mặc định tắt. Bật dần từng quy tắc sau khi đã xác nhận trên chế độ giao dịch ảo.",
+    "configHint": "Các quy tắc đánh dấu 🟡 là tùy chọn qua appsettings.json và mặc định tắt. Bật dần từng quy tắc sau khi đã xác nhận trên chế độ Testnet.",
     "legend": {
       "active": "Luôn hoạt động",
       "config": "Tùy chọn qua cấu hình",

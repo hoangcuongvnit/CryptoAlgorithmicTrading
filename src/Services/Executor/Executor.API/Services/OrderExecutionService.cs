@@ -15,6 +15,7 @@ namespace Executor.API.Services;
 public sealed class OrderExecutionService
 {
     private readonly TradingSettings _tradingSettings;
+    private readonly BinanceSettings _binanceSettings;
     private readonly OrderAmountLimitValidator _orderAmountValidator;
     private readonly BuyBudgetGuardService _buyBudgetGuard;
     private readonly BinanceOrderClient _binanceOrderClient;
@@ -33,6 +34,7 @@ public sealed class OrderExecutionService
 
     public OrderExecutionService(
         IOptions<TradingSettings> tradingSettings,
+        IOptions<BinanceSettings> binanceSettings,
         OrderAmountLimitValidator orderAmountValidator,
         BuyBudgetGuardService buyBudgetGuard,
         BinanceOrderClient binanceOrderClient,
@@ -50,6 +52,7 @@ public sealed class OrderExecutionService
         ILogger<OrderExecutionService> logger)
     {
         _tradingSettings = tradingSettings.Value;
+        _binanceSettings = binanceSettings.Value;
         _orderAmountValidator = orderAmountValidator;
         _buyBudgetGuard = buyBudgetGuard;
         _binanceOrderClient = binanceOrderClient;
@@ -89,7 +92,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = amountValidation.ErrorMessage ?? "Order amount validation failed.",
                 ErrorCode = amountValidation.ErrorCode,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
+                IsTestnetTrade = _binanceSettings.UseTestnet,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -117,7 +120,7 @@ public sealed class OrderExecutionService
                         : sellGuardError,
                     ErrorCode = TradingErrorCode.InsufficientPositionQuantity,
                     Timestamp = DateTime.UtcNow,
-                    IsPaperTrade = false,
+                    IsTestnetTrade = _binanceSettings.UseTestnet,
                     SessionId = orderRequest.SessionId
                 };
             }
@@ -137,7 +140,7 @@ public sealed class OrderExecutionService
                     ErrorMessage = buyBudget.ErrorMessage,
                     ErrorCode = buyBudget.ErrorCode,
                     Timestamp = DateTime.UtcNow,
-                    IsPaperTrade = false,
+                    IsTestnetTrade = _binanceSettings.UseTestnet,
                     SessionId = orderRequest.SessionId
                 };
             }
@@ -155,7 +158,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = consensusReason ?? "Price consensus check failed",
                 ErrorCode = TradingErrorCode.PriceConsensusFailure,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
+                IsTestnetTrade = _binanceSettings.UseTestnet,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -172,7 +175,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = spreadReason ?? "Spread limit exceeded",
                 ErrorCode = TradingErrorCode.SpreadLimitExceeded,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
+                IsTestnetTrade = _binanceSettings.UseTestnet,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -189,7 +192,8 @@ public sealed class OrderExecutionService
                 ForcedLiquidation = orderRequest.IsReduceOnly && orderRequest.StrategyName == "LiquidationOrchestrator",
                 LiquidationReason = orderRequest.IsReduceOnly && orderRequest.StrategyName == "LiquidationOrchestrator"
                     ? LiquidationReason.Deadline
-                    : LiquidationReason.None
+                    : LiquidationReason.None,
+                IsTestnetTrade = _binanceSettings.UseTestnet
             };
         }
         catch (BrokenCircuitException ex)
@@ -203,7 +207,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = "Exchange circuit breaker is open. Too many recent failures.",
                 ErrorCode = TradingErrorCode.ExchangeCircuitOpen,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
+                IsTestnetTrade = _binanceSettings.UseTestnet,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -218,7 +222,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = "Order execution timed out.",
                 ErrorCode = TradingErrorCode.ExchangeTimeout,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
+                IsTestnetTrade = _binanceSettings.UseTestnet,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -233,7 +237,7 @@ public sealed class OrderExecutionService
                 ErrorMessage = ex.Message,
                 ErrorCode = TradingErrorCode.ExchangeRequestFailed,
                 Timestamp = DateTime.UtcNow,
-                IsPaperTrade = false,
+                IsTestnetTrade = _binanceSettings.UseTestnet,
                 SessionId = orderRequest.SessionId
             };
         }
@@ -261,6 +265,10 @@ public sealed class OrderExecutionService
                     if (t.IsFaulted)
                     {
                         _logger.LogError(t.Exception, "Ledger event publish failed for {Symbol}", orderRequest.Symbol);
+                    }
+                    else if (!t.Result)
+                    {
+                        _logger.LogWarning("Ledger event publish incomplete for {Symbol} after retries.", orderRequest.Symbol);
                     }
                 }, TaskScheduler.Default);
 

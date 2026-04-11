@@ -75,7 +75,7 @@ The system implements a **short-circuit validation chain** in this order:
 | 8 | Spread Filter | Execution | Low | Exchange data | ❌ Not started | Phase 1 |
 | 9 | Slippage Tolerance | Execution | Low | Order state tracking | ❌ Not started | Phase 1 |
 | 10 | Consensus Pricing (3-exchange) | Execution | High | Multi-exchange connectors | ❌ Not started | Phase 3 |
-| 11 | Short Selling Safety | Strategy | Medium | Liability tracking | ⚙️ Config ready | Phase 2 |
+| 11 | Sell-side Safety | Strategy | Medium | Momentum filter | ⚙️ Config ready | Phase 2 |
 | 12 | Daily Risk Limits | Risk Control | - | ✅ Fully implemented | ✅ LIVE | - |
 
 ---
@@ -293,31 +293,25 @@ float allocPercent = Math.Min(quarterKelly * 100, 2.0f);  // capped at 2% defaul
 
 ---
 
-#### 2.4 Short Selling Safety Enhancements (Rule 11 - refinement)  
-**What:** Add funding-rate check; require RSI > 60 (not just EMA cross).  
-**Why:** Protects against perpetual contango; ensures overbought entry.  
+#### 2.4 Sell-side Safety Enhancements (Rule 11 - refinement)  
+**What:** Keep RSI > 60 requirement for sell-side entries (not just EMA cross).  
+**Why:** Reduces weak exits when momentum is still strong.  
 
 **Where:** Analyzer + Strategy  
 
 **How:**
 ```csharp
-// In Analyzer.EvaluateShortSignal()
+// In Analyzer.ApplySignalFilters()
 if (signal.Ema9 < signal.Ema21 && signal.Rsi > 60)
 {
-    float fundingRate = await GetBinanceFundingRate(symbol);
-    if (fundingRate > 0.02f)  // 2% funding = too expensive to short
-    {
-        signal.Strength = SignalStrength.Weak;
-        signal.Flag = $"Funding too high: {fundingRate:P2}";
-    }
+    signal.Strength = SignalStrength.Weak;
 }
 ```
 
 **Acceptance Criteria:**
-- ✅ Funding rate query added to Ingestor  
-- ✅ Short filter applied in Analyzer  
-- ✅ Backtest: shorts have better RR, fewer small losses  
-- ✅ Config: max_funding_rate (0.02), short_rsi_threshold (60)  
+- ✅ Sell-side filter applied in Analyzer  
+- ✅ Backtest: sell entries have fewer weak momentum exits  
+- ✅ Config: sell_rsi_threshold (60)  
 
 ---
 
@@ -499,13 +493,13 @@ From 260322_rules_1.md:
 
 ---
 
-### ⚙️ Rule 11: Short Safety Config (Ready, Needs Enforcement)
+### ⚙️ Rule 11: Sell-side Safety Config (Ready, Needs Enforcement)
 From 260322_rules_1.md:
 - Config exists: `SessionSettings.MaxOpenPositionsPerSession`  
 - Direction derived from EMA only (not RSI yet)  
 
-**Gap:** Funding rate check not integrated.  
-**Phase 2 Plan:** Add funding-rate gate + RSI > 60 requirement.
+**Gap:** Dedicated sell-side RSI gate was pending final runtime integration.  
+**Phase 2 Plan:** Keep RSI > 60 requirement as sell-side gate.
 
 ---
 
@@ -563,8 +557,7 @@ Phase 4 (Months 16-18) - Optional
   "Strategy": {
     "PartialTakeProfitEnabled": false,
     "AdaptiveStopLossEnabled": false,
-    "ShortSellingFundingRateCheck": true,
-    "MaxFundingRate": 0.02
+        "SellRsiThreshold": 60
   },
   "RiskGuard": {
     "SpreadLimits": {
@@ -721,12 +714,10 @@ For each phase, run 3-month backtest:
 - [ ] Backtest: compare vs fixed 2% sizing
 - [ ] Code review + merge
 
-**2.4 Short Selling Enhancements**
-- [ ] Ingestor: fetch funding rate from Binance every 1H
-- [ ] Analyzer: check funding rate on short signals
-- [ ] Add RSI > 60 gate for shorts
-- [ ] Config: `max_funding_rate`, `short_rsi_threshold`
-- [ ] Backtest: short trade statistics
+**2.4 Sell-side Enhancements**
+- [ ] Analyzer: enforce RSI > 60 gate on sell-side signals
+- [ ] Config: `sell_rsi_threshold`
+- [ ] Backtest: sell-side trade statistics
 - [ ] Code review + merge
 
 ---

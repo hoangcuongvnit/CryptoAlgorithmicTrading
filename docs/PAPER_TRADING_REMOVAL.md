@@ -185,7 +185,6 @@ If you were using **Paper Trading** before, here's how to transition:
 
 Generate Testnet API keys from Binance:
 ```
-https://testnet.binancefuture.com/
 https://testnet.binance.vision/
 ```
 

@@ -8,7 +8,8 @@
     "dashboard": "Dashboard",
     "entries": "Entries",
     "sessions": "Sessions",
-    "pnl": "P&L"
+    "pnl": "P&L",
+    "stableCoins": "Stable Coins"
   },
 
   "status": {
@@ -85,6 +86,33 @@
       "locked": "Locked",
       "markPrice": "Mark Price",
       "value": "Value (USDT)"
+    }
+  },
+
+  "stableCoins": {
+    "title": "Stable Coins on Binance Spot",
+    "subtitle": "Shows all supported stable coins so you can monitor balances the same way as USDT.",
+    "supported": "Supported list",
+    "fetchError": "Failed to load stable coin data",
+    "unavailable": "Binance data is currently unavailable.",
+    "refresh": "Refresh",
+    "refreshing": "Loading...",
+    "asOf": "As of",
+    "cards": {
+      "totalStable": "Total Stablecoin Value",
+      "activeStable": "Coins with Balance",
+      "usdtBusd": "USDT and BUSD"
+    },
+    "table": {
+      "asset": "Stable Coin",
+      "free": "Available",
+      "locked": "Locked",
+      "total": "Total",
+      "status": "Status"
+    },
+    "status": {
+      "hasBalance": "Has balance",
+      "zero": "0"
     }
   },
 

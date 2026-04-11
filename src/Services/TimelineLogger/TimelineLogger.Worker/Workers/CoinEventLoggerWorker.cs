@@ -24,7 +24,6 @@ public sealed class CoinEventLoggerWorker : BackgroundService
         [TimelineEventTypes.SignalGenerated] = "TRADING_SIGNAL",
         [TimelineEventTypes.IndicatorCalculated] = "ANALYSIS",
         [TimelineEventTypes.MarketRegimeChanged] = "MARKET",
-        [TimelineEventTypes.FundingRateUpdated] = "MARKET",
         [TimelineEventTypes.StrategyEvaluated] = "STRATEGY",
         [TimelineEventTypes.OrderMapped] = "STRATEGY",
         [TimelineEventTypes.RiskValidationStarted] = "RISK",

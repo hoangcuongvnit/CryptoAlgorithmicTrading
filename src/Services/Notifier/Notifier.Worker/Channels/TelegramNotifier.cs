@@ -94,8 +94,8 @@ public sealed class TelegramNotifier
 
     private string FormatSuccessfulOrder(OrderResult order)
     {
-        var emoji = order.IsPaperTrade ? "📄" : "✅";
-        var mode = order.IsPaperTrade ? "PAPER" : "LIVE";
+        var emoji = order.IsTestnetTrade ? "🧪" : "✅";
+        var mode = order.IsTestnetTrade ? "TESTNET" : "LIVE";
         var side = order.Side.ToString().ToUpperInvariant();
 
         return $"{emoji} {mode} {side} {order.Symbol} @ ${order.FilledPrice:F2}\n" +

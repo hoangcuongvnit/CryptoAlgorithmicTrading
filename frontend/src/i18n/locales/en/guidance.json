@@ -106,13 +106,13 @@
     },
     "tradingMode": {
       "label": "Trading Mode",
-      "paperMeaning": "Live trading is active — orders are executed on Binance. Real money is at risk.",
+      "testnetMeaning": "Testnet trading is active — orders are sent to Binance Testnet. No real funds are used.",
       "liveMeaning": "Live trading is active — orders are sent to Binance using real funds.",
-      "paperConfig": "Live Trading",
+      "testnetConfig": "Testnet Trading",
       "liveConfig": "Live Mode",
-      "paperCurrent": "Safe — no real orders",
+      "testnetCurrent": "Safe — test orders only",
       "liveCurrent": "Active — real orders enabled",
-      "paperImpact": "Enable live mode in configuration to trade with real funds.",
+      "testnetImpact": "Switch to live mode in configuration to trade with real funds.",
       "liveImpact": "Every approved order uses real money. Verify rules before deploying."
     },
     "maxOrderValue": {

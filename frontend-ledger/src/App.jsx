@@ -4,12 +4,14 @@ import LedgerPage from './pages/LedgerPage'
 import EntriesPage from './pages/EntriesPage'
 import SessionsPage from './pages/SessionsPage'
 import PnLBreakdownPage from './pages/PnLBreakdownPage'
+import StableCoinsPage from './pages/StableCoinsPage'
 
 const NAV_ITEMS = [
   { to: '/',          labelKey: 'nav.dashboard' },
   { to: '/entries',   labelKey: 'nav.entries'   },
   { to: '/sessions',  labelKey: 'nav.sessions'  },
   { to: '/pnl',       labelKey: 'nav.pnl'       },
+  { to: '/stable-coins', labelKey: 'nav.stableCoins' },
 ]
 
 export default function App() {
@@ -51,6 +53,7 @@ export default function App() {
           <Route path="/entries"  element={<EntriesPage />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/pnl"      element={<PnLBreakdownPage />} />
+          <Route path="/stable-coins" element={<StableCoinsPage />} />
         </Routes>
       </main>
     </div>

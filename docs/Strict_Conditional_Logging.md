@@ -14,15 +14,15 @@ During every 5-minute reconciliation cycle, the worker calculates the delta betw
 
 ### 6.2. Detailed Execution Flow (Testnet vs. Mainnet)
 
-**A. Mainnet Flow (Balances & Positions)**
+**A. Mainnet Flow (Balances & Spot Holdings)**
 1. Compare Balance: `IsDrifted = (Binance.AvailableBalance != Local.AvailableBalance)`
    * If `IsDrifted == true`: Update DB, Log to `state_drift_logs`, Send Telegram Alert.
-2. Compare Positions (Loop through active symbols): `IsDrifted = (Binance.PositionAmt[symbol] != Local.PositionAmt[symbol])`
+2. Compare Spot holdings (Loop through active symbols): `IsDrifted = (Binance.Free+Locked[symbol] != Local.NetQty[symbol])`
    * If `IsDrifted == true`: Update DB, Log to `state_drift_logs`, Send Telegram Alert.
 
-**B. Testnet Flow (Positions ONLY)**
+**B. Testnet Flow (Spot Holdings ONLY)**
 1. **IGNORE** Balance completely. Do not fetch, compare, or log balance data.
-2. Compare Positions (Loop through active symbols): `IsDrifted = (Binance.PositionAmt[symbol] != Local.PositionAmt[symbol])`
+2. Compare Spot holdings (Loop through active symbols): `IsDrifted = (Binance.Free+Locked[symbol] != Local.NetQty[symbol])`
    * If `IsDrifted == true`: Update DB, Log to `state_drift_logs`, Send Telegram Alert.
 
 ### 6.3. Crucial Notes for AI Coding Assistants
@@ -31,7 +31,7 @@ During every 5-minute reconciliation cycle, the worker calculates the delta betw
 * **Batch Logging (Optional but Recommended):** If a single 5-minute tick detects multiple drifted symbols (e.g., 3 different coins drifted simultaneously), group them into a single Telegram message to avoid hitting Telegram API rate limits.
 
 ### 6.4. Implementation Status (Spot-Only)
-Current implementation is **Spot-only** and does **not** use futures `PositionAmt`.
+Current implementation is **Spot-only** and compares Binance Spot balances against local net quantities.
 
 **Implemented**
 * Periodic reconciliation loop in Executor with delta-only behavior.
@@ -57,6 +57,6 @@ Current implementation is **Spot-only** and does **not** use futures `PositionAm
 * `Trading:Reconciliation:BalancePolicy` defaults to `LogOnly`.
 
 **Not in scope**
-* Futures reconciliation.
+* Derivatives reconciliation.
 * Paper trading reconciliation.
 * Auto-mirroring balance drift into exchange state.

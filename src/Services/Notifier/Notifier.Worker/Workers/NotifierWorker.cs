@@ -162,7 +162,7 @@ public sealed class NotifierWorker : BackgroundService
     {
         if (order.Success)
         {
-            const string mode = "LIVE";
+            var mode = order.IsTestnetTrade ? "TESTNET" : "LIVE";
             var side = order.Side.ToString().ToUpperInvariant();
             _history.Add("order", $"{mode} {side} {order.Symbol} @ {order.FilledPrice:F2} | qty {order.FilledQty:F6}");
         }
@@ -186,6 +186,12 @@ public sealed class NotifierWorker : BackgroundService
             _ = decimal.TryParse(fields.GetValueOrDefault("filled_qty", "0"), out var filledQty);
             _ = DateTime.TryParse(fields.GetValueOrDefault("time"), out var timestamp);
             _ = Enum.TryParse<TradingErrorCode>(fields.GetValueOrDefault("error_code", "None"), ignoreCase: true, out var errorCode);
+            _ = bool.TryParse(fields.GetValueOrDefault("is_testnet", "false"), out var isTestnet);
+
+            if (!isTestnet && string.Equals(fields.GetValueOrDefault("trading_mode", string.Empty), "testnet", StringComparison.OrdinalIgnoreCase))
+            {
+                isTestnet = true;
+            }
 
             return new OrderResult
             {
@@ -198,7 +204,7 @@ public sealed class NotifierWorker : BackgroundService
                 ErrorMessage = fields.GetValueOrDefault("error_message", string.Empty),
                 ErrorCode = errorCode,
                 Timestamp = timestamp == default ? DateTime.UtcNow : timestamp,
-                IsPaperTrade = false
+                IsTestnetTrade = isTestnet
             };
         }
         catch (Exception ex)

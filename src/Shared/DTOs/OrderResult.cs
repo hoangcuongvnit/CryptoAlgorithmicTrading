@@ -11,7 +11,7 @@ public sealed record OrderResult
     public string ErrorMessage { get; init; } = string.Empty;
     public TradingErrorCode ErrorCode { get; init; } = TradingErrorCode.None;
     public required DateTime Timestamp { get; init; }
-    public bool IsPaperTrade { get; init; }
+    public bool IsTestnetTrade { get; init; }
     public string? SessionId { get; init; }
     public bool ForcedLiquidation { get; init; }
     public LiquidationReason LiquidationReason { get; init; }

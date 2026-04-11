@@ -15,7 +15,6 @@ The Timeline Logging Service is a dedicated microservice that captures and store
 - Order placements, executions, and closures
 - Risk evaluations and rejections
 - Liquidations and session events
-- Funding rate changes
 - Market regime shifts
 - System-level decisions
 
@@ -459,10 +458,6 @@ SignalAnalyzerWorker.cs
 ├── Event: SIGNAL_GENERATED
 ├── Event: INDICATOR_CALCULATED
 └── Event: MARKET_REGIME_CHANGED
-
-FundingRateFetcherWorker.cs
-├── After funding rate update
-└── Event: FUNDING_RATE_UPDATED
 ```
 
 #### 4.2.3 Strategy Service
@@ -1006,7 +1001,7 @@ TIMELINE_DEBUG_LOG_EVENTS=false
 Services to modify for event publishing:
 
 - [ ] Ingestor.Worker - PriceTickPersistenceWorker
-- [ ] Analyzer.Worker - SignalAnalyzerWorker, FundingRateFetcherWorker
+- [ ] Analyzer.Worker - SignalAnalyzerWorker
 - [ ] Strategy.Worker - Worker loop
 - [ ] RiskGuard.API - RiskValidationEngine
 - [ ] Executor.API - OrderExecutionService, PositionLifecycleManager, LiquidationOrchestrator

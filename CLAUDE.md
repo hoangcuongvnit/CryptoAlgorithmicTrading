@@ -218,11 +218,9 @@ trading-engine:commands # Redis Pub/Sub: control commands (e.g. HALT_AND_CLOSE_A
 |------|---------|
 | `Program.cs` | Setup: IndicatorEngine DI |
 | `Workers/SignalAnalyzerWorker.cs` | Subscribes to `price:SYMBOL`, triggers engine |
-| `Workers/FundingRateFetcherWorker.cs` | Fetches perpetual funding rates |
 | `Analysis/IndicatorEngine.cs` | **CORE LOGIC**: RSI(14), EMA(9/21), BB(20,2σ), ADX(14), ATR(14), volume, regime |
 | `Analysis/PriceBuffer.cs` | Rolling 120-candle window per symbol |
 | `Infrastructure/SignalPublisher.cs` | Publishes to `signal:SYMBOL` |
-| `Infrastructure/FundingRateCache.cs` | Funding rate safety gate (max 2%) |
 | `Configuration/AnalyzerSettings.cs` | All indicator parameters |
 
 **Key thresholds** (appsettings): RSI oversold=35, overbought=65, BBSqueezeMultiplier=0.8, VolumeConfirmationRatio=1.5
@@ -565,7 +563,7 @@ GET /api/trading/reconciliation/latest # Proxy to Executor reconciliation latest
 | File | Key Fields |
 |------|-----------|
 | `DTOs/PriceTick.cs` | Open, High, Low, Close, Volume, Time |
-| `DTOs/TradeSignal.cs` | Symbol, RSI, EMA9/21, BB, Strength, MarketRegime, Atr, FundingRate |
+| `DTOs/TradeSignal.cs` | Symbol, RSI, EMA9/21, BB, Strength, MarketRegime, Atr |
 | `DTOs/OrderRequest.cs` | Symbol, Side, Type, Qty, Price, StopLoss, TakeProfit, SessionId |
 | `DTOs/OrderResult.cs` | OrderId, FilledQty, FilledPrice, Success |
 | `DTOs/OrderSide.cs` | Buy / Sell |

@@ -274,6 +274,10 @@ export default function LedgerPage() {
 
 function BinanceAccountWidget({ data, loading, onRefresh, t }) {
   const bt = t('binanceAccount', { returnObjects: true })
+  const usdtFromStable = data?.stableCoinBalances?.find((item) => item.asset === 'USDT')
+  const usdtFree = usdtFromStable?.free ?? data?.usdtFree ?? 0
+  const usdtLocked = usdtFromStable?.locked ?? data?.usdtLocked ?? 0
+  const usdtTotal = usdtFromStable?.total ?? data?.usdtTotal ?? 0
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 space-y-3">
@@ -316,15 +320,15 @@ function BinanceAccountWidget({ data, loading, onRefresh, t }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="bg-gray-900 rounded p-3 border border-gray-700">
               <p className="text-xs text-gray-400">{bt.usdtFree}</p>
-              <p className="text-xl font-bold font-mono text-cyan-300">${fmt(data.usdtFree)}</p>
+              <p className="text-xl font-bold font-mono text-cyan-300">${fmt(usdtFree)}</p>
             </div>
             <div className="bg-gray-900 rounded p-3 border border-gray-700">
               <p className="text-xs text-gray-400">{bt.usdtLocked}</p>
-              <p className="text-xl font-bold font-mono text-yellow-300">${fmt(data.usdtLocked)}</p>
+              <p className="text-xl font-bold font-mono text-yellow-300">${fmt(usdtLocked)}</p>
             </div>
             <div className="bg-gray-900 rounded p-3 border border-gray-700">
               <p className="text-xs text-gray-400">{bt.usdtTotal}</p>
-              <p className="text-xl font-bold font-mono text-blue-300">${fmt(data.usdtTotal)}</p>
+              <p className="text-xl font-bold font-mono text-blue-300">${fmt(usdtTotal)}</p>
             </div>
           </div>
           <p className="text-xs text-gray-600 text-right">

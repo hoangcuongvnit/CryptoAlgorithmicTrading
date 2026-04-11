@@ -112,7 +112,7 @@ Metrics:
 - Realized PnL (closed positions)
 - Unrealized PnL (open positions)
 - Trading Fees
-- Funding/Borrowing Cost (if margin/futures later)
+- Other exchange costs (if enabled in future Spot extensions)
 - Net PnL = Realized + Unrealized - Fees - Other Costs
 
 Visualization:

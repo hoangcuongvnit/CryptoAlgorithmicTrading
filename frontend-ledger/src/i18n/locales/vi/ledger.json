@@ -8,7 +8,8 @@
     "dashboard": "Tổng quan",
     "entries": "Giao dịch",
     "sessions": "Phiên",
-    "pnl": "Lợi nhuận"
+    "pnl": "Lợi nhuận",
+    "stableCoins": "Stable Coins"
   },
 
   "status": {
@@ -82,6 +83,33 @@
       "locked": "Đang khóa",
       "markPrice": "Giá thị trường",
       "value": "Giá trị (USDT)"
+    }
+  },
+
+  "stableCoins": {
+    "title": "Stable Coins trên Binance Spot",
+    "subtitle": "Hiển thị toàn bộ stable coin được hỗ trợ để kiểm tra số dư giống cách theo dõi USDT.",
+    "supported": "Danh sách hỗ trợ",
+    "fetchError": "Không thể tải dữ liệu stable coin",
+    "unavailable": "Dữ liệu Binance chưa sẵn sàng.",
+    "refresh": "Làm mới",
+    "refreshing": "Đang tải...",
+    "asOf": "Cập nhật lúc",
+    "cards": {
+      "totalStable": "Tổng stable coin",
+      "activeStable": "Số coin có số dư",
+      "usdtBusd": "USDT và BUSD"
+    },
+    "table": {
+      "asset": "Stable coin",
+      "free": "Khả dụng",
+      "locked": "Đang khóa",
+      "total": "Tổng",
+      "status": "Trạng thái"
+    },
+    "status": {
+      "hasBalance": "Có số dư",
+      "zero": "0"
     }
   },
 
