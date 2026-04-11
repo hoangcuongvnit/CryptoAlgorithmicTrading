@@ -367,6 +367,21 @@ app.MapPost("/api/ledger/sessions/reset", async (
     });
 });
 
+// Returns the environment ("TESTNET" or "MAINNET") of the account that has the
+// most recently started active session. The UI calls this on load so it can
+// bootstrap the correct account instead of hardcoding TESTNET.
+app.MapGet("/api/ledger/active-environment", async (
+    VirtualAccountRepository accountRepository,
+    CancellationToken ct) =>
+{
+    var account = await accountRepository.GetMostRecentActiveAccountWithEnvironmentAsync();
+    if (account is null)
+    {
+        return Results.Ok(new { environment = ledgerSettings.DefaultEnvironment });
+    }
+    return Results.Ok(new { environment = account.Environment });
+});
+
 app.MapPost("/api/ledger/accounts/bootstrap", async (
     string? environment,
     string? baseCurrency,

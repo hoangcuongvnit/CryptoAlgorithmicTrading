@@ -99,13 +99,14 @@ export default function LedgerPage() {
   const [binanceAccount, setBinanceAccount] = useState(null)
   const [binanceLoading, setBinanceLoading] = useState(false)
 
-  // Bootstrap account on mount
+  // Bootstrap account on mount — auto-detect active environment so we always
+  // follow whichever account (TESTNET or MAINNET) is currently receiving trades.
   useEffect(() => {
-    const env = import.meta.env.VITE_DEFAULT_ENVIRONMENT ?? 'TESTNET'
-    ledgerApi.bootstrap(env)
-      .then((data) => {
-        return ledgerApi.getAccount(data.accountId)
-      })
+    ledgerApi.getActiveEnvironment()
+      .then(({ environment }) => environment)
+      .catch(() => import.meta.env.VITE_DEFAULT_ENVIRONMENT ?? 'TESTNET')
+      .then((env) => ledgerApi.bootstrap(env))
+      .then((data) => ledgerApi.getAccount(data.accountId))
       .then(setAccount)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))

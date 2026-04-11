@@ -32,6 +32,13 @@ async function json(res) {
 }
 
 export const ledgerApi = {
+  // GET the environment of the most recently active trading session.
+  // Used on startup so the UI bootstraps the correct TESTNET/MAINNET account
+  // instead of hardcoding a default.
+  getActiveEnvironment() {
+    return fetch(`${BASE}/api/ledger/active-environment`).then(json)
+  },
+
   // Bootstrap / get-or-create account for environment
   bootstrap(environment = 'TESTNET', baseCurrency = 'USDT') {
     const params = new URLSearchParams({ environment, baseCurrency })

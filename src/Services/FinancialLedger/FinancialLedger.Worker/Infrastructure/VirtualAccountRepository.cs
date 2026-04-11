@@ -62,6 +62,31 @@ public sealed class VirtualAccountRepository
             new { BaseCurrency = baseCurrency });
     }
 
+    /// <summary>
+    /// Returns the full account record (including environment) for the account that has
+    /// the most recently started active session. Used to auto-detect the active trading
+    /// environment so the UI can bootstrap the correct account without hardcoding TESTNET/MAINNET.
+    /// </summary>
+    public async Task<VirtualAccountDto?> GetMostRecentActiveAccountWithEnvironmentAsync(string baseCurrency = "USDT")
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        return await connection.QuerySingleOrDefaultAsync<VirtualAccountDto>(
+            """
+            SELECT
+                va.id AS Id,
+                va.environment AS Environment,
+                va.base_currency AS BaseCurrency,
+                va.created_at AS CreatedAt
+            FROM virtual_accounts va
+            JOIN test_sessions ts ON ts.account_id = va.id
+            WHERE va.base_currency = @BaseCurrency
+              AND ts.status = 'ACTIVE'
+            ORDER BY ts.start_time DESC
+            LIMIT 1
+            """,
+            new { BaseCurrency = baseCurrency });
+    }
+
     public async Task<VirtualAccountDto?> GetAccountAsync(Guid accountId)
     {
         await using var connection = new NpgsqlConnection(_connectionString);
