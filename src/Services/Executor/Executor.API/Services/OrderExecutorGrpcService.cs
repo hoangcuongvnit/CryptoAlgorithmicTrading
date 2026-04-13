@@ -179,12 +179,17 @@ public sealed class OrderExecutorGrpcService : OrderExecutorService.OrderExecuto
 
         if (orderRequest.Side == OrderSide.Buy)
         {
-            var buyBudget = await _buyBudgetGuard.ValidateAsync(orderRequest, amountValidation.EffectivePrice, context.CancellationToken);
+            var buyBudget = await _buyBudgetGuard.ValidateAsync(orderRequest, amountValidation.EffectivePrice, amountValidation.MinOrderAmount, context.CancellationToken);
             if (!buyBudget.Passed)
             {
                 _metrics.RecordOrderRejected(orderRequest.Symbol, buyBudget.ErrorMessage);
                 orderResult = BuildFailureResult(orderRequest.Symbol, buyBudget.ErrorMessage, buyBudget.ErrorCode);
                 return await PersistAndReplyAsync(request, orderRequest, orderResult, context.CancellationToken, stopwatch);
+            }
+
+            if (buyBudget.AdjustedQuantity.HasValue)
+            {
+                orderRequest = orderRequest with { Quantity = buyBudget.AdjustedQuantity.Value };
             }
         }
 

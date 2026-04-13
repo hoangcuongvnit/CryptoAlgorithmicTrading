@@ -128,7 +128,7 @@ public sealed class OrderExecutionService
 
         if (orderRequest.Side == OrderSide.Buy)
         {
-            var buyBudget = await _buyBudgetGuard.ValidateAsync(orderRequest, amountValidation.EffectivePrice, ct);
+            var buyBudget = await _buyBudgetGuard.ValidateAsync(orderRequest, amountValidation.EffectivePrice, amountValidation.MinOrderAmount, ct);
             if (!buyBudget.Passed)
             {
                 return new OrderResult
@@ -143,6 +143,11 @@ public sealed class OrderExecutionService
                     IsTestnetTrade = _binanceSettings.UseTestnet,
                     SessionId = orderRequest.SessionId
                 };
+            }
+
+            if (buyBudget.AdjustedQuantity.HasValue)
+            {
+                orderRequest = orderRequest with { Quantity = buyBudget.AdjustedQuantity.Value };
             }
         }
 

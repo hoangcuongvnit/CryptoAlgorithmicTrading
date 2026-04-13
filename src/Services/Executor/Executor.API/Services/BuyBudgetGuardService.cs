@@ -11,7 +11,8 @@ public sealed record BuyBudgetGuardResult(
     decimal RequiredCash,
     decimal AvailableCash,
     string Source,
-    DateTime? SnapshotUpdatedAtUtc);
+    DateTime? SnapshotUpdatedAtUtc,
+    decimal? AdjustedQuantity = null);
 
 public sealed class BuyBudgetGuardService
 {
@@ -30,7 +31,7 @@ public sealed class BuyBudgetGuardService
         _logger = logger;
     }
 
-    public async Task<BuyBudgetGuardResult> ValidateAsync(OrderRequest orderRequest, decimal effectivePrice, CancellationToken ct)
+    public async Task<BuyBudgetGuardResult> ValidateAsync(OrderRequest orderRequest, decimal effectivePrice, decimal minOrderAmount, CancellationToken ct)
     {
         if (orderRequest.Side != OrderSide.Buy)
         {
@@ -79,9 +80,24 @@ public sealed class BuyBudgetGuardService
 
         if (availableCash + 0.00000001m < requiredCash)
         {
-            var errorMessage = $"Buy blocked: required cash {requiredCash:F8} exceeds available cash {availableCash:F8} (source={source}).";
-            _logger.LogWarning(errorMessage);
-            return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.InsufficientCashBalance, requiredCash, availableCash, source, snapshotUpdatedAt);
+            // Try to clamp quantity to what available cash can cover
+            var adjustedQuantity = Math.Floor(availableCash / effectivePrice * 1e8m) / 1e8m;
+            var adjustedNotional = adjustedQuantity * effectivePrice;
+
+            if (adjustedQuantity <= 0m || adjustedNotional < minOrderAmount)
+            {
+                var errorMessage = $"Buy blocked: available cash {availableCash:F8} (source={source}) is below minimum order amount {minOrderAmount:F8} for {orderRequest.Symbol}.";
+                _logger.LogWarning("Buy blocked for {Symbol}: available cash {AvailableCash:F8} (source={Source}) is below minimum order amount {MinOrderAmount:F8}.",
+                    orderRequest.Symbol, availableCash, source, minOrderAmount);
+                return new BuyBudgetGuardResult(false, errorMessage, TradingErrorCode.InsufficientCashBalance, requiredCash, availableCash, source, snapshotUpdatedAt);
+            }
+
+            _logger.LogWarning(
+                "Buy quantity adjusted for {Symbol}: {Original} → {Adjusted} (notional {OriginalNotional:F2} → {AdjustedNotional:F2} USDT, available cash {AvailableCash:F2}, source={Source}).",
+                orderRequest.Symbol, orderRequest.Quantity, adjustedQuantity,
+                requiredCash, adjustedNotional, availableCash, source);
+
+            return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, adjustedNotional, availableCash, source, snapshotUpdatedAt, adjustedQuantity);
         }
 
         return new BuyBudgetGuardResult(true, string.Empty, TradingErrorCode.None, requiredCash, availableCash, source, snapshotUpdatedAt);
